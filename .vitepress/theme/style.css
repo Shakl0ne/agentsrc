@@ -1,0 +1,16 @@
+/* Center hero content when no image */
+.VPHero .main {
+  text-align: center !important;
+}
+
+.VPHero .name,
+.VPHero .text,
+.VPHero .tagline {
+  margin-left: auto !important;
+  margin-right: auto !important;
+  text-align: center !important;
+}
+
+.VPHero .actions {
+  justify-content: center !important;
+}

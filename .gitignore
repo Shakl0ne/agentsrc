@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+.vitepress/dist/
+.vitepress/cache/
+.vitepress/.cache/
+
+# OS / Editor
+.DS_Store
+*.log
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Playwright / tmp
+.playwright-mcp/
+tmp/
+
+# Local env
+.env
+.env.local
