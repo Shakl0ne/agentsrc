@@ -12,9 +12,9 @@ export default withMermaid(defineConfig({
     plugins: [
       giscusPlugin({
         repo: 'Shakl0ne/agentsrc',
-        repoId: 'REPO_ID_PLACEHOLDER',
-        category: 'Comments',
-        categoryId: 'CATEGORY_ID_PLACEHOLDER',
+        repoId: 'R_kgDOTfEJCA',
+        category: 'Announcements',
+        categoryId: 'DIC_kwDOTfEJCM4DBpmq',
         mapping: 'pathname',
         inputPosition: 'top',
         reactionsEnabled: true,
