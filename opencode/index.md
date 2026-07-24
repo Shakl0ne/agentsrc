@@ -14,12 +14,12 @@ title: OpenCode 源码精读
 
 | # | 文章 | 类型 | 字数 |
 |---|---|------|------|
-| 1 | [整体架构源码精读：5 万行源码全景](/opencode/01-overview) | 源码解析 | ~10,000 字 |
-| 2 | [主循环 runLoop 源码精读](/opencode/02-runloop) | 源码解析 | ~12,000 字 |
-| 3 | [工具系统源码精读：20+ 内置工具设计](/opencode/03-tools) | 源码解析 | ~12,000 字 |
-| 4 | [上下文压缩源码精读：Compact 2 级机制](/opencode/04-compact) | 源码解析 | ~12,000 字 |
-| 5 | [Agent 系统源码精读：SubAgent 与 Claude Code 对比](/opencode/05-agents) | 源码解析 | ~12,000 字 |
-| 6 | [上下文架构源码精读：5 层上下文注入](/opencode/06-context) | 源码解析 | ~11,000 字 |
+| 1 | [整体架构：5 万行源码全景](/opencode/01-overview) | 源码解析 | ~7,000 字 |
+| 2 | [主循环 runLoop](/opencode/02-runloop) | 源码解析 | ~15,000 字 |
+| 3 | [工具系统：20+ 内置工具设计](/opencode/03-tools) | 源码解析 | ~15,000 字 |
+| 4 | [上下文压缩：Compact 2 级机制](/opencode/04-compact) | 源码解析 | ~14,000 字 |
+| 5 | [Agent 系统：SubAgent 与 Claude Code 对比](/opencode/05-agents) | 源码解析 | ~13,000 字 |
+| 6 | [上下文架构：5 层上下文注入](/opencode/06-context) | 源码解析 | ~13,000 字 |
 
 ## 关于系列
 

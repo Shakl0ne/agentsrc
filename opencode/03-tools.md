@@ -1,8 +1,8 @@
 ---
-title: OpenCode 工具系统源码精读：18+ 内置工具设计
+title: OpenCode 工具系统：18+ 内置工具设计
 ---
 
-# OpenCode 工具系统源码精读：18+ 内置工具设计
+# OpenCode 工具系统：18+ 内置工具设计
 
 最近不少朋友在写自己的 AI Agent，跟我说同一个困扰：**工具系统怎么设计才能既灵活又安全？**
 
@@ -16,7 +16,7 @@ title: OpenCode 工具系统源码精读：18+ 内置工具设计
 今天这篇就想带你从源码视角，把 OpenCode 的工具系统彻底讲明白。目标是让你看完能同时 get 三个问题：
 
 - 第一，**Tool.Def 接口设计**——一个工具从定义到执行的全流程
-- 第二，**Edit 引擎的 10 种匹配策略**——为什么编辑文件这么难，OpenCode 怎么解决
+- 第二，**Edit 引擎的 9 种匹配策略**——为什么编辑文件这么难，OpenCode 怎么解决
 - 第三，**Permission 系统**——ask/allow/deny 三态怎么用，doom_loop 怎么防
 
 后面我会按由浅入深的顺序，一个个讲清楚。最后还会和 Claude Code 的工具系统做一次对比，让你看清两种设计哲学的取舍。
@@ -134,7 +134,7 @@ export function define<
 **保险 1：参数校验**
 
 ```ts
-// src/session/tool.ts:109-127
+// src/tool/tool.ts:109-127
 const decode = Schema.decodeUnknownEffect(toolInfo.parameters)
 // ...
 const decoded = yield* decode(args).pipe(
@@ -168,7 +168,7 @@ export class InvalidArgumentsError extends Schema.TaggedErrorClass<InvalidArgume
 **保险 2：输出截断**
 
 ```ts
-// src/session/tool.ts:129-143
+// src/tool/tool.ts:129-143
 const truncated = yield* truncate.output(result.output, {}, agent)
 return {
   ...result,
@@ -196,7 +196,7 @@ OpenCode 的 `src/tool/` 目录下有 18 个核心工具。我先用一张表过
 | 工具 | 文件 | 一句话说明 |
 |------|------|-----------|
 | `apply_patch` | apply_patch.ts | 对 GPT 非-oss/4 模型用 patch 格式做精确文件修改 |
-| `edit` | edit.ts | **10 种匹配策略**的智能编辑引擎 |
+| `edit` | edit.ts | **9 种匹配策略**的智能编辑引擎 |
 | `glob` | glob.ts | 用 glob 模式快速发现文件路径 |
 | `grep` | grep.ts | 用 Ripgrep 做正则内容搜索 |
 | `lsp` | lsp.ts | 调用 LSP 获取诊断、补全、语义信息 |
@@ -315,7 +315,7 @@ function output(sessionID: SessionID, text: string) {
 }
 ```
 
-详细的 Agent 系统解析见：[OpenCode Agent 系统源码精读：SubAgent 与 Claude Code 对比](/opencode/05-agents)
+详细的 Agent 系统解析见：[OpenCode Agent 系统：SubAgent 与 Claude Code 对比](/opencode/05-agents)
 
 ### 3.5 聚焦 3：Edit —— 最复杂的工具
 
@@ -450,7 +450,7 @@ export function replace(content: string, oldString: string, newString: string, r
 
 ### 4.5 BlockAnchorReplacer：最复杂的策略
 
-策略 3 `BlockAnchorReplacer` 是最复杂的（133 行代码），它的工作原理：
+策略 3 `BlockAnchorReplacer` 是最复杂的（134 行代码），它的工作原理：
 
 1. 要求 `oldString` 至少 3 行
 2. 用**首行**和**末行**作为锚点在文件中定位候选块
@@ -789,6 +789,9 @@ if (
 yield* permission.ask({
   permission: "doom_loop",
   patterns: [value.name],
+  always: [value.name],
+  sessionID: ctx.assistantMessage.sessionID,
+  metadata: { tool: value.name, input },
   ruleset: agent.permission,
 })
 ```
@@ -892,9 +895,9 @@ const output = Effect.fn("Truncate.output")(function* (text, options = {}, agent
 | **工具数量** | ~30+ | 18 个核心 |
 | **工具定义方式** | Zod Schema | Effect Schema |
 | **参数校验** | Zod parse | `Schema.decodeUnknownEffect`（编译缓存） |
-| **Edit 策略** | 不公开（推测有 fuzzy 匹配） | 9 种 Replacer 渐进式决策树 |
+| **Edit 策略** | 精确字符串替换（old_string → new_string） | 9 种 Replacer 渐进式决策树 |
 | **输出截断** | 单条 > 50K 字符写磁盘 + 2KB 预览 | 双限制（2000 行 + 50KB）+ LLM 指引 |
-| **权限系统** | PreToolUse hooks（外部） | ask/allow/deny 三态 + 通配符匹配 |
+| **权限系统** | 内置规则（allow/deny）+ PreToolUse hooks（外部扩展） | ask/allow/deny 三态 + 通配符匹配 |
 | **Doom Loop 检测** | ❌ 无（社区强烈要求） | ✅ 连续 3 次同参数触发 ask |
 | **External Directory** | 有类似机制 | 显式 `external_directory` 权限 |
 | **自定义工具** | 通过 MCP | 文件加载 + Plugin 注册 |
@@ -905,10 +908,10 @@ const output = Effect.fn("Truncate.output")(function* (text, options = {}, agent
 
 **关键差异**：
 
-1. **OpenCode 有 Doom Loop 检测，CC 没有**——这是 OpenCode 的工程亮点，CC 社区在 GitHub Issue #30150 强烈要求添加
-2. **Edit 策略的可见性**——OpenCode 的 9 种 Replacer 决策树是开源的，CC 的匹配算法不公开
-3. **工具路由**——OpenCode 按模型选择 edit/apply_patch，CC 没有这种设计（推测是因为 CC 只支持 Claude）
-4. **Permission 集成度**——OpenCode 把 Doom Loop 检测、External Directory 都集成进 Permission 系统，CC 用独立的 hooks 机制
+1. **OpenCode 有 Doom Loop 检测，CC 没有**——这是 OpenCode 的工程亮点，CC 社区强烈要求添加
+2. **Edit 策略的丰富度**——OpenCode 的 9 种 Replacer 渐进式决策树应对空白/缩进/转义等各种不一致；CC 用精确字符串替换，仅做引号归一化，策略更简单
+3. **工具路由**——OpenCode 按模型选择 edit/apply_patch，CC 没有这种设计（因为 CC 只支持 Claude）
+4. **Permission 集成度**——OpenCode 把 Doom Loop 检测、External Directory 都集成进 Permission 系统；CC 用内置规则 + 独立的 hooks 机制
 
 
 
@@ -928,10 +931,6 @@ const output = Effect.fn("Truncate.output")(function* (text, options = {}, agent
 
 每一块拆开看都不是啥复杂技术，但组合在一起，就成了一个既能灵活扩展、又能安全可控的工具系统。
 
-更难得的是，OpenCode 用 675 行 tool.ts + registry.ts + 711 行 edit.ts + 312 行 permission 实现了 Claude Code 用更多代码（含 hooks 系统、独立工具）才实现的事——**简化的代价是放弃了 PreToolUse hooks 的灵活性**，但换来的是**统一的权限模型和内置 Doom Loop 检测**。
+更难得的是，OpenCode 用 656 行 tool.ts + registry.ts + 711 行 edit.ts + 312 行 permission 实现了 Claude Code 用更多代码（含 hooks 系统、独立工具）才实现的事——**简化的代价是放弃了 PreToolUse hooks 的灵活性**，但换来的是**统一的权限模型和内置 Doom Loop 检测**。
 
 今天分享就到这里，我们下篇见！
-
-> 上一篇：[OpenCode 主循环 runLoop 源码精读](/opencode/02-runloop)
-> 
-> 下一篇：[OpenCode 上下文压缩源码精读：Compact 2 级机制](/opencode/04-compact)

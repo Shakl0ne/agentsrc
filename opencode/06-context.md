@@ -1,8 +1,8 @@
 ---
-title: OpenCode 上下文架构源码精读：5 层上下文注入
+title: OpenCode 上下文架构：5 层上下文注入
 ---
 
-# OpenCode 上下文架构源码精读：5 层上下文注入
+# OpenCode 上下文架构：5 层上下文注入
 
 最近不少朋友在自建 AI Agent，被一个问题反复折磨：**Agent 怎么记住上下文？**
 
@@ -30,21 +30,39 @@ OpenCode 的上下文注入到 LLM 请求有两条路径：
 - **System Prompt**（每次请求的 system message）
 - **Messages**（对话历史 + 动态注入）
 
-按持久性和注入方式，可以分成 5 层：
+按持久性和注入方式，可以分成 5 层，全貌如下：
 
 ```mermaid
-flowchart TB
-    classDef tier fill:#0f1a2e,color:#e0e0e0
+flowchart LR
+    classDef prompt fill:#1a3a5c,color:#e0e0e0,stroke:#4a7ab5
+    classDef msg fill:#3a1a5c,color:#e0e0e0,stroke:#7a4ab5
+    classDef runtime fill:#1a4a3c,color:#e0e0e0,stroke:#4a9a7a,stroke-dasharray:5 3
 
-    L1["第1层: System Prompt"]
-    L2["第2层: Instruction 指令文件"]
-    L3["第3层: Skill 技能描述"]
-    L4["第4层: Reference 引用 + Reminders"]
-    L5["第5层: 对话上下文 Messages"]
+    subgraph A["System Prompt（📖 每次都读取）"]
+        SP1["Provider Prompt<br/>anthropic.txt / beast.txt …"]:::prompt
+        SP2["&lt;env&gt; 环境<br/>工作目录/平台/日期"]:::prompt
+        SP3["AGENTS.md<br/>CLAUDE.md"]:::prompt
+        SP4["Skill 描述<br/>name + description"]:::prompt
+    end
 
-    L1 --> L2 --> L3 --> L4 --> L5
+    subgraph B["Messages（对话历史 + 动态上下文）"]
+        M1["@Reference<br/>git clone / local"]:::msg
+        M2["Reminders<br/>PLAN_MODE / SWITCH"]:::msg
+        M3["对话消息<br/>SQLite 50条分页"]:::msg
+        M4["Read 注入<br/>instruction.resolve"]:::msg
+    end
 
-    class L1,L2,L3,L4,L5 tier
+    subgraph C["底层支撑"]
+        B1["InstanceState<br/>+ ScopedCache"]:::runtime
+        B2["filterCompacted<br/>消息重排"]:::runtime
+        B3["Compaction 2级<br/>Prune → Compact"]:::runtime
+    end
+
+    SP1 & SP2 & SP3 & SP4 --> LLM["LLM"]
+    M1 & M2 & M3 & M4 --> LLM
+    B2 -.-> M3
+    B3 -.-> M3
+    B1 -.-> SP2 & SP3
 ```
 
 | 层次 | 持久性 | 机制 | 存储 |
@@ -386,7 +404,7 @@ Session.messages() — 分页查询，一次 50 条，拼装成 MessageV2.WithPa
 ### 6.4 消息过滤：filterCompacted
 
 ```ts
-// src/session/message-v2.ts:1014-1065
+// src/session/message-v2.ts:1071-
 export function filterCompacted(msgs: Iterable<WithParts>) {
   // 从最新消息向前遍历 → 遇到有 tail_start_id 的 compaction 时记录 retain 目标
   // → 到达 retain 目标时停止收集 → 反向（恢复时间顺序）
@@ -406,7 +424,7 @@ export function filterCompacted(msgs: Iterable<WithParts>) {
 
 ### 6.5 上下文压缩：Compact 2 级机制
 
-详细的 Compact 机制见：[OpenCode 上下文压缩源码精读：Compact 2 级机制](/opencode/04-compact)
+详细的 Compact 机制见：[OpenCode 上下文压缩：Compact 2 级机制](/opencode/04-compact)
 
 简单回顾：
 
@@ -499,58 +517,7 @@ const state = InstanceState.make(() => {
 
 
 
-## 八、总图：OpenCode 上下文注入的 Memraid
-
-下面这张图把 5 层 + 底层机制一次看全：
-
-```mermaid
-flowchart TB
-    classDef prompt fill:#1a3a5c,color:#e0e0e0,stroke:#4a7ab5
-    classDef msg fill:#3a1a5c,color:#e0e0e0,stroke:#7a4ab5
-    classDef runtime fill:#1a4a3c,color:#e0e0e0,stroke:#4a9a7a
-
-    subgraph "System Prompt（每次请求都读取 📖）"
-        SP1["Provider 指令<br/>anthropic.txt / gpt.txt / ..."]:::prompt
-        SP2["环境信息<br/>&lt;env&gt;工作目录 · 平台 · 日期&lt;/env&gt;"]:::prompt
-        SP3["指令文件<br/>AGENTS.md / CLAUDE.md"]:::prompt
-        SP4["Skill 描述清单<br/>name + description"]:::prompt
-    end
-
-    subgraph "Messages（对话历史 + 动态上下文）"
-        M1["Reference 引用<br/>git clone 缓存 / 本地目录"]:::msg
-        M2["Reminders<br/>PLAN_MODE / BUILD_SWITCH"]:::msg
-        M3["对话消息数组<br/>SQLite → 50条分页加载"]:::msg
-        M4["Read 动态指令注入<br/>instruction.resolve()"]:::msg
-    end
-
-    subgraph "底层机制"
-        B1["InstanceState + ScopedCache<br/>工作目录级别单例 / 中间结果复用"]:::runtime
-        B2["filterCompacted 重排<br/>压缩后消息顺序重组"]:::runtime
-        B3["Compact 2 级<br/>Prune（标记）→ Compact（LLM 摘要）"]:::runtime
-    end
-
-    SP1 --> |system message| LLM["LLM"]
-    SP2 --> |system message| LLM
-    SP3 --> |system message| LLM
-    SP4 --> |system message| LLM
-    M1 --> |user msg part| LLM
-    M2 --> |user msg part| LLM
-    M3 --> |user + assistant| LLM
-    M4 --> |tool result| LLM
-    B2 -.-> |影响| M3
-    B3 -.-> |影响| M3
-    B1 -.-> |支撑| SP2
-    B1 -.-> |支撑| SP3
-```
-
-**读图要点**：
-
-- **上区（System Prompt）**：每次请求都完整发送到 LLM，持久性强，注入成本固定
-- **中区（Messages）**：随对话动态增长，持久化在 SQLite，compaction 控制上下文窗口
-- **下区（底层机制）**：InstanceState 保障工作目录级别状态复用；filterCompacted 和 Compact 2 级一起管理对话历史的增长和展示顺序
-- 标注 📖 = 每次都读取，未标注 = 按需或条件性加载
-
-## 九、Prompt Caching 优化
+## 八、Prompt Caching 优化
 
 OpenCode 的上下文架构在多个维度自然地完成了 Prompt Caching 优化——即使用户不主动配置，以下设计也在减少每次 LLM 请求中"新增"的 token 量：
 
@@ -577,7 +544,7 @@ Compaction 默认保留最近 2 轮对话 verbatim，再加上 compaction summar
 这些优化不是独立实现的 cache 层，而是上下文架构本身设计的结果——system prompt 稳定、tail 保留、prune 截断、compact 精简，**每一步都在自然地减少冗余 token 传输**。
 
 
-## 十、为什么不用向量数据库？
+## 九、为什么不用向量数据库？
 
 这是这篇文章最关键的问题。
 
@@ -662,7 +629,7 @@ LLM 是个强大的推理引擎，它能理解代码、能规划搜索策略、�
 
 ![RAG vs LLM 自主搜索](/images/opencode/article-06-rag.png)
 
-## 十一、OpenCode vs Claude Code：上下文架构对比
+## 十、OpenCode vs Claude Code：上下文架构对比
 
 上图已经揭示了两个框架的核心差异——Claude Code 有独立的记忆层（memdir），OpenCode 则完全用上下文装配替代了记忆系统。下面是完整的维度对比：
 
@@ -678,7 +645,7 @@ LLM 是个强大的推理引擎，它能理解代码、能规划搜索策略、�
 | **引用系统** | 无 | 有（Reference，git/local 自动 clone） |
 | **Compact 机制** | 4-5 级（snip → microcompact → collapse → autocompact） | 2 级（prune → compact） |
 | **Prune 方式** | Microcompact（cache_edits / 直接改内容） | Prune（标记 compacted 时间戳，数据不删） |
-| **Compact Agent** | 通用 agent + NO_TOOLS_PREAMBLE | 专用 compaction agent（hidden + deny all） |
+| **Compact Agent** | 内置专用 agent（工具白名单限制） | 专用 compaction agent（hidden + deny all） |
 | **摘要格式** | 9 段（CC 专用） | 9 段（Goal/Progress/Decisions/Next Steps/Critical Context/Relevant Files） |
 | **摘要更新** | 每次从对话历史重新生成 | 锚定摘要（`<previous-summary>` 增量更新） |
 | **Tail 保留** | 固定 token 数（3-5 个 tool results + 40K） | 可配置 tail_turns + preserve_recent_tokens |
@@ -689,7 +656,7 @@ LLM 是个强大的推理引擎，它能理解代码、能规划搜索策略、�
 | **Doom Loop** | 无专门检测 | 同一 tool+args 连续 3 次触发 ask |
 | **配置方式** | env + settings | opencode.json(c) + env |
 
-### 11.1 关键差异点
+### 10.1 关键差异点
 
 **1. Provider 抽象：OpenCode 跨厂商，CC 锁定 Anthropic**
 
@@ -747,7 +714,3 @@ LLM 是个强大的推理引擎，给它好用的工具（Grep/Glob/Read），�
 **这是 Agent 工程的核心信条**，也是 OpenCode 整个设计的灵魂。
 
 今天分享就到这里，我们下篇见！
-
-> 上一篇：[OpenCode Agent 系统源码精读：SubAgent 与 Claude Code 对比](/opencode/05-agents)
->
-> 下一篇：待定

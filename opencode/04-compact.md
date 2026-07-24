@@ -1,8 +1,8 @@
 ---
-title: OpenCode 上下文压缩源码精读：Compact 2 级机制
+title: OpenCode 上下文压缩：Compact 2 级机制
 ---
 
-# OpenCode 上下文压缩源码精读：Compact 2 级机制
+# OpenCode 上下文压缩：Compact 2 级机制
 
 最近不少朋友跟我聊 AI Agent，发现一个共同现象：**只要上下文一长，Agent 就开始变笨**。问它前面定过的设计，它说不记得；让它接着改某个文件，它把上一次的修改给覆盖了；更有甚者，跑着跑着直接报 `context overflow` 崩了。
 
@@ -258,7 +258,7 @@ const create = Effect.fn("SessionCompaction.create")(function* (input) {
 
 ### 3.2 process：真正执行压缩的核心
 
-`process()` 是最长的一个函数（240 多行），干 5 件事：
+`process()` 是最长的一个函数（275 行），干 5 件事：
 
 ```ts
 // compaction.ts:344
@@ -676,7 +676,7 @@ const modelMessages = yield* MessageV2.toModelMessagesEffect(msgs, model, {
 ### 7.1 重排逻辑
 
 ```ts
-// message-v2.ts:1014-1065
+// message-v2.ts:1014-1037
 export function filterCompacted(msgs: Iterable<WithParts>) {
   const result = [] as WithParts[]
   const completed = new Set<string>()
@@ -837,12 +837,12 @@ OpenCode 的 2 级设计有一个**意外的好处**——它不依赖 Anthropic
 | **压缩后行为** | Continuation message + 重读最近 5 个文件 | 重放最后一条用户消息（reactive）/ 合成 continue（proactive） |
 | **Post-compact 恢复** | 自动重读文件 + skills + plan 状态 | 仅重放用户消息 |
 | **Reactive 路径** | 413 错误后保留最后 4 条消息重试 | ContextOverflowError → 重放用户消息 |
-| **缓存感知** | 深度 Prompt Cache 集成（双路径） | 无专门缓存优化 |
-| **阻塞限制** | ~88.5% 时主动阻塞 API 请求 | 无明确阻塞限制 |
+| **缓存感知** | 深度 Prompt Cache 集成（双路径：cache_control + cache_edits） | 有 prompt cache（`cache: "auto"`），无 cache_edits（Anthropic 专有） |
+| **阻塞限制** | ~98.5% 时主动阻塞 API 请求（effectiveWindow - 3K） | 无明确阻塞限制 |
 | **Circuit Breaker** | 3 次连续失败后停止 | 无明显 circuit breaker |
 | **手动触发** | `/compact [instructions]`，可自定义焦点 | `summarize` HTTP API + `auto: false` |
 | **操作可逆性** | 不可逆（占位符替换 / 摘要替代） | **部分可逆**（timestamp-based hiding，数据在 DB） |
-| **源码规模** | ~3,960 行（5 个核心文件） | ~639 行（compaction.ts） + 32 行（overflow.ts） |
+| **源码规模** | ~3,960 行（11 个文件） | ~639 行（compaction.ts） + 32 行（overflow.ts） |
 | **跨模型厂商** | ❌ 依赖 Anthropic cache_edits | ✅ 不依赖厂商特定 API |
 
 **看完这张表，你应该能 get 到**：
@@ -869,8 +869,6 @@ OpenCode 的 2 级设计有一个**意外的好处**——它不依赖 Anthropic
 
 每一块拆开看都不是啥复杂技术，但组合在一起，就成了一个能在 200K 上下文压力下稳定运行的工业级压缩系统。
 
-更难得的是，OpenCode 用 639 行 TypeScript 干了 Claude Code 3960 行才干的事——**简化的代价是放弃了 Prompt Cache 优化和 cache_edits API**，但换来的是**跨厂商兼容**和**代码可维护性**。这种「**少即是多**」的工程哲学，值得每一个做 Agent 系统的朋友深思。
+更难得的是，OpenCode 用 639 行 TypeScript 干了 Claude Code 3960 行才干的事——**简化的代价是放弃了 cache_edits API（Anthropic 专有的服务端缓存删除机制）**，但换来的是**跨厂商兼容**和**代码可维护性**。这种「**少即是多**」的工程哲学，值得每一个做 Agent 系统的朋友深思。
 
 今天分享就到这里，我们下篇见！
-
-> 下一篇：[OpenCode Agent 系统源码精读：SubAgent 与 Claude Code 对比](/opencode/05-agents)

@@ -1,8 +1,8 @@
 ---
-title: OpenCode 整体架构源码精读：5 万行源码全景
+title: OpenCode 整体架构：近 10 万行源码全景
 ---
 
-# OpenCode 整体架构源码精读：5 万行 TypeScript 源码全景
+# OpenCode 整体架构：近 10 万行 TypeScript 源码全景
 
 <img src="/images/opencode/article-01-hero.png" alt="OpenCode 整体架构" style="width:100%; border-radius:8px; margin:1rem 0;">
 
@@ -46,7 +46,6 @@ OpenCode 是一个开源的 AI Agent CLI 工具，定位和 Claude Code 类似�
 | **模型厂商** | 仅 Claude | ✅ 8 家（Anthropic/OpenAI/Gemini/Codex/Trinity/Kimi/...） |
 | **运行时** | Bun | Bun + Effect-TS |
 | **持久化** | JSONL 文件 | SQLite + Drizzle ORM |
-| **价格** | $20/月（Pro） | 免费开源自部署 |
 
 **OpenCode 的核心价值**：
 
@@ -116,12 +115,12 @@ Core 包只有 ~12K 行，但定义了所有关键类型：
 | 文件 | 行数 | 作用 |
 |------|------|------|
 | `agent.ts` | 147 | AgentV2 类型（ID/Mode/Info/Interface/Service） |
-| `session.ts` | — | Session 类型 |
-| `model.ts` | — | Model 类型 |
+| `session.ts` | 13 | Session 类型 |
+| `model.ts` | 116 | Model 类型 |
 | `plugin.ts` | 191 | Plugin Hook 规范（7 种 hook） |
 | `permission.ts` | 45 | Permission 核心评估引擎 |
-| `provider.ts` | — | Provider 抽象 |
-| `schema.ts` | — | 基础 ID 类型 |
+| `provider.ts` | 120 | Provider 抽象 |
+| `schema.ts` | 112 | 基础 ID 类型 |
 
 Core 包的代码量小，但定义了所有「**契约**」——实现层必须遵守这些接口。
 
@@ -146,7 +145,7 @@ Opencode 包有 ~87K 行，是真正的实现：
 | `src/server/` | HTTP 服务器 |
 | `src/snapshot/` | 快照系统 |
 
-整个 `src/opencode/` 目录有 51 个子目录，覆盖了一个完整 Agent 系统的所有方面。
+整个 `packages/opencode/src/` 目录有 42 个子目录，覆盖了一个完整 Agent 系统的所有方面。
 
 ### 2.4 技术栈
 
@@ -215,7 +214,7 @@ export function provider(model: Provider.Model) {
 不仅是 prompt，连工具都按模型路由：
 
 ```ts
-// src/tool/registry.ts:317-328
+// src/tool/registry.ts:322-325
 const usePatch =
   input.modelID.includes("gpt-") && 
   !input.modelID.includes("oss") && 
@@ -235,7 +234,7 @@ OpenCode 支持两种 LLM 运行时：
 | **Native Runtime** | `OPENCODE_EXPERIMENTAL_NATIVE_LLM=true` + OpenAI/Anthropic | `src/session/llm/native-runtime.ts` |
 | **AI SDK**（默认） | 默认 | `src/session/llm/ai-sdk.ts` |
 
-Native Runtime 让 OpenCode 自己控制工具执行时机，AI SDK 让它支持任意 provider。详细对比见：[OpenCode 主循环 runLoop 源码精读](/opencode/02-runloop)
+Native Runtime 让 OpenCode 自己控制工具执行时机，AI SDK 让它支持任意 provider。详细对比见：[OpenCode 主循环 runLoop](/opencode/02-runloop)
 
 
 
@@ -271,6 +270,8 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/v2
 | `MCP.Service` | MCP 集成 |
 | `Server.Service` | HTTP 服务器 |
 
+> 以上为主要 Service，全仓实际有 ~80 个 `Context.Service` 声明，详见后续章节。
+
 ### 4.2 InstanceState 模式
 
 OpenCode 用 `InstanceState` 实现工作目录级别的单例：
@@ -294,7 +295,7 @@ const state = InstanceState.make(() => {
 
 ## 五、runLoop 7 步预览
 
-这是整个 OpenCode 的核心。runLoop 在 `src/session/prompt.ts:1244`，约 253 行。
+这是整个 OpenCode 的核心。runLoop 在 `src/session/prompt.ts:1244`，约 254 行。
 
 ### 5.1 主循环骨架
 
@@ -315,6 +316,8 @@ const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts> = Ef
   },
 )
 ```
+
+> 上面是骨架预览，完整实现（含 7 步逐行拆解）见：[OpenCode 主循环 runLoop](/opencode/02-runloop)
 
 ### 5.2 7 步流程图
 
@@ -342,7 +345,7 @@ flowchart TD
 
 **4. prune 异步执行**——runLoop 退出后立刻返回响应，prune 在后台默默跑。
 
-详细的 7 步拆解见：[OpenCode 主循环 runLoop 源码精读](/opencode/02-runloop)
+详细的 7 步拆解见：[OpenCode 主循环 runLoop](/opencode/02-runloop)
 
 
 
@@ -359,23 +362,23 @@ flowchart TD
 | **DI 架构** | 显式 State 对象 | ✅ ~40 个 Effect Service |
 | **持久化** | JSONL 文件 | ✅ SQLite + Drizzle ORM |
 | **Provider 抽象** | 无（仅 Claude） | ✅ 8 个 Provider Prompt |
-| **主循环** | `query.ts`（1,730 行单文件） | `prompt.ts` runLoop（253 行）+ 分散模块 |
+| **主循环** | `query.ts`（1,730 行集中编排） | `prompt.ts` runLoop（254 行）+ 分散模块 |
 | **工具循环** | 流式并行（StreamingToolExecutor） | stream 后统一处理 |
-| **Compact 机制** | 4-5 级（snip/microcompact/collapse/autocompact） | 2 级（prune/compact） |
+| **Compact 机制** | 多级（microCompact + apiMicrocompact + autoCompact + compact） | 2 级（prune/compact） |
 | **SubAgent 调度** | coordinator 并行模式 | tasks.pop() 串行 |
 | **Doom Loop 检测** | ❌ 无 | ✅ 连续 3 次同参数触发 ask |
-| **AST 搜索** | ✅ ast_grep_search | ❌ 无（依赖 shell） |
+| **AST 搜索** | ❌ 无（仅 ripgrep） | ❌ 无（仅 ripgrep） |
 | **自动记忆** | ✅ memdir 4 种类型 | ❌ 无 |
-| **Prompt Cache 优化** | ✅ 深度集成 | ❌ 无专门优化 |
+| **Prompt Cache** | ✅ 深度集成（`cache_control` + break detection） | ✅ 默认开启（`cache: "auto"`，跨厂商适配） |
 
 ### 6.1 两种工程哲学
 
 **Claude Code 的哲学**：**深度优化 + 锁定 Anthropic 生态**
 
-- 用 cache_edits 等 Anthropic 内部 API 做性能优化
-- 4-5 级 Compact 策略，前 4 级零 LLM 调用
-- StreamingToolExecutor 流式工具执行，省 40% 时间
-- 1,730 行单文件 query.ts，所有逻辑挤一起
+- 用 `cache_edits` 等 Anthropic 内部 API 做性能优化
+- 5 级 Compact 策略（前 4 级零 LLM 调用）
+- StreamingToolExecutor 流式并行工具执行
+- 1,730 行的 query.ts 集中编排主循环（委托给 StreamingToolExecutor 等模块）
 
 **OpenCode 的哲学**：**通用性 + 简洁**
 
@@ -398,12 +401,12 @@ flowchart TD
 
 | # | 文章 | 重点 |
 |---|------|------|
-| 1 | **OpenCode 整体架构源码精读**（本文） | 全景认知，定调对比 |
-| 2 | [OpenCode 主循环 runLoop 源码精读](/opencode/02-runloop) | 7 步主循环 + Doom Loop + 双运行时 |
-| 3 | [OpenCode 工具系统源码精读](/opencode/03-tools) | Tool.Def + Edit 10 策略 + Permission 三态 |
-| 4 | [OpenCode 上下文压缩源码精读](/opencode/04-compact) | Compact 2 级机制 + 9 段摘要 + 锚定更新 |
-| 5 | [OpenCode Agent 系统源码精读](/opencode/05-agents) | AgentV2 + SubAgent + tasks.pop() vs coordinator |
-| 6 | [OpenCode 上下文架构源码精读](/opencode/06-context) | 5 层上下文注入 + 为什么不用 RAG |
+| 1 | **OpenCode 整体架构**（本文） | 全景认知，定调对比 |
+| 2 | [OpenCode 主循环 runLoop](/opencode/02-runloop) | 7 步主循环 + Doom Loop + 双运行时 |
+| 3 | [OpenCode 工具系统](/opencode/03-tools) | Tool.Def + Edit 10 策略 + Permission 三态 |
+| 4 | [OpenCode 上下文压缩](/opencode/04-compact) | Compact 2 级机制 + 9 段摘要 + 锚定更新 |
+| 5 | [OpenCode Agent 系统](/opencode/05-agents) | AgentV2 + SubAgent + tasks.pop() vs coordinator |
+| 6 | [OpenCode 上下文架构](/opencode/06-context) | 5 层上下文注入 + 为什么不用 RAG |
 
 **建议阅读顺序**：
 
@@ -425,13 +428,11 @@ flowchart TD
 - **runLoop 7 步**：简洁的主循环，工具循环嵌在主循环里
 - **工具系统**：18 个内置工具 + 10 种 Edit 匹配策略 + Permission 三态
 - **Compact 2 级**：Prune + Compact，简洁但够用
-- **Agent 系统**：8 个内置 Agent + 隔离四件套 + tasks.pop() 串行
+- **Agent 系统**：8 个内置 Agent + 隔离机制 + tasks.pop() 串行
 - **5 层上下文注入**：从 System Prompt 到 Messages，金字塔结构
 
-更难得的是，OpenCode 用约 10 万行 TypeScript + Effect-TS 实现了 Claude Code 数十万行才能做到的事——**简化的代价是放弃了部分性能优化（如 Prompt Cache、StreamingToolExecutor）**，但换来的是**跨厂商兼容、代码可读、开源透明**。
+更难得的是，OpenCode 用约 10 万行 TypeScript + Effect-TS 实现了 Claude Code 数十万行才能做到的事——**简化的代价是放弃了流式工具执行（StreamingToolExecutor）**，但换来的是**跨厂商兼容、代码可读、开源透明**。
 
 整个系列的后续文章会逐一深入这些机制，每篇都会和 Claude Code 做硬核对比——这是我们同时拥有两份源码的独家优势。
 
 今天分享就到这里，我们下篇见！
-
-> 下一篇：[OpenCode 主循环 runLoop 源码精读](/opencode/02-runloop)

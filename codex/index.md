@@ -69,6 +69,4 @@ flowchart TD
 | 认证 | API Key | API Key | ChatGPT OAuth + API Key |
 | IDE 集成 | 终端内使用 | 终端内使用 | App Server 守护进程 |
 
----
-
-> 想了解 Claude Code 和 OpenCode？请移步 [OpenCode 源码精读](/opencode/)。
+> 想了解 Claude Code 和 OpenCode？请移步 [OpenCode](/opencode/)。

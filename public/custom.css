@@ -15,6 +15,14 @@
   justify-content: center !important;
 }
 
+.VPHero {
+  padding-bottom: 0 !important;
+}
+
+.VPHome .VPContent .container {
+  margin-top: -2rem;
+}
+
 /* Homepage catalog layout */
 .catalog-grid {
   display: grid;
@@ -89,3 +97,10 @@
 .catalog-cta a:hover {
   opacity: 0.85;
 }
+
+/* Add spacing between article content and Giscus comment section */
+.blog-comment-wrapper {
+  margin-top: 3rem;
+}
+
+

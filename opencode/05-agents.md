@@ -1,8 +1,8 @@
 ---
-title: OpenCode Agent 系统源码精读：SubAgent 与 Claude Code 对比
+title: OpenCode Agent 系统：SubAgent 与 Claude Code 对比
 ---
 
-# OpenCode Agent 系统源码精读：SubAgent 与 Claude Code 对比
+# OpenCode Agent 系统：SubAgent 与 Claude Code 对比
 
 最近不少朋友在面试 AI Agent 岗时被问到一个高频题：「**Multi-Agent 系统怎么设计的？subagent 之间怎么通信、怎么隔离、怎么调度？**」
 
@@ -115,7 +115,7 @@ OpenCode 在 `packages/opencode/src/agent/agent.ts` 第 129-281 行预定义了 
 | **plan** | primary | - | edit: deny 仅允许 `.opencode/plans/*.md` | 无 | 计划模式，禁止编辑 |
 | **general** | subagent | - | todowrite: deny | 无 | 通用子 agent，并行多步骤 |
 | **explore** | subagent | - | 大部分 deny，仅 grep/glob/list/bash/webfetch/websearch/read allow | explore.txt | 代码库探索专家 |
-| **scout** | subagent | - | 同 explore + repo_clone/repo_overview allow | scout.txt | 外部库研究（实验性） |
+| **scout** | subagent | - | 同 explore + repo_clone/repo_overview allow（需 `experimentalScout` feature flag） | scout.txt | 外部库研究（实验性） |
 | **compaction** | primary | ✅ | 全部 deny | compaction.txt | 上下文压缩 |
 | **title** | primary | ✅ | 全部 deny, temperature: 0.5 | title.txt | 标题生成 |
 | **summary** | primary | ✅ | 全部 deny | summary.txt | 对话摘要 |
@@ -173,6 +173,10 @@ plan: {
 
 ### 2.4 explore：只读代码搜索专家
 
+> `scout` agent 同属于探索类，权限结构与 explore 类似（grep/glob/webfetch/websearch/read + repo_clone/repo_overview），但为**实验性功能**，需 `experimentalScout` feature flag 开启。
+
+### 2.4 explore：只读代码搜索专家
+
 ```ts
 // packages/opencode/src/agent/agent.ts:182-204
 explore: {
@@ -227,7 +231,7 @@ compaction: {
 
 为什么禁止工具？防止摘要 agent 拿着工具瞎跑——它的任务就一件事：**总结**。
 
-详细的 compaction 机制见：[OpenCode 上下文压缩源码精读：Compact 2 级机制](/opencode/04-compact)
+详细的 compaction 机制见：[OpenCode 上下文压缩：Compact 2 级机制](/opencode/04-compact)
 
 
 
@@ -633,8 +637,9 @@ while (true) {
 
 **特点**：
 
-- **串行执行**——一次只处理一个 task
-- **同步阻塞**——foreground 模式下，handleSubtask 会阻塞主循环
+- **默认串行**——一次只处理一个 task
+- **同步阻塞**——foreground 模式下，handleSubtask 会阻塞主循环。`taskTool.execute` 在 `runInBackground = false` 时通过 `yield* runTask()` 串行走完才返回（`src/tool/task.ts:267-290`）
+- **Background 模式**——设置 `background: true`（需环境变量 `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`）时，任务通过 `background.start()` fork 到后台 fiber 执行，主循环立即继续 pop 下一个 task，后台结果通过 `inject("completed", text)` 以合成 user message 回注父 session（`src/tool/task.ts:233-258`）
 - **任务来源**——LLM 调用 task 工具时插入 subtask part
 - **简单直接**——没有复杂的调度算法
 
@@ -721,18 +726,18 @@ Coordinator (主 agent)
 |------|-------------|----------|
 | **Agent 类型系统** | 隐式区分（无公开 schema） | AgentV2.Mode (subagent/primary/all) |
 | **内置 Agent** | 不公开 | 8 个（build/plan/general/explore/scout/compaction/title/summary） |
-| **SubAgent 创建** | AsyncLocalStorage + Task tool | TaskTool + handleSubtask |
+| **SubAgent 创建** | AsyncLocalStorage + Agent tool | TaskTool + handleSubtask |
 | **隔离机制** | AsyncLocalStorage + Fork 继承 | 四件套：permission/model/prompt/steps |
 | **权限继承** | Fork 继承精确 prompt 字节 | deriveSubagentSessionPermission（合并 deny） |
 | **调度模型** | coordinator 并行模式 | tasks.pop() 串行 |
 | **并行能力** | 真·并行（AsyncLocalStorage） | Effect fiber（逻辑并行） |
 | **Fork 模式** | 实验功能（继承精确 prompt） | 无 Fork 概念 |
-| **超时策略** | 同步 120s 后自动转后台 | 依赖 steps 限制 |
+| **超时策略** | 同步超时可转后台任务 | 依赖 steps 限制 |
 | **Background 模式** | 异步 subagent + task-notification | BackgroundJob.Service + inject |
 | **结果格式** | task-notification XML | `<task>` XML |
 | **嵌套限制** | Fork 子节点禁止递归 fork | 默认禁止子 agent 再调 task |
 | **模型指定** | 子 agent 用父模型 | 子 agent 可指定专用模型 |
-| **专用 Agent** | 通用 agent + NO_TOOLS_PREAMBLE | 专用 compaction/title/summary agent |
+| **专用 Agent** | 内置专用 agent（工具白名单限制） | 专用 compaction/title/summary agent |
 | **Plan Mode** | 不公开 | plan agent + edit 权限通配符 |
 
 ### 关键差异点
@@ -788,7 +793,3 @@ OpenCode 的 Schema 类型系统让 Agent 配置可以编程化、可验证、�
 **没有更好的，只有更适合的**——这就是工程取舍的魅力。
 
 今天分享就到这里，我们下篇见！
-
-> 上一篇：[OpenCode 工具系统源码精读：18+ 内置工具设计](/opencode/03-tools)
-> 
-> 下一篇：[OpenCode 上下文架构源码精读：5 层上下文注入](/opencode/06-context)

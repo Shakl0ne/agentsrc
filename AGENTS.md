@@ -118,7 +118,16 @@ Dark futuristic vector illustration, circular 7-step process loop diagram with c
 
 > 新增文章配图请沿用此风格体系，确保视觉统一。
 
-## 七、本地开发
+## 七、格式规范
+
+### 分割线使用规则
+
+- **每页至多一条 `---` 分割线**（不含 frontmatter 的开始/结束符）
+- frontmatter 关闭后，正文中只能出现 **0 或 1 条** `---` 水平分割线
+- 禁止正文中出现多条 `---`，避免页面产生多余的视觉断点
+- 本文档（AGENTS.md）属于配置文件，不受此限
+
+## 八、本地开发
 
 ```bash
 cd agentsrc
@@ -128,7 +137,7 @@ npm run dev -- --port 4188
 
 `npm run dev` 带热更新（HMR）：改 `.md`、`.css` 后浏览器自动刷新，**无需手动 build**。
 
-## 八、写后验算（每章必做）
+## 九、写后验算（每章必做）
 
 写后验算包含两层：**源码对齐**（事实正确）和**结构审校**（论述自洽），两轮缺一不可。
 
@@ -160,12 +169,21 @@ npm run dev -- --port 4188
 
 ### 快速机械校验（可选）
 
-如果已经把官方仓库 clone 到 `agent/` 目录，可以用 `grep` 快速验证正文中提到的符号名：
+本仓库已把分析对象的官方源码 clone 到 `career/agent/` 目录（与 `agentsrc/` 同级），验算时直接引用即可：
+
+- `agent/opencode/` —— OpenCode 官方仓库（`packages/core/src/` + `packages/opencode/src/`）
+- `agent/claude-code-main/` —— Claude Code 官方仓库（`src/`）≈ 51 万行 TypeScript，Bun 运行时
+- `agent/codex/` —— Codex 官方仓库
+
+可以用 `grep` 快速验证正文中提到的符号名：
 
 ```bash
 # 示例：检查 OpenCode 文章中提到的函数名是否在源码中找到
 # grep -ri "runLoop" agent/opencode/src/
 # grep -ri "SubAgent" agent/opencode/src/
+# 示例：检查 Claude Code 文章中提到的符号
+# grep -ri "StreamingToolExecutor" agent/claude-code-main/src/
+# grep -ri "cache_edits" agent/claude-code-main/src/
 ```
 
 > 注意：脚本只能告诉你「这个名词在源码里是否存在」，判断不了上下文和逻辑结论是否正确。最核心的"说得对不对"仍需人工走读源码。
@@ -188,7 +206,7 @@ npm run dev -- --port 4188
 - 不要硬套最新版本。文章的核心价值是分析特定版本的实现思路，而不是永远跟最新 commit 对齐。
 - 如果差距过大，考虑 append 一段"版本更新说明"而不是全文重写。
 
-## 九、作者署名规范
+## 十、作者署名规范
 
 本站作者身份信息统一如下，所有文章、首页、配置文件均按此规范使用。
 

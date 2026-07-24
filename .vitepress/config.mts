@@ -6,7 +6,7 @@ export default withMermaid(defineConfig({
   srcExclude: ['agent/**', 'archive/**', 'jds/**', 'tmp/**', 'node_modules/**', '**/verify-*.md'],
   lang: 'zh-CN',
   title: 'Agent Src',
-  description: 'AI Agent 源码精读 — 逐行拆解 OpenCode 与 Codex 的架构设计、实现原理与工程哲学',
+  description: 'AI Agent 源码精读 — 逐行拆解 Claude Code、OpenCode 与 Codex 的架构设计、实现原理与工程哲学',
 
   vite: {
     plugins: [
@@ -56,6 +56,7 @@ export default withMermaid(defineConfig({
       { text: '首页', link: '/' },
       { text: 'OpenCode', link: '/opencode/' },
       { text: 'Codex', link: '/codex/' },
+      { text: 'Claude Code', link: '/claudecode/' },
     ],
 
     sidebar: {
@@ -64,12 +65,12 @@ export default withMermaid(defineConfig({
           text: 'OpenCode 源码精读',
           items: [
             { text: '专栏介绍', link: '/opencode/' },
-            { text: '1. 整体架构源码精读', link: '/opencode/01-overview' },
-            { text: '2. 主循环 runLoop 源码精读', link: '/opencode/02-runloop' },
-            { text: '3. 工具系统源码精读', link: '/opencode/03-tools' },
-            { text: '4. 上下文压缩源码精读', link: '/opencode/04-compact' },
-            { text: '5. Agent 系统源码精读', link: '/opencode/05-agents' },
-            { text: '6. 上下文架构源码精读', link: '/opencode/06-context' },
+            { text: '1. 整体架构', link: '/opencode/01-overview' },
+            { text: '2. 主循环 runLoop', link: '/opencode/02-runloop' },
+            { text: '3. 工具系统', link: '/opencode/03-tools' },
+            { text: '4. 上下文压缩', link: '/opencode/04-compact' },
+            { text: '5. Agent 系统', link: '/opencode/05-agents' },
+            { text: '6. 上下文架构', link: '/opencode/06-context' },
           ],
         },
       ],
@@ -86,6 +87,24 @@ export default withMermaid(defineConfig({
             { text: '6. 工具系统与安全沙箱', link: '/codex/06-tools-sandbox' },
             { text: '7. 模型管理与 Provider 抽象', link: '/codex/07-models' },
             { text: '8. Codex vs CC 设计哲学对比', link: '/codex/08-philosophy' },
+          ],
+        },
+      ],
+      '/claudecode/': [
+        {
+          text: 'Claude Code 源码精读',
+          items: [
+            { text: '专栏介绍', link: '/claudecode/' },
+            { text: '1. 整体架构与启动流程', link: '/claudecode/01-overview' },
+            { text: '2. 主循环：QueryEngine', link: '/claudecode/02-mainloop' },
+            { text: '3. 工具系统：40+ 内置工具', link: '/claudecode/03-tools' },
+            { text: '4. 对话压缩：5 级机制', link: '/claudecode/04-compact' },
+            { text: '5. Agent 系统', link: '/claudecode/05-agents' },
+            { text: '6. 命令系统：70+ 斜杠命令', link: '/claudecode/06-commands' },
+            { text: '7. 权限系统：7 种权限模式', link: '/claudecode/07-permissions' },
+            { text: '8. MCP 集成架构', link: '/claudecode/08-mcp' },
+            { text: '9. Bridge 桥接与远程模式', link: '/claudecode/09-bridge' },
+            { text: '10. 记忆系统与上下文注入', link: '/claudecode/10-memory' },
           ],
         },
       ],

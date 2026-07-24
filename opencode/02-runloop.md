@@ -1,8 +1,8 @@
 ---
-title: OpenCode 主循环 runLoop 源码精读
+title: OpenCode 主循环 runLoop
 ---
 
-# OpenCode 主循环 runLoop 源码精读
+# OpenCode 主循环 runLoop
 
 最近不少朋友跟我聊 AI Agent 实现，发现一个共同现象：**所有人都在用 Claude Code，但没人能说清「按下回车键之后那 100 毫秒内发生了什么」**。问他们 agent 怎么跑工具循环的，答不上来；问上下文什么时候被压缩的，更是一脸懵。
 
@@ -14,7 +14,7 @@ title: OpenCode 主循环 runLoop 源码精读
 - 第二，**工具调用循环**是怎么嵌在主循环里的——为什么不是死循环
 - 第三，**双运行时**（Native vs AI SDK）和 **Doom Loop 检测**这两个隐藏机制是怎么工作的
 
-后面我会按由浅入深的顺序，一步步讲清楚。最后还会和 Claude Code 的 `query.ts`（1,730 行单文件）做一次硬核对比，让你看清两种工程哲学。
+后面我会按由浅入深的顺序，一步步讲清楚。最后还会和 Claude Code 的 `query.ts`（1,730 行集中编排）做一次硬核对比，让你看清两种工程哲学。
 
 
 
@@ -279,7 +279,7 @@ if (
 
 三个分支都用 `continue` 跳过本轮的 LLM 调用——因为 compaction/subtask 本身就是要「插入消息但不调主 LLM」。
 
-详细的 Compact 机制见上一篇：[OpenCode 上下文压缩源码精读：Compact 2 级机制](/opencode/04-compact)
+详细的 Compact 机制见上一篇：[OpenCode 上下文压缩：Compact 2 级机制](/opencode/04-compact)
 
 
 
@@ -547,7 +547,7 @@ const stream: Interface["stream"] = (input) =>
   )
 ```
 
-AI SDK 路径的转换逻辑在 `toLLMEvents()`，它把 16 种 AI SDK 事件映射成 OpenCode 自己的 `LLMEvent` 类型：
+AI SDK 路径的转换逻辑在 `toLLMEvents()`，它把 AI SDK `fullStream` 的 23 种事件映射成 OpenCode 自己的 16 种 `LLMEvent` 类型：
 
 | AI SDK 事件 | LLMEvent |
 |---|---|
@@ -577,7 +577,7 @@ yield* stream.pipe(
 )
 ```
 
-### 8.1 handleEvent 处理 16 种事件
+### 8.1 handleEvent 处理 16 种 LLMEvent
 
 ```ts
 // src/session/processor.ts:305-689
@@ -880,26 +880,23 @@ flowchart TD
 
 | 维度 | Claude Code | OpenCode |
 |------|-------------|----------|
-| **入口文件** | `src/query.ts`（~1,730 行单文件） | `src/session/prompt.ts`（~1,780 行） |
-| **核心函数** | `queryLoop()`（~1,421 行） | `runLoop()`（~253 行） |
+| **入口文件** | `src/query.ts`（~1,730 行集中编排） | `src/session/prompt.ts`（~1,780 行） |
+| **核心函数** | `queryLoop()`（~1,489 行） | `runLoop()`（~254 行） |
 | **编程模式** | `async function*`（AsyncGenerator） | `Effect.gen(function* () {})`（Effect 系统） |
 | **状态管理** | 显式 `State` 对象 + mutable 更新 | 不可变 Effect 服务 + `sessions.updateMessage()` |
 | **一致性保证** | `yieldMissingToolResultBlocks()` 补齐 | Effect 系统天然提供确定性 |
 | **工具循环位置** | 嵌在主循环里（边接收边执行） | 嵌在主循环里（stream 之后统一执行） |
-| **代码量** | 1,730 行（单一巨型文件） | 253 行（runLoop） + processor/tools/llm 分散 |
+| **代码量** | 1,730 行（集中编排，委托给 StreamingToolExecutor 等模块） | 254 行（runLoop） + processor/tools/llm 分散 |
 
 ### 13.2 工具执行模式对比
 
 | 维度 | Claude Code | OpenCode |
 |------|-------------|----------|
 | **执行时机** | 流式执行（`StreamingToolExecutor`） | stream 结束后统一处理 |
-| **并发策略** | 只读工具并行（max 10），写工具串行 | AI SDK 内部决定 |
-| **响应提速** | ~40%（边接收边执行） | 较慢（等完整响应） |
-| **控制精度** | 高（可指定每工具并发度） | 中（依赖 AI SDK 行为） |
+| **并发策略** | concurrent-safe 工具并行（全局 max 10），非并发安全工具串行 | AI SDK 内部决定 |
+| **控制粒度** | 每工具 `isConcurrencySafe(input): boolean` 标志 + 全局并发上限 | 中（依赖 AI SDK 行为） |
 
-CC 的 `StreamingToolExecutor` 是个**工程亮点**——传统的 agent 要等模型把整个响应生成完才执行工具（30s+），CC 可以在工具调用块到达时就开始执行（18s），**省了 40% 时间**。
-
-OpenCode 目前依赖 AI SDK 的内置行为，没有这种流式工具执行。这是个潜在的优化点。
+CC 的 `StreamingToolExecutor` 是个**工程亮点**——传统的 agent 要等模型把整个响应生成完才开始执行工具，CC 可以在工具调用块到达时就开始执行，**显著降低端到端延迟**。OpenCode 目前依赖 AI SDK 的内置行为，没有这种流式工具执行。这是个潜在的优化点。
 
 ### 13.3 退出策略对比
 
@@ -910,7 +907,7 @@ OpenCode 目前依赖 AI SDK 的内置行为，没有这种流式工具执行。
 | **用户中断** | `AbortController` → `yieldMissingToolResultBlocks()` | `Effect.onInterrupt()` → `finalizeInterruptedAssistant` |
 | **Stop Hooks** | 有（外部钩子可阻塞循环继续） | 无 |
 
-CC 的 `Terminal` 类型是个 10 种情况的 discriminated union——意思是它有 10 种不同的「为什么停下了」的原因（end_turn、max_turns、token_budget、user_cancel、error、...）。这种细粒度的退出原因是为外部 SDK consumer 设计的。
+CC 的 `Terminal` 类型是个 10 种情况的 discriminated union——意思是它有 10 种不同的「为什么停下了」的原因（`completed`、`aborted_streaming`、`aborted_tools`、`prompt_too_long`、`model_error`、`max_turns`、`hook_stopped`、`stop_hook_prevented`、`blocking_limit`、`image_error`）。这种细粒度的退出原因是为外部 SDK consumer 设计的。
 
 OpenCode 简单很多——就是 `break`/`continue`，状态都在 Effect 系统里管理。
 
@@ -922,9 +919,9 @@ OpenCode 简单很多——就是 `break`/`continue`，状态都在 Effect 系�
 | **退避策略** | 指数退避 + 25% jitter | 未暴露 |
 | **Model Fallback** | 连续 3 个 529 后切 fallback model | 无自动 fallback |
 | **Persistent 模式** | 无限重试 + 30s heartbeat（CI/CD） | 无 |
-| **错误种类** | 529/429/401/403/408/409/5xx 分级处理 | 主要分 ContextOverflow 和普通错误 |
+| **错误种类** | 529/429/401/403/408/409/5xx 等 9+ 类分级处理 | 主要分 ContextOverflow 和普通错误 |
 
-CC 的 `withRetry()` 是个独立的 `async function*`（约 200 行），处理 7 种错误类型，还有 model fallback、persistent mode、heartbeat 这些企业级特性。**这一块 CC 完胜 OpenCode**。
+CC 的 `withRetry()` 是个独立的 `async function*`（约 348 行），处理 9+ 种错误类型，还有 model fallback、persistent mode、heartbeat 这些企业级特性。**这一块 CC 完胜 OpenCode**。
 
 ### 13.5 Subagent 集成对比
 
@@ -932,12 +929,12 @@ CC 的 `withRetry()` 是个独立的 `async function*`（约 200 行），处理
 |------|-------------|----------|
 | **Subagent 调用** | 同进程 + `AsyncLocalStorage` 隔离 | `handleSubtask` + TaskTool |
 | **Fork 模式** | 实验功能（继承精确 prompt 字节） | 无 Fork 概念 |
-| **并行能力** | 真·并行（AsyncLocalStorage） | Effect fiber（逻辑并行） |
-| **超时策略** | 同步 120s 后自动转 background | 依赖 `agent.steps` 限制 |
+| **并行能力** | 真·并行（AsyncLocalStorage） | `tasks.pop()` 串行调度 |
+| **超时策略** | 同步超时可转后台任务 | 依赖 `agent.steps` 限制 |
 
-CC 的 subagent 体系比 OpenCode 复杂得多——有同步/异步/fork 三种模式，还有 120s 超时自动转后台的策略。OpenCode 走的是更简洁的 `handleSubtask` + `TaskTool` 路径。
+CC 的 subagent 体系比 OpenCode 复杂得多——有同步/异步/fork 三种模式，还有同步转后台的策略。OpenCode 走的是更简洁的 `handleSubtask` + `TaskTool` 路径。
 
-详细的 Agent 系统对比，留到下一篇：[OpenCode Agent 系统源码精读：SubAgent 与 Claude Code 对比](/opencode/05-agents)
+详细的 Agent 系统对比，留到下一篇：[OpenCode Agent 系统：SubAgent 与 Claude Code 对比](/opencode/05-agents)
 
 ### 13.6 持久化对比
 
@@ -969,12 +966,8 @@ CC 的 subagent 体系比 OpenCode 复杂得多——有同步/异步/fork 三�
 
 每一块拆开看都不是啥复杂技术，但组合在一起，就成了一个能稳定跑工具循环、能优雅处理上下文溢出、能防止死循环的工业级主循环。
 
-更难得的是，OpenCode 用 253 行 runLoop + Effect-TS 服务化架构，做到了 Claude Code 1,421 行单文件的事——**简化的代价是放弃了流式工具执行和 model fallback**，但换来的是**代码可读性和跨厂商兼容**。
+更难得的是，OpenCode 用 254 行 runLoop + Effect-TS 服务化架构，做到了 Claude Code 1,489 行 queryLoop 的事——**简化的代价是放弃了流式工具执行和 model fallback**，但换来的是**代码可读性和跨厂商兼容**。
 
-CC 的 `query.ts` 是个 1,730 行的怪兽，所有逻辑挤在一起；OpenCode 把 runLoop / processor / llm / tools 分散到多个文件，每个文件职责单一。这种「**关注点分离**」的工程哲学，值得每一个做 Agent 系统的朋友深思。
+CC 的 `query.ts` 是个 1,730 行的集中编排文件（委托给 StreamingToolExecutor 等模块）；OpenCode 把 runLoop / processor / llm / tools 分散到多个文件，每个文件职责单一。这种「**关注点分离**」的工程哲学，值得每一个做 Agent 系统的朋友深思。
 
 今天分享就到这里，我们下篇见！
-
-> 上一篇：[OpenCode 上下文压缩源码精读：Compact 2 级机制](/opencode/04-compact)
-> 
-> 下一篇：[OpenCode 工具系统源码精读：20+ 内置工具设计](/opencode/03-tools)

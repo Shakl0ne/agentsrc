@@ -21,3 +21,7 @@ tmp/
 # Local env
 .env
 .env.local
+
+# Internal working notes (not for public)
+TODO.md
+*verify-article-*.md
