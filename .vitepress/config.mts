@@ -27,8 +27,8 @@ export default withMermaid(defineConfig({
   },
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
-    ['link', { rel: 'stylesheet', href: '/custom.css' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/agentsrc/logo.svg' }],
+    ['link', { rel: 'stylesheet', href: '/agentsrc/custom.css' }],
     ['meta', { property: 'og:site_name', content: 'Agent Src' }],
     ['meta', { property: 'og:type', content: 'article' }],
     ['meta', { property: 'og:locale', content: 'zh-CN' }],
