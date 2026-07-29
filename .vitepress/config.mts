@@ -4,6 +4,7 @@ import { giscusPlugin } from 'vitepress-plugin-giscus'
 
 export default withMermaid(defineConfig({
   srcExclude: ['agent/**', 'archive/**', 'jds/**', 'tmp/**', 'node_modules/**', '**/verify-*.md', 'AGENTS.md', 'TODO.md'],
+  base: '/agentsrc/',
   lang: 'zh-CN',
   title: 'Agent Src',
   description: 'AI Agent 源码精读 — 逐行拆解 Claude Code、OpenCode 与 Codex 的架构设计、实现原理与工程哲学',
