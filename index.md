@@ -25,7 +25,7 @@ hero:
 | 05 | [Agent 系统](/opencode/05-agents) | SubAgent 隔离调度、tasks.pop() 串行模型、与 CC 对比 | ~13K |
 | 06 | [上下文架构](/opencode/06-context) | 5 层上下文注入、指令文件 + Skill 系统、为什么不用 RAG | ~13K |
 
-<p class="catalog-cta"><a href="/opencode/" class="VPButton medium brand">进入 OpenCode 专栏 →</a></p>
+<p class="catalog-cta"><a href="opencode/" class="VPButton medium brand">进入 OpenCode 专栏 →</a></p>
 
 ### Codex 源码精读
 
@@ -42,7 +42,7 @@ hero:
 | 07 | [模型管理与 Provider 抽象](/codex/07-models) | 4 种 Provider、AuthManager、WebRTC 语音对话 | ~20K |
 | 08 | [Codex vs CC 设计哲学对比](/codex/08-philosophy) | 3 个核心假设、连锁反应、未来启示 | ~14K |
 
-<p class="catalog-cta"><a href="/codex/" class="VPButton medium brand">进入 Codex 专栏 →</a></p>
+<p class="catalog-cta"><a href="codex/" class="VPButton medium brand">进入 Codex 专栏 →</a></p>
 
 ### Claude Code 源码精读
 
@@ -61,7 +61,7 @@ hero:
 | 09 | [Bridge 桥接与远程模式](/claudecode/09-bridge) | IDE 扩展通信、JSON-RPC、Remote Session | ~10K |
 | 10 | [记忆系统与上下文注入](/claudecode/10-memory) | claude.md、memdir 持久化、SessionMemory | ~13K |
 
-<p class="catalog-cta"><a href="/claudecode/" class="VPButton medium brand">进入 Claude Code 专栏 →</a></p>
+<p class="catalog-cta"><a href="claudecode/" class="VPButton medium brand">进入 Claude Code 专栏 →</a></p>
 
 </div>
 
