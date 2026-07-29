@@ -103,7 +103,9 @@ export function getEffectiveContextWindowSize(model: string): number {
 }
 ```
 
-以 200K 上下文窗口为例：有效窗口 = 200K - 20K = 180K。Auto compact 阈值 = 180K - 13K = 167K，约为原始窗口的 83.5%。再加上 warning（167K - 20K = 147K，约 73.5%）和 error（同样 147K）两级预警，构成完整的 `calculateTokenWarningState()`：
+以 200K 上下文窗口为例：有效窗口 = 200K - 20K = 180K。Auto compact 阈值 = 180K - 13K = 167K（以 200K 原始窗口为基准约 83.5%）。再加上 warning（167K - 20K = 147K）和 error（同样 147K）两级预警，构成完整的 `calculateTokenWarningState()`：
+
+> **注意**：阈值是固定 token 差值（13,000 tokens buffer），不是百分比。不同模型上下文窗口不同，百分比会变化。例如 Haiku 也是 200K 窗口时阈值相同约 83.5%；如果未来模型使用 100K 窗口，阈值将是 100K - 20K - 13K = 67K（约 67%）。文章以 Sonnet 200K 为标准上下文窗口讨论。
 
 ```typescript
 // src/services/compact/autoCompact.ts:93-145

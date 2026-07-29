@@ -1,8 +1,8 @@
 ---
-title: Claude Code 命令系统：70+ 斜杠命令与 CLI 参数的设计与实现
+title: Claude Code 命令系统：50+ 斜杠命令与 CLI 参数的设计与实现
 ---
 
-# Claude Code 命令系统：70+ 斜杠命令与 CLI 参数的设计与实现
+# Claude Code 命令系统：50+ 斜杠命令与 CLI 参数的设计与实现
 
 > 从 `/commit` 到 `/ultrareview`：Command 注册、解析、三态执行与插件合并
 

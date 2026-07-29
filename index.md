@@ -44,11 +44,9 @@ hero:
 
 <p class="catalog-cta"><a href="/codex/" class="VPButton medium brand">进入 Codex 专栏 →</a></p>
 
-</div>
-
 ### Claude Code 源码精读
 
-> Anthropic 官方终端编程 Agent 源码深度解析，基于闭源版本反向工程分析，TypeScript + Bun + React + Ink 技术栈
+> Anthropic 官方终端编程 Agent 源码深度解析，基于已泄露源码，TypeScript + Bun + React + Ink 技术栈
 
 | # | 文章 | 主题 | 字数 |
 |---|------|------|------|
@@ -64,5 +62,7 @@ hero:
 | 10 | [记忆系统与上下文注入](/claudecode/10-memory) | claude.md、memdir 持久化、SessionMemory | ~13K |
 
 <p class="catalog-cta"><a href="/claudecode/" class="VPButton medium brand">进入 Claude Code 专栏 →</a></p>
+
+</div>
 
 > 本系列以**源码级精读**为核心目标，不是 "教你用"，而是 "告诉你为什么这么实现"。所有文章均基于真实源码逐行走读，配合架构流程图辅助理解。

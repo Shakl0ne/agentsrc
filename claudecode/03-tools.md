@@ -1,8 +1,8 @@
 ---
-title: Claude Code 工具系统：40+ 内置工具设计
+title: Claude Code 工具系统：50+ 内置工具设计
 ---
 
-# Claude Code 工具系统：40+ 内置工具设计
+# Claude Code 工具系统：50+ 内置工具设计
 
 > Tool 接口、注册机制与内置工具目录的源码级解读
 
@@ -482,7 +482,7 @@ export function getMergedTools(
 
 `ToolSearchTool` 是延迟加载体系的核心。当 `isToolSearchEnabledOptimistic()` 返回 true 时，`ToolSearchTool` 会被加进工具列表，同时其他工具通过 `shouldDefer: true` 标记为延迟加载——它们的 schema 以 `defer_loading: true` 形式提交给 API，模型必须先调 `ToolSearch` 找到它们才能调用。这降低了初始 prompt 的 token 占用。
 
-延迟加载的设计动机是工具数量爆炸。Claude Code 内置工具已经 40+，接入一个 MCP server 后可能再增加几十个。如果所有工具的完整 schema 都塞进初始 prompt，不仅 token 消耗巨大，模型的注意力也会被稀释——它会在一堆不相关的工具 schema 中徘徊。`shouldDefer` 让「冷门工具」退居二线，只在模型主动搜索时才暴露完整 schema。
+延迟加载的设计动机是工具数量爆炸。Claude Code 内置工具已经 50+（含 feature-gated 工具），接入一个 MCP server 后可能再增加几十个。如果所有工具的完整 schema 都塞进初始 prompt，不仅 token 消耗巨大，模型的注意力也会被稀释——它会在一堆不相关的工具 schema 中徘徊。`shouldDefer` 让「冷门工具」退居二线，只在模型主动搜索时才暴露完整 schema。
 
 `alwaysLoad` 是这个机制的反向逃生口。某些工具必须在第一轮就被模型看到——例如 MCP server 通过 `_meta['anthropic/alwaysLoad']` 声明自己的核心工具必须在初始 prompt 里。这种设计让 MCP server 的作者有控制权：他们可以决定哪些工具是「必备」的，哪些是「按需」的。
 
@@ -1001,7 +1001,7 @@ flowchart LR
 | 默认值机制 | `buildTool(ToolDef)` 工厂 | 接口默认实现 | trait 默认方法 |
 | 延迟加载 | `shouldDefer` + ToolSearch | 无 | 无 |
 | 后台执行 | `run_in_background` + LocalShellTask | 无 | 有 |
-| 工具数量 | 40+（含 ant-only） | ~15 | ~10 |
+| 工具数量 | 50+（含 feature-gated） | ~15 | ~10 |
 
 几个关键差异：
 

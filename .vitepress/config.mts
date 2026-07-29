@@ -3,7 +3,7 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 import { giscusPlugin } from 'vitepress-plugin-giscus'
 
 export default withMermaid(defineConfig({
-  srcExclude: ['agent/**', 'archive/**', 'jds/**', 'tmp/**', 'node_modules/**', '**/verify-*.md'],
+  srcExclude: ['agent/**', 'archive/**', 'jds/**', 'tmp/**', 'node_modules/**', '**/verify-*.md', 'AGENTS.md', 'TODO.md'],
   lang: 'zh-CN',
   title: 'Agent Src',
   description: 'AI Agent 源码精读 — 逐行拆解 Claude Code、OpenCode 与 Codex 的架构设计、实现原理与工程哲学',
@@ -46,6 +46,49 @@ export default withMermaid(defineConfig({
       svg[id^="mermaid"] g.node g.label rect {
         stroke: none !important;
       }
+      /* Zoom-in cursor on all mermaid diagrams */
+      .mermaid svg { cursor: zoom-in; }
+    `],
+    ['script', {}, `
+(function(){
+  function init() {
+    document.addEventListener('click', function(e){
+      const svg = e.target.closest('.mermaid svg');
+      if (!svg) return;
+      if (document.querySelector('.mermaid-lightbox')) return;
+
+      const overlay = document.createElement('div');
+      overlay.className = 'mermaid-lightbox';
+
+      const inner = document.createElement('div');
+      inner.className = 'mermaid-lightbox__inner';
+
+      const clone = svg.cloneNode(true);
+      clone.removeAttribute('style');
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'mermaid-lightbox__close';
+      closeBtn.setAttribute('aria-label', 'Close');
+      closeBtn.innerHTML = '\\u00D7';
+
+      function remove() { overlay.remove(); }
+
+      overlay.addEventListener('click', remove);
+      closeBtn.addEventListener('click', function(evt){ evt.stopPropagation(); remove(); });
+      document.addEventListener('keydown', function esc(k){ if (k.key === 'Escape') { remove(); document.removeEventListener('keydown', esc); } });
+
+      inner.appendChild(clone);
+      inner.appendChild(closeBtn);
+      overlay.appendChild(inner);
+      document.body.appendChild(overlay);
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
     `],
   ],
 
@@ -97,10 +140,10 @@ export default withMermaid(defineConfig({
             { text: '专栏介绍', link: '/claudecode/' },
             { text: '1. 整体架构与启动流程', link: '/claudecode/01-overview' },
             { text: '2. 主循环：QueryEngine', link: '/claudecode/02-mainloop' },
-            { text: '3. 工具系统：40+ 内置工具', link: '/claudecode/03-tools' },
+            { text: '3. 工具系统：50+ 内置工具', link: '/claudecode/03-tools' },
             { text: '4. 对话压缩：5 级机制', link: '/claudecode/04-compact' },
             { text: '5. Agent 系统', link: '/claudecode/05-agents' },
-            { text: '6. 命令系统：70+ 斜杠命令', link: '/claudecode/06-commands' },
+            { text: '6. 命令系统：50+ 斜杠命令', link: '/claudecode/06-commands' },
             { text: '7. 权限系统：7 种权限模式', link: '/claudecode/07-permissions' },
             { text: '8. MCP 集成架构', link: '/claudecode/08-mcp' },
             { text: '9. Bridge 桥接与远程模式', link: '/claudecode/09-bridge' },
@@ -148,6 +191,9 @@ export default withMermaid(defineConfig({
     flowchart: {
       useMaxWidth: true,
       curve: 'basis',
+    },
+    sequence: {
+      useMaxWidth: false,
     },
   },
 }))

@@ -64,7 +64,7 @@ flowchart TD
 | 语言 | TypeScript | TypeScript | Rust |
 | 主循环 | continuation-driven polling | while-true loop with Effect-TS | event-driven reactor (channel) |
 | 沙箱 | 无 | 无 | 跨平台沙箱 |
-| 多 Agent | 无原生支持 | task 工具 spawn | 原生 Agent Tree |
+| 多 Agent | 跨进程 Swarm + 同进程 AgentTool | task 工具 spawn | 原生 Agent Tree |
 | 压缩 | 5 级（前 4 级纯数据结构） | 2 级 | 3 种实现（全部调 LLM） |
 | 认证 | API Key | API Key | ChatGPT OAuth + API Key |
 | IDE 集成 | 终端内使用 | 终端内使用 | App Server 守护进程 |

@@ -2,9 +2,14 @@
 
 ## 〇、引言
 
-这是 Codex 系列中最有意思的一篇——因为 **Claude Code 没有原生多 Agent 能力**。
+这是 Codex 系列中最有意思的一篇——因为我写这篇文章时发现 **Claude Code 实际上也有多 Agent 系统**，但和 Codex 的完全不同。
 
-CC 的 Task 工具虽然能 spawn "子 agent"，但本质上是同一个进程内的协程切换，没有真正的 Agent Tree、消息传递、并行执行。Codex 不一样——它有完整的层次化多 Agent 系统，能：
+CC 有两套多 Agent 机制：
+
+1. **AgentTool（同进程）**：通过 `agent` 工具 spawn 子 agent，本质上是同进程内的协程切换
+2. **Swarm（跨进程）**：通过 `create_team` / `spawn_team` 工具创建 teammate，每个 teammate 是一个独立进程（tmux pane 或 iTerm2 split），通过 mailbox 通信
+
+这两套各有局限，但 CC 确实有多 Agent 能力。Codex 不一样——它有从底层设计的完整的层次化多 Agent 系统，能：
 
 - 形成 Agent Tree（父 → 子 → 孙）
 - Agent 之间通过 `AgentPath` 互相寻址
@@ -649,37 +654,55 @@ V2 没有显式的 completion watcher——它依赖 `trigger_turn` 字段控制
 
 ## 九、Codex vs Claude Code：多 Agent 对比
 
-### 9.1 CC 有什么？
+### 9.1 CC 有什么？两套多 Agent 系统
 
-CC 有一个 `Task` 工具，能 spawn "subagent"。但它的限制：
+CC 共有两套多 Agent 机制：
 
-1. **同进程协程**：不是真正的独立 agent，是同一个 Node.js 进程内的协程
-2. **无 Agent Tree**：subagent 不能再 spawn subagent（没有递归）
-3. **无并行**：subagent 是阻塞的，主 agent 必须等它完成
-4. **无消息传递**：subagent 完成后只返回一个 final message，没有持续通信
-5. **无持久化**：subagent 完成后状态丢失
+**AgentTool / Task 工具（同进程）**：通过 `agent` 工具 spawn 子 agent。本质上是同进程内的协程切换，支持递归 spawn、fork、resume、agent 内存快照。
+
+**Swarm（跨进程）**：通过 `create_team` / `spawn_team` 工具创建 teammate。每个 teammate 是一个独立的 Node.js 进程（tmux pane、iTerm2 split 或独立窗口），通过 mailbox 通信、权限桥同步。配套有 `send_message`、`delete_team`、`rename` 等协作工具。
+
+Swarm 与 AgentTool 的对比：
+
+| 维度 | AgentTool（同进程） | Swarm（跨进程） |
+|------|--------------------|----------------|
+| **进程隔离** | ❌ 同进程 | ✅ 独立进程 |
+| **并行执行** | ❌ 阻塞主 agent | ✅ 独立运行 |
+| **消息传递** | ❌ 只有 final message | ✅ send_message + mailbox |
+| **递归 spawn** | ✅ 支持 fork/resume | ❌ 单层（leader→teammate） |
+| **状态持久化** | ✅ agent memory snapshot | ✅ teammate 文件 + reconnection |
+| **通信延迟** | 低（内存） | 中（跨进程 mailbox） |
+
+但总的来说，CC 的多 Agent 系统是**后来添加上去的**（swarm 相关工具命名甚至带 `TeamCreateTool` 等外部工具风格），不像 Codex 是从底层设计的原生能力。
 
 ### 9.2 Codex 多 Agent 的优势
 
-| 能力 | Codex | CC |
-|------|-------|-----|
-| **真正的 Agent Tree** | ✅ 递归 spawn | ❌ 单层 |
-| **独立进程/线程** | ✅ 每个 agent 独立 thread | ❌ 同进程协程 |
-| **并行执行** | ✅ N 个子 agent 同时跑 | ❌ 阻塞等待 |
-| **路径寻址** | ✅ AgentPath | ❌ 无 |
-| **消息传递** | ✅ send_message + followup_task | ❌ 只有 final message |
-| **持久化拓扑** | ✅ SQLite AgentGraphStore | ❌ 无 |
-| **CSV 批处理** | ✅ spawn_agents_on_csv | ❌ 无 |
-| **深度限制** | V1 有限制，V2 无限制 | N/A |
-| **Resume/Fork** | ✅ 支持 | ❌ 不支持 |
+| 能力 | Codex | CC（AgentTool） | CC（Swarm） |
+|------|-------|-----------------|-------------|
+| **真正的 Agent Tree** | ✅ 递归 spawn | ⚠️ 有限递归 | ❌ 单层 |
+| **独立进程/线程** | ✅ 每个 agent 独立 thread | ❌ 同进程 | ✅ 独立进程 |
+| **并行执行** | ✅ N 个子 agent 同时跑 | ❌ 阻塞 | ✅ 独立运行 |
+| **路径寻址** | ✅ AgentPath | ❌ 无 | ❌ 无 |
+| **消息传递** | ✅ send_message + followup_task | ❌ 只有 final message | ✅ send_message + mailbox |
+| **持久化拓扑** | ✅ SQLite AgentGraphStore | ⚠️ agent memory snapshot | ⚠️ teammate 文件 |
+| **CSV 批处理** | ✅ spawn_agents_on_csv | ❌ 无 | ❌ 无 |
+| **深度限制** | V1 有限制，V2 无限制 | N/A | N/A |
+| **Resume/Fork** | ✅ 底层支持 | ✅ fork/resume 工具 | ✅ reconnection |
 
 ### 9.3 设计哲学差异
 
-CC 的 Task 工具反映了一个假设：**单 agent + 工具调用** 足够处理大多数任务。复杂任务通过多轮工具调用解决，不需要多 agent。
+CC 的 Swarm 系统反映了一个假设：**多 Agent 应该通过外部进程协作**（tmux / iTerm2）。每个人是一个自包含的 Claude Code 实例，通过 mailbox 通信。这套设计的好处是天然隔离，坏处是 spawn 成本高、通信延迟大。
 
-Codex 的多 Agent 系统反映了一个不同假设：**复杂任务应该被分解**，每个子任务交给专门的 agent。这反映了 OpenAI 在 agent 编排上的研究投入。
+Codex 的多 Agent 系统反映了一个不同假设：**多 Agent 应该从底层集成**，是框架的核心能力。通过共享的 AgentRegistry、AgentPath 寻址、InterAgentCommunication，agent 之间的协作可以非常高效。
 
-两种哲学各有道理，但**当任务复杂到一定程度时，Codex 的多 Agent 优势就显现出来了**——比如"对 100 个文件分别执行同样的代码 review"，CC 必须串行做 100 次，Codex 可以并行 spawn 100 个 worker agent。
+两种哲学各有道理，落实到具体场景：
+
+| 场景 | CC Swarm 更优 | Codex 更优 |
+|------|--------------|------------|
+| 跨文件批处理（CSV 100 行） | ❌ spawn 成本高 | ✅ spawn_agents_on_csv |
+| 隔离性（一个 agent 崩不影响其他） | ✅ 独立进程 | ⚠️ 同一进程 |
+| 细粒度 agent 通信 | ❌ mailbox 延迟 | ✅ 进程内直接送达 |
+| 轻量级子任务（快速查询） | ⚠️ spawn 一个进程太重 | ✅ spawn thread |
 
 
 ## 十、小结

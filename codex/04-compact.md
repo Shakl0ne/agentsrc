@@ -216,9 +216,11 @@ Err(e @ CodexErr::ContextWindowExceeded) => {
 }
 ```
 
-砍掉最旧的一条再试。注意注释："Trim from the beginning to preserve cache (prefix-based)"——**从最旧的开始砍是为了保留 prefix cache**。
+砍掉最旧的一条再试。注释是 "Trim from the beginning to preserve cache (prefix-based) and keep recent messages intact"。
 
-这反映了一个细节：**Codex 的 prompt cache 是前缀 cache**，越靠前的内容 cache 价值越高。所以砍旧不砍新。
+注意这里的 "preserve cache" 容易被误解。实际上 `history.remove_first_item()` 删除的是 `history.items[0]`——即整个会话历史中最早的那条记录（通常是最初的 developer message / system prompt）。删掉 items[0] 会让整个 prompt 序列改变，**prefix cache 会完全失效**，而不是保留。
+
+注释的真正意图是**保新不保旧**：既然因为 ContextWindowExceeded 必须砍一些内容，那砍掉最早的消息（而不是 compact prompt 或最近的对话）能让 compact 生成的摘要质量更高。后面的 "keep recent messages intact" 才是核心。
 
 ### 2.5 COMPACT_USER_MESSAGE_MAX_TOKENS 限制
 

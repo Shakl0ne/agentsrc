@@ -1,3 +1,57 @@
+/* Sequence diagrams: keep thumbnail in page (width=100%) but clickable for zoom.
+   useMaxWidth:false gives the SVG a fixed pixel width attribute; we override
+   it back to percentage so it fits the content column. Clicking opens the
+   lightbox below with the original size. */
+.mermaid svg[aria-roledescription="sequence"] {
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  cursor: zoom-in;
+}
+
+/* Lightbox overlay: dark background, centred SVG, close on click/ESC */
+.mermaid-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.98);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: auto;
+  padding: 2rem;
+  cursor: zoom-out;
+  animation: fadeIn 0.2s ease;
+}
+.mermaid-lightbox__inner {
+  position: relative;
+}
+.mermaid-lightbox svg {
+  width: auto !important;
+  height: auto !important;
+  max-width: 95vw !important;
+  display: block;
+}
+.mermaid-lightbox__close {
+  position: absolute;
+  top: -1.8rem;
+  right: 0;
+  color: #fff;
+  font-size: 1.6rem;
+  line-height: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.6;
+}
+.mermaid-lightbox__close:hover {
+  opacity: 1;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* Center hero content when no image */
 .VPHero .main {
   text-align: center !important;

@@ -868,7 +868,7 @@ export function useCostSummary(getFpsMetrics?: () => FpsMetrics): void {
 | **错误恢复** | 循环内 7 条 continue 路径 | Effect-TS Channel | supervisor + thread rollback |
 | **Turn 限制** | 可选，默认无上限 | 隐式（Doom Loop 检测） | 可配置 |
 | **流式处理** | Anthropic SSE 事件 | AI SDK stream | OpenAI SSE |
-| **状态传递** | State 对象（跨迭代） | Effect 生成器上下文 | Arc<Session> 共享 |
+| **状态传递** | State 对象（跨迭代） | Effect 生成器上下文 | `Arc<Session>` 共享 |
 | **压缩触发** | 循环内 4 级管线 | 循环内 2 级 | pre-sampling + reactive |
 | **并发安全** | abortController | ensureRunning 包装 | channel 串行化 |
 | **代码规模** | query.ts 1,729 行 | prompt.ts ~1,500 行 | handlers.rs ~900 行 |

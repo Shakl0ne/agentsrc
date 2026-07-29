@@ -23,5 +23,6 @@ tmp/
 .env.local
 
 # Internal working notes (not for public)
+AGENTS.md
 TODO.md
-*verify-article-*.md
+*verify-*.md

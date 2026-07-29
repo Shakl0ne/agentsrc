@@ -291,7 +291,7 @@ TypeScript 的 CC 没有这种约束，所以选择更简单的"全量重发 + �
 
 Diff 机制在多 Agent 场景下尤其有用——子 Agent 继承父 Agent 的部分上下文，但只关心自己关心的段。Codex 可以通过 `SeparateDeveloper` 槽位给特定子 Agent 注入额外指令，不影响其他 Agent 的 cache。
 
-CC 没有原生多 Agent，所以这个优化场景对它意义不大。
+CC 有多 Agent 系统（AgentTool + Swarm 跨进程），但它的上下文组合方式和 Codex 不同——CC 每次 turn 重建完整 system prompt，没有 diff 机制，不支持给特定子 agent 独立注入上下文段。因此这个优化场景对它意义不大。
 
 ### 5.3 一个小细节：环境上下文
 

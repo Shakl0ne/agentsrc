@@ -238,7 +238,7 @@ Codex 在安全上投入很大：它有完整的跨平台沙箱系统。
 - **Exec Policy**（`codex-execpolicy`）：执行策略引擎，控制什么命令可以/不可以执行
 
 
-## 五、多 Agent 编排（一个 CC 没有的能力）
+## 五、多 Agent 编排（Codex vs CC 两种哲学）
 
 Codex 拥有完整的层次化多 Agent 系统：
 
@@ -291,7 +291,7 @@ Rust 的选择让 Codex 天然具备了更激进的沙箱和安全能力（Landl
 |------|-----------|-------------|
 | **主循环模式** | 事件驱动 reactor（channel） | continuation-driven polling |
 | **压缩策略** | 所有压缩调 LLM（3 种实现） | 5 级压缩，前 4 级纯数据结构操作 |
-| **多 Agent** | ✅ 原生支持（Agent 树） | ❌ 无原生支持 |
+| **多 Agent** | ✅ 原生支持（Agent Tree） | ✅ Swarm（跨进程）+ AgentTool（同进程） |
 | **沙箱** | ✅ 完整跨平台沙箱 | ❌ 无沙箱 |
 | **认证** | ChatGPT OAuth + API key | 仅 API key |
 | **IDE 集成** | App Server 守护进程 | 终端内使用 |
