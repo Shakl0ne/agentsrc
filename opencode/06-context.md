@@ -727,7 +727,7 @@ const q = [
   },
   {
     question: 'Read 工具读取文件时自动注入附近的指令文件（instruction.resolve）。这个「按需注入」机制解决了什么问题？',
-    options: ['在 System Prompt 中预先加载全部指令文件以消除运行时注入开销', '在 LLM 读文件时按文件路径关联注入相关指令实现按需精准加载', '通过独立的指令守护进程在后台预热所有指令文件至共享缓存中', '利用文件系统的 Inotify 机制在指令文件变更时主动推送增量到上下文'],
+    options: ['在 System Prompt 中预先加载全部指令文件以消除运行时注入开销', '在 LLM 读文件时按文件路径关联注入相关指令实现按需精准加载', '通过独立的指令守护进程在后台预热所有指令文件至共享缓存中', '利用文件系统的 inotify 机制在指令文件变更时主动推送增量到上下文'],
     correct: 1,
     explanation: '如果把所有指令文件都塞进 system prompt，token 消耗太大。instruction.resolve() 在 LLM 读文件时才注入相关指令——比如读 src/auth/ 下的文件自动注入 src/auth/AGENTS.md。这种按需加载省 token 又保证 LLM 拿到精准上下文。'
   },
