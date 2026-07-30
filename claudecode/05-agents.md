@@ -1006,10 +1006,10 @@ const q = [
   {
     question: 'Claude Code 的四级 agent 机制（AgentTool → Teammate → Coordinator → Swarm）的演进逻辑是什么？',
     options: [
-      '完全独立设计，没有演进关系',
-      '从一次性执行到常驻协作、从隐式派生到显式编排、从单进程到多后端，逐层增强能力与隔离性',
-      '从复杂到简单，逐渐减少功能',
-      '全部同时设计，只是 feature flag 分阶段发布'
+      '每级机制完全独立设计彼此之间不存在演进关系',
+      '从一次性派生到常驻协作再到显式编排与多后端隔离',
+      '从复杂逐步简化功能并不断减少以降低使用门槛',
+      '全部同时设计仅通过 feature flag 分阶段发布'
     ],
     correct: 1,
     explanation: 'AgentTool 提供一次性子 agent（同步/异步）；Teammate 实现进程内常驻 agent，用 AsyncLocalStorage 隔离上下文；Coordinator 把模型变成专职协调者；Swarm 支持多后端（tmux/iTerm2/in-process）的 agent 团队协作。每级解决上一级无法覆盖的痛点。'
@@ -1017,10 +1017,10 @@ const q = [
   {
     question: '为什么 Task 接口只保留了 `kill()` 这一个多态方法？',
     options: [
-      '其他方法从未被多态调用过——spawn 和 render 等方法在各 Task 类型中各自维护，无需通过接口分发',
-      '因为 TypeScript 不支持更多多态方法',
-      '因为 kill 是唯一需要从外部调用的方法',
-      '因为其他方法在设计阶段被移除了'
+      'spawn 与 render 从未被多态各 Task 各自维护实现',
+      'TypeScript 类型限制接口不可承载多态方法',
+      'kill 是唯一需要从外部以统一方式调用的生命周期方法',
+      '其余方法因不满足调用方需求在评审时被集体移除'
     ],
     correct: 0,
     explanation: '源码注释明确说明：spawn/render 等方法从未被多态调用过（在 #22546 中移除）。每个具体 Task 类型（LocalAgentTask、InProcessTeammateTask 等）各自维护 spawn 逻辑与状态结构，Task 接口只在需要按类型找到并 kill 时才被用到。这是一个接口的收敛。'
@@ -1028,10 +1028,10 @@ const q = [
   {
     question: 'Fork subagent 路径显式继承父 agent 的完整工具数组，而非像常规子 agent 那样独立装配，原因是什么？',
     options: [
-      'Fork 路径不需要工具的权限过滤',
-      'Fork 实验的核心目标是在子 agent 中复用父 agent 的 prompt cache，必须用完全相同的工具集保证 cache key 一致',
-      'Fork 路径的子 agent 没有权限模式',
-      '因为 fork 路径强制所有 spawn 走同步'
+      'fork 子 agent 不需要工具级别的权限过滤与检查',
+      'fork 子 agent 复用父 cache 需保持工具集完全一致',
+      'fork 子 agent 缺少独立权限模式无法运行多数工具',
+      'fork 路径强制全部 spawn 为同步因此无需独立工具池'
     ],
     correct: 1,
     explanation: '如果工具定义的序列化与父 agent 不同，API 请求前缀就会 diverge，prompt cache 在第一个不同的工具处失效。fork 实验的核心目标就是让子 agent 复用父的缓存前缀，因此必须用完全相同的工具集。'
@@ -1039,10 +1039,10 @@ const q = [
   {
     question: 'Teammate 的 isIdle 状态与常规子 agent 的终态有什么本质区别？',
     options: [
-      '没有区别，都表示任务已完成',
-      'isIdle 不是终态，Teammate 可以从 idle 被新 prompt 唤醒回到 running，实现常驻通信能力',
-      'isIdle 是 running 的子状态',
-      'isIdle 表示 teammate 已失败'
+      '两种状态语义相同表示子任务已进入终态',
+      'isIdle 非终态可被新 prompt 唤醒回到 running',
+      'isIdle 是 running 的子状态表示任务在持续运转中',
+      'isIdle 表示 teammate 在运行中出现不可逆的失败'
     ],
     correct: 1,
     explanation: '子 agent（local_agent）是一次性的，跑完即终态。Teammate 常驻，它的主循环是 prompt → run → idle → wait → prompt，idle 后可通过 mailbox 接收新消息再次运行。这种设计让 Teammate 能维护长期对话关系。'

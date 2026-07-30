@@ -879,31 +879,31 @@ OpenCode 的 2 级设计有一个**意外的好处**——它不依赖 Anthropic
 const q = [
   {
     question: 'Claude Code 有 5 级压缩（前 4 级零 LLM 调用），OpenCode 只有 2 级（Compact 必调 LLM）。OpenCode 选择 2 级的核心原因是什么？',
-    options: ['OpenCode 团队没想到可以做更多级', 'OpenCode 不需要那么多级', 'CC 的 5 级依赖 Anthropic 的 cache_edits API 等专有特性，OpenCode 为了跨厂商兼容性无法依赖这些，选择简单直接的 2 级设计', '2 级比 5 级压缩效果更好'],
+    options: ['CC 的 5 级方案已开源验证且 OpenCode 可直接复用', 'OpenCode 选择 2 级为达到垂直行业中最优压缩比', 'CC 多级依赖 Anthropic 专有而 OpenCode 需跨厂商兼容', '2 级设计在上下文利用率上经实测优于 CC 的 5 级方案'],
     correct: 2,
     explanation: 'CC 的 Microcompact 热路径用了 Anthropic 的 cache_edits API（服务端缓存删除机制），只能在 Claude 上享受性能优势。OpenCode 为跨 8 家模型厂商，不依赖任何厂商特定 API，所以选择了 2 级简单设计——Prune（纯数据操作）+ Compact（一定调 LLM）。代价是每次压缩都付 LLM 调用费。'
   },
   {
     question: 'OpenCode 的 Prune 为什么用「时间戳标记（compacted 时间戳）」而不是「物理删除」工具输出？',
-    options: ['物理删除性能更差', '数据仍在 SQLite 里，需要回溯、撤销、审计时都能拿出来——压缩和持久化解耦', '时间戳标记是 Effect-TS 的强制要求', '物理删除会导致数据库锁'],
+    options: ['时间戳标记在批量 compaction 场景下具有更高的标记吞吐量', '物理删除虽节省存储但破坏了审计回溯所需的数据完整性', '物理删除会触发数据库外键级联删除导致意外丢失关联 parts', '时间戳标记在序列化时压缩快照体积上比物理删除效率更高'],
     correct: 1,
     explanation: '这是非常聪明的工程决策——prune 没有删除任何数据，只给 part 的 state.time 字段加 compacted 时间戳。真正的隐藏发生在序列化时，输出变为 "[Old tool result content cleared]"。数据仍在 DB 里，需要回溯审计时都能拿回来。'
   },
   {
     question: '锚定摘要（Anchored Summary）的核心机制是什么？',
-    options: ['每次压缩都从零开始重新生成摘要', '基于上一次的摘要做增量更新——第二次压缩基于摘要 A + 新对话生成 A\'，而不是重新读所有原始对话', '只保留最近对话不生成任何摘要', '把摘要存在文件系统里永久保留'],
+    options: ['每次压缩将全部历史消息重新发给 LLM 以生成最准确的摘要', '每次压缩基于上次摘要增量更新避免重读全部原始对话历史', '压缩仅保留最近 N 轮对话原文并丢弃所有更早的上下文消息', '压缩将摘要持久化至文件系统并在后续轮次中直接读文件复用'],
     correct: 1,
     explanation: '首次压缩从原始对话生成摘要 A，后续压缩不重新读所有原始对话（太贵），而是基于摘要 A + 新对话生成更新后的 A\'。这样每次压缩只需处理「新产生的对话 + 上一次摘要」，省 token 又保证连续。'
   },
   {
     question: '为什么 compact 的 9 段摘要模板要求「Keep every section, even when empty」？',
-    options: ['为了排版美观', '不保留空段会让结构对齐错乱，下次锚定更新时结构对不上会乱套', '这是用户的硬性要求', '空段是为了占位符替换'],
+    options: ['空段以维持卡片布局与排版间距的一致性', '空段保留确保锚定更新时各段按固定索引对齐', '空段满足下游 Markdown 对段数的最低数量要求', '空段使压缩前后消息量一致便于 Token 用量预估'],
     correct: 1,
     explanation: '强制 LLM 显式说 "(none)" 而不是直接删掉空段，这样下次锚定更新时结构对得上，不会乱套。这是个「结构稳定性」的设计——让增量更新可预测。'
   },
   {
     question: 'Prune 的 40K tokens 保护窗口中，为什么 skill 工具的输出被特殊保护（永不修剪）？',
-    options: ['skill 工具输出特别大', 'skill 是「按需加载的指令文件」，一旦 prune 掉下次 LLM 又得重新加载，浪费 token 又可能产生不一致', 'skill 工具没有输出可修剪', 'skill 的输出不占用 token'],
+    options: ['skill 含高频数据剪掉可节省算力', 'skill 按需加载的指令文件剪掉后需要重新加载', 'skill 只读查询输出幂等性强可丢弃', 'skill 输出 Token 低于 PRUNE_MINIMUM 阈值'],
     correct: 1,
     explanation: 'skill 工具输出包含完整的指令内容，是 LLM 按需加载的「工作流定义」。如果被 prune 掉，下次需要时得重新加载，不仅浪费 token 而且可能因上下文变化产生不一致。直接保护掉最稳。'
   }

@@ -1047,10 +1047,10 @@ const q = [
   {
     question: 'Claude Code 在无沙箱的前提下把安全责任放在权限系统上，其核心决策链的设计哲学是什么？',
     options: [
-      'allow 优先，只要一个维度同意就放行',
-      'deny 优先、allow 需要共识——任一维度说 deny 就 deny，要 allow 需要所有维度都不反对',
-      '所有决策交给 AI 分类器',
-      '所有决策交给用户手动确认'
+      '以 allow 为默认策略只要任一维度同意就放行操作',
+      '以 deny 为优先而 allow 需各维度共识任一维度可否决',
+      '完全交由 AI 分类器决策用户全程不参与审批过程',
+      '所有决策退化为用户手动确认不给 AI 放权空间'
     ],
     correct: 1,
     explanation: '决策链中 allow 需要模式、规则、分类器都不反对，而 deny 只需要任意一个维度触发。safetyCheck 和内容级 ask 规则甚至 bypass-immune——即使用户开了 bypass 模式也必须触发确认。这种设计在没有沙箱的情况下仍能保证基本安全。'
@@ -1058,10 +1058,10 @@ const q = [
   {
     question: 'auto 模式的 AI 分类器采用两阶段设计（stage 1 fast + stage 2 thinking），其哲学是什么？',
     options: [
-      'stage 1 偏向放行以加快速度，stage 2 再严格审查',
-      'stage 1 偏向阻止（宁可错杀），stage 2 做二次复核（宽放严收）',
-      'stage 1 和 stage 2 是独立的、无关联的判断',
-      'stage 2 仅用于日志记录'
+      'stage 1 偏向放行求速度而 stage 2 做严格复核',
+      'stage 1 偏向阻止宁可误拦再由 stage 2 二次复核',
+      '两阶段之间完全独立无信息共享与决策依赖关系',
+      'stage 2 纯日志记录用途对实际决策不产生影响'
     ],
     correct: 1,
     explanation: 'stage 1 的 suffix 要求「Err on the side of blocking」，偏向保守阻止；stage 2 要求 review 分类过程确保准确。如果 stage 1 误判为 allow，用户顶多被多打扰一次；但如果 stage 1 误判为 block（实际安全），还有 stage 2 复核纠正。两阶段的偏向互相抵消达到平衡。'
@@ -1069,10 +1069,10 @@ const q = [
   {
     question: 'AI 分类器构建输入时为什么完全丢弃 assistant 的 text block，只保留 tool_use block？',
     options: [
-      'text block 太长了，不利于分类器处理',
-      '对抗性考虑——assistant 文本由模型自己编写，可能被精心构造来说服分类器放行',
-      'text block 不包含对分类有用的信息',
-      'text block 是用户输入，不应参与分类'
+      'text block 长度远超过 tool_use 不利于分类器快速处理',
+      'assistant 文本可被模型精心构造以绕过分类器安全判定',
+      'text block 中的推理内容对工具调用的风险评估没有帮助',
+      'text block 本质是用户输入变体因此不应被分类器审视'
     ],
     correct: 1,
     explanation: '源码注释明确说：assistant 的 text block 是模型自写的，可能被精心构造以影响分类器决策。只保留结构化的 tool_use 调用，把模型的自我辩护排除在外，让分类器只看实际做了什么。'
@@ -1080,10 +1080,10 @@ const q = [
   {
     question: 'denial tracking 的两个计数器（consecutiveDenials 和 totalDenials）分别解决什么问题？',
     options: [
-      'consecutiveDenials 用于日志，totalDenials 用于遥测',
-      'consecutiveDenials 检测连续性拒绝（同一类操作立即停止自动放行），totalDenials 检测整体不满意（整个会话退回到保守模式）',
-      '两者是冗余设计',
-      'totalDenials 用于限制会话长度'
+      'consecutiveDenials 记录日志而 total 上报遥测系统',
+      '连续拒绝检测同类操作抵制而累计拒绝反映整体不满意',
+      '两者互为冗余设计任一阈值触发都能回调退至保守模式',
+      'totalDenials 用于限制单次会话的最大推理轮数'
     ],
     correct: 1,
     explanation: '连续拒绝达 3 次说明这类操作用户不希望 AI 自动做，立即停止自动放行。累计拒绝达 20 次说明用户对 auto 模式整体不满，整个会话退到保守模式。recordSuccess 只重置 successive 不重置 total，因为前者是短期行为模式，后者是长期用户满意度信号。'

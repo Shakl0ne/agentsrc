@@ -978,31 +978,31 @@ CC 的 `query.ts` 是个 1,730 行的集中编排文件（委托给 StreamingToo
 const q = [
   {
     question: 'OpenCode 的工具调用循环为什么嵌在主循环里（通过 finish: \"tool-calls\" 信号让循环继续），而不是做成独立的工具调度循环？',
-    options: ['独立循环性能更差', '因为 compaction、subtask 等任务也要插队进主循环，独立工具循环会导致循环嵌套，状态管理变复杂', 'Effect-TS 不支持单独的工具循环', '独立循环会导致 Deadlock'],
+    options: ['让工具循环脱离主循环以降低单轮循环的耦合度', '将 compaction 纳入统一循环避免调度嵌套爆炸', '为主循环与工具循环分配独立运行时线程各自轮询', '通过事件驱动架构将工具调度委托给消息队列处理'],
     correct: 1,
     explanation: '如果把工具调用做成独立循环，主循环就要变成「循环里嵌套循环」，compaction、subtask 等任务的调度逻辑会散落在两个循环中，状态管理会爆炸。OpenCode 的统一 while(true) 把所有「需要继续跑」的情况都收敛到主循环顶部重新判断。'
   },
   {
     question: 'OpenCode 支持双运行时（Native Runtime 和 AI SDK），默认走 AI SDK。Native Runtime 存在的核心原因是什么？',
-    options: ['Native Runtime 比 AI SDK 更快', 'AI SDK 的 streamText() 内部把工具循环也包了，开发者无法控制工具执行时机；Native Runtime 让 OpenCode 自己控制，更灵活', 'Native Runtime 只是实验性代码，没有实际用途', 'AI SDK 只支持 Anthropic 模型'],
+    options: ['AI SDK 让开发者自定义工具的调度执行策略', 'Native 运行时让框架自主控制工具执行时机与调度', '双运行时同时执行并通过仲裁器选取更可靠结果', 'Native 运行时替代 AI SDK 的流处理与错误恢复管道'],
     correct: 1,
     explanation: 'AI SDK 的 streamText() 内部自动执行工具循环，开发者不知道工具是同步还是异步执行的，调试时不好控制。Native Runtime 让 OpenCode 自己控制工具执行时机，提供更精细的控制。但目前默认走 AI SDK 路径。'
   },
   {
     question: 'runLoop 中退出条件判断的核心逻辑是什么？',
-    options: ['检查 lastAssistant 是否存在', '检查 finish 不是 tool-calls 且没有待处理工具调用——模型说「要调工具」循环就继续，说「我说完了」就退出', '检查 token 数是否超过限制', '检查用户是否按了 Ctrl+C'],
+    options: ['检查本轮 token 消耗是否已超出模型上下文窗口上限', '检查无待处理工具且 finish 不为 tool-calls 时退出', '检查用户输入中是否包含要求立即终止循环的退出指令', '检查最近连续助手响应中是否出现内容完全一致的重复模式'],
     correct: 1,
     explanation: '最关键的条件是 finish 不是 tool-calls 且没有待处理工具调用。模型说「我要调工具」循环继续，说「我说完了」就退出。OpenCode 没有独立的工具调度循环，这两个条件就是天然的工具调度信号。'
   },
   {
     question: 'Doom Loop 检测中用 JSON.stringify 比较参数有一个潜在的设计隐患，是什么？',
-    options: ['JSON.stringify 对 null 会报错', 'JSON.stringify 处理大对象时会栈溢出', 'JSON.stringify 对 key 顺序敏感，相同语义的不同 key 顺序会被判为不同', 'JSON.stringify 不支持嵌套对象'],
+    options: ['JSON.stringify 在键值对数量超过引擎上限时直接截断输出', 'JSON.stringify 对包含循环引用的对象将抛出运行时类型错误', 'JSON.stringify 对键顺序敏感导致语义相同但键序不同误判', 'JSON.stringify 默认忽略值为 null 的键导致参数结构不一致'],
     correct: 2,
     explanation: 'JSON.stringify({a: 1, b: 2}) 和 JSON.stringify({b: 2, a: 1}) 结果不同，但模型可能认为它们是相同调用。实际场景下模型一般保持参数顺序一致，影响不大，但更鲁棒的做法是用深度比较。'
   },
   {
     question: 'Claude Code 有 10 种退出原因（Terminal discriminated union），OpenCode 只有 break/continue。这反映了什么设计差异？',
-    options: ['CC 的代码更复杂，说明质量不如 OpenCode', 'CC 为外部 SDK consumer 设计，需要细粒度退出原因；OpenCode 的 Effect 系统内部已管理状态，不需要显式暴露这么多退出原因', 'CC 的错误处理比 OpenCode 差', 'OpenCode 的 break/continue 没有覆盖所有退出场景'],
+    options: ['CC 十种退出为外部 SDK 消费者服务', 'OpenCode 用 Effect 仅需两类退出信号', 'OpenCode 的 Effect 系统需更多退出信号', '两者退出信号本质等价仅有命名差异'],
     correct: 1,
     explanation: 'CC 的 10 种 Terminal（completed、aborted_streaming、max_turns、hook_stopped 等）是为外部 SDK consumer 设计的，使用者需要知道具体为什么停下。OpenCode 用 Effect 系统管理状态，内部异常通过 TaggedError 传递，主循环只需要 break/continue 两个信号。'
   }

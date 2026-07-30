@@ -825,10 +825,10 @@ const q = [
   {
     question: 'Claude Code 斜杠命令没有使用 Commander.js 进行 REPL 内解析，而是使用极简的按空格切分解析器，这一设计的主要考量是什么？',
     options: [
-      'Commander.js 有性能问题不适合 REPL',
-      '极简解析实现了解耦——命令自己决定如何解释 args，无需每个命令声明 flag schema',
-      '按空格切分是唯一的方式',
-      '为了与 OpenCode 保持一致'
+      'Commander.js 存在性能瓶颈在高频场景下不可接受',
+      '极简空格解析让各命令自治解析参数无需额外声明 flag',
+      '按空格切分为终端斜杠命令解析唯一可行的方式',
+      '为了与 OpenCode 保持一致的交互体验习惯'
     ],
     correct: 1,
     explanation: '斜杠命令的解析就是按空格切分，命令自己决定怎么解释 args 字符串。/mcp 把 args 按空格切成 action target，/compact 把整个 args 当作自定义总结指令。如果用 Commander.js 这种带 flag 解析的框架，每个命令还得声明自己的 flag schema，反而增加维护成本。'
@@ -836,10 +836,10 @@ const q = [
   {
     question: 'Claude Code 的三种命令执行类型（prompt / local / local-jsx）的核心区别是什么？',
     options: [
-      '只是执行速度不同',
-      'prompt 生成提示词交给模型执行、local 同步执行返回文本、local-jsx 渲染交互式 Ink UI，分别对应三种交互模式',
-      'prompt 和 local 一样，local-jsx 是异步的',
-      'local-jsx 只能用于配置管理'
+      '三种类型的区别仅在于执行速度的不同',
+      'prompt 走模型路径而 local 同步执行而 jsx 渲染 UI',
+      'prompt 与 local 语义相同仅 jsx 额外支持异步模式',
+      'local-jsx 是配置管理专用类型其他场景不适用'
     ],
     correct: 1,
     explanation: 'prompt 类型构造提示词后触发模型查询（如 /commit 生成 commit message）；local 类型同步执行返回结果（如 /compact 执行压缩）；local-jsx 渲染交互式终端 UI 并通过 onDone 回调传回结果（如 /mcp 管理面板）。三者的 shouldQuery 标志决定了命令完成后是否触发模型调用。'
@@ -847,10 +847,10 @@ const q = [
   {
     question: '为什么 prompt 类型的 `/commit` 命令声明了 allowedTools 白名单，而 `/review` 没有？',
     options: [
-      '/commit 是为了简化实现，/review 忘记了',
-      '/commit 的提示词模板嵌入了内联 shell 执行语法，需要严格限制模型操作范围；而 review 场景需要模型自由调用 gh 命令、跑测试、查文件',
-      '两个命令的实现不可比',
-      'allowedTools 已废弃，新命令不需要'
+      '/commit 实现顺手添加而 /review 忘记处理了',
+      '/commit 严格限制模型操作范围而 review 可自由调用工具',
+      '两个命令的实现架构完全不同无法进行有意义比较',
+      'allowedTools 声明已废弃新命令不需要关心此字段'
     ],
     correct: 1,
     explanation: '/commit 的 allowedTools 将模型限制在 git add/status/commit 三个动作，配合 alwaysAllowRules 实现无确认执行。/review 没有声明白名单，因为 reviewer 可能需要跑测试、查文件、看日志，限制太死反而妨碍分析。这反映了命令对工具安全的不同需求。'
@@ -858,10 +858,10 @@ const q = [
   {
     question: '命令合并机制中 `uniqBy(\'name\')` 的去重策略导致本地 > 插件 > MCP 的优先级，这种设计的背后考虑是什么？',
     options: [
-      '避免命令列表太长',
-      '保证内置命令不会被同名插件命令遮蔽，用户信任的内置行为不受影响',
-      'MCP 命令优先级最高，因为它们来自官方注册',
-      '插件总是覆盖内置，鼓励使用插件生态'
+      '防止合并后命令列表过长影响终端输入补全的性能',
+      '内置命令作为可信基础不会被同名插件命令意外覆盖遮蔽',
+      'MCP 命令应享有最高优先级因其来自官方渠道注册',
+      '插件应始终覆盖同名内置以激励社区插件生态发展'
     ],
     correct: 1,
     explanation: '合并顺序是 local → plugins → mcp，uniqBy 保留先出现的。如果插件注册了叫 commit 的命令，内置的 /commit 会覆盖它。这是 Claude Code 的优先级策略——内置命令作为可信基础，不会被插件意外破坏。'

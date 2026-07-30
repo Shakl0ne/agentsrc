@@ -443,31 +443,31 @@ flowchart TD
 const q = [
   {
     question: 'OpenCode 用 Effect-TS 做依赖注入（~40 个 Service），而 Claude Code 用显式 State 对象。这两种方式的核心 trade-off 是什么？',
-    options: ['Effect-TS 更简洁但类型不安全，State 对象更安全但冗长', 'Effect-TS 提供声明式依赖注入和类型安全，但学习曲线高；State 对象更易上手但缺少编译期保证', 'Effect-TS 性能更差但可读性更好，State 对象相反', 'Effect-TS 不支持异步，State 对象天然支持异步'],
+    options: ['使用命令式 Promise 以降低异步理解成本', '提供声明式依赖注入与类型安全的 Effect Context', '采用显式全局状态对象以简化运行时状态查询', '依赖装饰器语法实现模块自动装配与依赖检测'],
     correct: 1,
     explanation: 'Effect-TS 的 Context.Service 让依赖声明式可组合，并通过 TypeScript 泛型提供编译期类型安全；但函数式编程范式学习曲线陡峭。CC 的显式 State 对象更接近传统命令式编程，上手简单，但缺少声明式 DI 的类型安全保障。这是「学习成本 vs 工程保障」的取舍。'
   },
   {
     question: 'OpenCode 用 SQLite + Drizzle ORM 做持久化，Claude Code 用 JSONL 文件。这个选择背后的核心设计考虑是什么？',
-    options: ['OpenCode 为了性能，CC 为了可读性', 'OpenCode 选择结构化查询和事务支持，CC 选择简单可读和 append-only 备份', 'SQLite 比 JSONL 快 10 倍以上', 'CC 不支持数据库所以只能用 JSONL'],
+    options: ['选用 JSONL 以追求极致可读性与手动编辑备份便利', '选用 SQLite 以支持结构化查询与事务级一致保障', '选用 PostgreSQL 以提供分布式查询与高并发写入性能', '选用 LevelDB 以追求嵌入式键值存储的高写入吞吐'],
     correct: 1,
     explanation: 'SQLite 提供结构化查询、事务支持和级联删除，适合需要审计和程序化访问的场景。JSONL 是 append-only 的纯文本格式，可直接用文本编辑器查看，备份就是复制文件。这是「可查询性 vs 可读性」的典型取舍。'
   },
   {
     question: 'OpenCode 将代码分为 Core 抽象层（12K 行）和 Opencode 实现层（87K 行）。这种分层设计的主要目的是什么？',
-    options: ['让代码结构看起来更专业', 'Core 定义所有类型和接口契约，实现层遵守这些契约，实现关注点分离', 'Core 是运行时代码，Opencode 是编译时代码', '为了支持多语言开发'],
+    options: ['让静态类型检查在编译期自动推断跨层依赖关系', '由 Core 层定义契约并由 Opencode 层提供实现', '将运行时代码与编译时代码划为两套独立编译单元', '按团队分工将核心逻辑与辅助功能横向拆开'],
     correct: 1,
     explanation: 'Core 包定义 AgentV2、Session、Permission、Provider 等所有关键类型和接口（契约），Opencode 包提供具体实现。这种分层让接口和实现解耦——契约稳定时实现层可独立演进，也方便社区理解哪些是框架核心概念。'
   },
   {
     question: 'OpenCode 支持 8 家模型厂商，为每家准备了不同 system prompt，甚至对工具做了模型路由（GPT 系用 apply_patch，其他用 edit/write）。这反映的是什么设计决策？',
-    options: ['OpenCode 不信任某些模型的能力', '让工具适配模型而不是反过来——不同模型对工具调用格式的偏好不同，需要有针对性适配', 'GPT 的 API 不支持 edit 工具', '这只是历史遗留的临时方案'],
+    options: ['优先确保工具接口规范在各模型之间保持完全一致', '针对模型偏好的工具格式差异进行差异化适配路由', '要求模型统一采用最小公共工具集以减少适配工作量', '通过模型端自动检测并切换自身使用的工具格式'],
     correct: 1,
     explanation: 'OpenCode 的核心理念是「适配模型差异」而不是「强制模型统一」。GPT 系对 patch 格式（统一 diff）理解更好，Claude 系对 oldString+newString 精确替换更在行。这种按模型路由的工程经验，是跨厂商框架必须面对的复杂性。'
   },
   {
     question: 'OpenCode 的 Doom Loop 检测（连续 3 次同参数工具调用触发 ask）为什么用「询问用户」而不是「直接禁止」？',
-    options: ['作者没想到可以直接禁止', '直接禁止实现起来更复杂', '有些合法场景需要重复调用（如轮询 task.list、监控文件变化），直接禁止会破坏这些场景', '询问用户是为了收集训练数据'],
+    options: ['由开发团队在编译期为每个工具预设最大连续调用次数', '将死循环判断逻辑下放到每个工具自身的执行流程中', '在轮询任务状态等合法场景下阻断循环将破坏正常流程', '通过异步超时机制强制终止连续同参数的工具调用序列'],
     correct: 2,
     explanation: '直接禁止虽然简单，但会破坏合法场景（轮询任务状态、监控文件变化等）。询问用户让用户判断「这次是真的卡住了还是正常循环」，既防死循环又不伤合法用途。这是 Permission 系统复用为 Doom Loop 检测的精妙之处。'
   }

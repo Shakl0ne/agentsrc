@@ -395,10 +395,10 @@ const q = [
   {
     question: 'Claude Code 的 CLAUDE.md 加载顺序为什么从 cwd 向上遍历到根目录？',
     options: [
-      '为了兼容 git 的工作方式',
-      '让子目录里的项目指令能覆盖父目录——后出现的优先级更高，模型更关注',
-      '为了减少文件读取次数',
-      '这是 git worktree 的要求'
+      '为兼容 git 从子目录向上遍历仓库根目录工作方式',
+      '子目录指令后出现且优先级更高可覆盖父目录通用指令',
+      '减少文件系统随机读取次数以提升整体加载性能',
+      'git worktree 场景要求从当前目录向上遍历至根'
     ],
     correct: 1,
     explanation: 'getClaudeMds() 按发现顺序拼接所有 CLAUDE.md，后出现的优先级更高。从 cwd 向上走到根目录确保了越靠近当前目录的指令优先级越高。CC 还会对 worktree 场景做去重处理，避免同一份 CLAUDE.md 被加载两次。'
@@ -406,10 +406,10 @@ const q = [
   {
     question: 'Claude Code 的 memdir 按 git root 而非按绝对路径分桶，这一设计解决了什么问题？',
     options: [
-      '简化路径解析逻辑',
-      '同一 git 仓库的所有 worktree 共享同一个 memory 目录，不会因为 worktree 路径不同而分裂记忆',
-      '让不同分支可以分别维护记忆',
-      '避免文件路径过长'
+      '简化底层路径解析复杂度并降低错误概率',
+      '所有 worktree 共享目录可避免因路径差异记忆分裂',
+      '按 git root 分桶后各分支获得独立记忆空间',
+      '避免以长绝对路径为键值以降低文件系统开销'
     ],
     correct: 1,
     explanation: 'getAutoMemBase() 走 findCanonicalGitRoot()，同一 git 仓库的所有 worktree 共享同一个 memory 目录。即使用户在不同 worktree 路径下工作，跨会话记忆仍然一致，不会因为 worktree 路径不同而导致记忆分裂。'
@@ -417,10 +417,10 @@ const q = [
   {
     question: 'SessionMemory 与压缩集成的『零 LLM 调用压缩』是如何实现的？',
     options: [
-      'SessionMemory 不参与压缩流程',
-      '压缩时读取后台异步提取的 session memory 文件而非实时调用 LLM 做摘要——LLM 成本前置到对话后台',
-      'SessionMemory 使用规则匹配代替模型调用',
-      '压缩时跳过 session memory 直接使用原始消息'
+      'SessionMemory 与压缩完全解耦不参与任何压缩流程',
+      '压缩时读取后台提取的 session memory 文件无需实时调 LLM',
+      'SessionMemory 用纯规则匹配完全替代模型做摘要',
+      '压缩引擎跳过 session memory 直接使用原始消息做摘要'
     ],
     correct: 1,
     explanation: 'SessionMemory 在对话后台用 forked agent 定期提取关键信息。压缩触发时，trySessionMemoryCompaction() 直接读取已提取的 session memory 文件，整个压缩过程不产生任何 LLM 调用。这把 LLM 成本从压缩关键路径前置到了对话后台。'
@@ -428,10 +428,10 @@ const q = [
   {
     question: 'AutoDream 的三道闸门（时间/扫描/会话）为什么按从便宜到贵的顺序排列？',
     options: [
-      '时间闸门只读取一个 stat（最便宜），会话闸门需要扫描整个 transcript 目录（最贵），锁要写文件并验证 PID（中等）',
-      '按随机顺序排列',
-      '三闸门同时检查',
-      '先会话闸门，再时间闸门，最后锁闸门'
+      '时间闸门仅读取 stat 而会话闸门需扫描目录锁闸门需要写入和验证',
+      '闸门排列顺序由每次 stop hook 调用时的随机种子决定',
+      '三道闸门在每次 stop hook 触发时被同时并行地执行检查',
+      '先执行最昂贵的会话扫描再执行便宜的时间检查最后写锁'
     ],
     correct: 0,
     explanation: '时间闸门只读取一个文件 stat（毫秒级），扫描闸门需要遍历整个 transcript 目录（秒级），锁闸门需要写文件并验证 PID（加 IO）。设计哲学是「最便宜的先检查」——大多数 stop hook 调用在时间闸门就会 return，成本仅一次 stat。'

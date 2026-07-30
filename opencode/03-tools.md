@@ -941,31 +941,31 @@ const output = Effect.fn("Truncate.output")(function* (text, options = {}, agent
 const q = [
   {
     question: 'Edit 引擎的 9 种 Replacer 按精度从高到低尝试，当某个 Replacer 找到多个匹配时，Edit 引擎会怎么做？',
-    options: ['随机选一个匹配替换', '使用第一个匹配', '跳过这个 Replacer，让下一个精度更低的 Replacer 尝试，直到找到唯一匹配', '直接报错'],
+    options: ['在精确匹配找到多候选时回退到编辑距离最接近的匹配', '在精确匹配找到多候选时将全部候选逐一替换并返回合并结果', '在精确匹配找到多候选时跳过当前策略让下个策略尝试', '在精确匹配找到多候选时要求用户从候选列表中手动选择'],
     correct: 2,
     explanation: '这是 Edit 引擎最聪明的设计——精确匹配找到多个说明 oldString 太短不唯一，更宽松的匹配也找到多个就继续尝试下一个策略，直到有一个策略给出唯一匹配。如果全部多匹配，最后抛出「请提供更多上下文」的错误。'
   },
   {
     question: 'Permission 系统为什么设计成 ask/allow/deny 三态而不是二态？',
-    options: ['三态更炫酷', 'ask 是重要中间状态——有些操作不能直接放行（有风险），也不能一概拒绝（用户可能确实需要），让用户决定最稳妥', 'deny 和 ask 在某些场景下等价', '这是 Effect-TS 的强制要求'],
+    options: ['ask 性能较差实现简单仅用于调试场景', 'ask 为灰色地带用户提供决策而非简单放行拒绝', 'deny 与 ask 行为等价可合并为单一拒绝态', 'allow 与 deny 覆盖全部 ask 增加维护成本'],
     correct: 1,
     explanation: 'ask 的存在是因为很多敏感操作处于「不一定安全也不一定危险」的灰色地带。直接 deny 太粗暴，allow 太危险，「问用户」是最稳妥的中间态。'
   },
   {
     question: 'BlockAnchorReplacer 要求 oldString 至少 3 行，用首尾行作锚点。为什么单一候选时相似度 0% 也接受？',
-    options: ['这是 bug，没有意义', '因为首尾锚点都已唯一匹配，中间内容稍微不一致没关系——agent 写代码不会差得太离谱', '为了通过单元测试', '0% 相似度意味着不匹配，应该拒绝'],
+    options: ['首尾锚点仅作定位标识中间内容相似度仍需达到最低阈值', '首尾锚点已唯一锁定替换范围中间内容差异不影响匹配安全', '首尾锚点匹配后完全依赖 Levenshtein 距离而非相似度阈值', '首尾锚点与中间内容的相似度阈值采用独立的两阶段判据'],
     correct: 1,
     explanation: '如果首尾锚点都唯一匹配，说明 LLM 已精确指出了要替换的块边界。中间行即使有空白或微调差异，只要首尾锚点对得上，替换就是安全的。这是「锚点确认边界后对中间内容宽容」的实用主义。'
   },
   {
     question: '为什么 OpenCode 按模型路由工具（GPT 系用 apply_patch，其他用 edit/write），而 Claude Code 没有这种设计？',
-    options: ['OpenCode 实现有 bug', '因为 CC 只支持 Claude，不需要跨模型适配；OpenCode 要跑 8 家模型，不同模型对工具格式偏好不同', 'CC 的 API 不支持 apply_patch', 'GPT 模型不支持 edit 工具'],
+    options: ['OpenCode 因遗留问题按模型切换而 CC 无此负担', 'CC 仅支持单一模型无需路由而 OpenCode 需适配多模型', 'GPT 架构不支持 edit 所以只能用 apply_patch', 'CC 内部已有同款路由机制未暴露到外部配置中'],
     correct: 1,
     explanation: '这是跨厂商框架必须面对的复杂性。GPT 系模型对 unified patch 格式理解更好，Claude 系对 oldString+newString 精确替换更在行。CC 只支持 Claude，不需要这种路由。'
   },
   {
     question: 'Permission 系统的 evaluate() 用 findLast（最后匹配胜出），而不是 findFirst（最先匹配）。为什么？',
-    options: ['findFirst 性能更差', '让后写的规则优先级更高——用户配置可以覆盖默认配置', 'findLast 是 JavaScript 特有的设计', '双重通配符只能用 findLast 实现'],
+    options: ['使用 findFirst 让默认配置优先级最高且用户配置不易误覆盖', '使用 findLast 让后写入规则的优先级高于先写入的规则', '使用 findFirst 与 findLast 的组合实现配置优先级动态切换', '使用统一优先级排序而非 findFirst 或 findLast 来执行规则'],
     correct: 1,
     explanation: 'findLast 让后添加的规则覆盖前面的规则。用户配置的优先级高，可以覆盖 OpenCode 的默认配置。这是配置覆盖机制的常见设计——最近的配置最有话语权。'
   }

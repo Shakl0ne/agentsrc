@@ -907,10 +907,10 @@ const q = [
   {
     question: 'Claude Code 支持四种面向用户的 MCP 传输层（stdio/SSE/HTTP/WebSocket），选择 stdio 传输层时有一个特殊的进程内优化是什么？',
     options: [
-      'stdio 默认使用 shell 包装所有命令',
-      'Chrome MCP server 和 Computer Use MCP server 被进程内化（InProcessTransport），避免 spawn 子进程吃掉大量内存',
-      '所有 stdio 子进程的 stderr 都直接输出到终端',
-      'stdio 传输层不支持环境变量传递'
+      'stdio 默认通过 shell 前缀包装命令以实现灵活重定向',
+      'Chrome 等重型 server 被进程内化避免大内存子进程开销',
+      '所有 stdio 子进程的 stderr 默认直接输出到终端',
+      'stdio 传输层因安全策略限制而不支持环境变量透传'
     ],
     correct: 1,
     explanation: 'Chrome MCP server 正常 spawn 子进程要吃掉约 325 MB 内存。Claude Code 选择用 InProcessTransport 在主进程内直接跑 server，省掉子进程开销。这是由 feature(\'CHICAGO_MCP\') 灰度门控的优化路径。'
@@ -918,10 +918,10 @@ const q = [
   {
     question: 'MCP 客户端对 SSE 传输层和 HTTP 传输层使用了不同的 fetch 包装策略，原因是什么？',
     options: [
-      '两种传输层使用不同的 HTTP 库',
-      'SSE 的 EventSource 是长连接，套 60 秒超时会直接掐断流；HTTP 是独立请求可安全套超时',
-      'HTTP 传输层不需要超时控制',
-      'SSE 传输层不支持自定义 headers'
+      'SSE 与 HTTP 使用了两种不同的底层客户端库',
+      'EventSource 长连接不能套超时而 HTTP 独立请求可以',
+      'HTTP 基于请求响应模式无需额外的超时控制机制',
+      'SSE 因协议结构限制无法在请求头携带自定义内容'
     ],
     correct: 1,
     explanation: 'SSE 传输层的 eventSourceInit.fetch 故意不套 wrapFetchWithTimeout——EventSource 是长连接，会无限期保持以接收服务端推送的事件，套 60 秒超时会直接掐断流。HTTP 的 fetch 可安全套超时包装，因为每次请求独立。'
@@ -929,10 +929,10 @@ const q = [
   {
     question: 'assembleToolPool 在批量连接 MCP server 前对 local（stdio/sdk）和 remote（sse/http/ws）使用不同的批次大小，除此之外还用了什么优化避免不必要的鉴权探测？',
     options: [
-      '禁用所有未配置的 server',
-      '15 分钟 TTL 的 auth cache，最近返回 401 的 server 被跳过，配合 hasMcpDiscoveryButNoToken 进一步收紧',
-      '每次连接都重新鉴权',
-      '只鉴权一次，后续全部信任'
+      '在批量连接前将未显式配置的 server 标记为禁用',
+      '短 TTL auth cache 跳过鉴权失败 server 避免往返',
+      '确保批量为所有 server 执行完整鉴权以保障安全',
+      '仅鉴权一次此后所有 server 的 token 视为永久有效'
     ],
     correct: 1,
     explanation: '15 分钟 TTL 的 auth cache：最近返回 401 的 server 会被跳过，避免每次会话都做无意义的鉴权探测。hasMcpDiscoveryButNoToken 进一步将曾探测过但用户从未完成授权的 server 也跳过，省掉网络往返。'
@@ -940,10 +940,10 @@ const q = [
   {
     question: '插件与 MCP server 的本质区别是什么？',
     options: [
-      '没有区别，两者是同一个概念',
-      'MCP server 是外部进程，通过 JSON-RPC 通信；插件是运行在 CC 进程内的代码，可以提供 skills、hooks 和 MCP server 配置',
-      '插件比 MCP server 更安全',
-      'MCP server 比插件更强大'
+      '插件和 MCP server 在概念与实现上没有任何本质区别',
+      'MCP server 是外部进程而插件是 CC 进程内的代码提供多种增强能力',
+      '插件运行在 CC 进程内因此比外部 MCP server 具有更高的安全性',
+      'MCP server 可以暴露任意工具因此功能上限远超插件体系'
     ],
     correct: 1,
     explanation: 'MCP server 是外部进程（或远程服务），独立于 CC 运行，通过 JSON-RPC 通信。插件是运行在 CC 进程内的代码，可以提供 skills（命令）、hooks（生命周期钩子）以及 MCP server 配置——插件可以声明 MCP server 配置，但插件本身不是 MCP server。'

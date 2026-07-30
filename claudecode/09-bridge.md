@@ -666,10 +666,10 @@ const q = [
   {
     question: 'Bridge 系统的两种模式（Standalone Bridge 和 REPL Bridge）的核心区别是什么？',
     options: [
-      'Standalone Bridge 不支持权限审批',
-      'Standalone Bridge 是独立守护进程，spawn 子 CLI 进程执行；REPL Bridge 运行在 REPL 进程内部，无需子进程',
-      'REPL Bridge 只支持 v1 传输',
-      'Standalone Bridge 只能用于远程模式'
+      'Standalone Bridge 因安全限制不支持审批',
+      'Bridge 以守护进程 spawn 子进程而 REPL 内嵌',
+      'REPL Bridge 的传输层仅向下兼容 v1',
+      'Standalone Bridge 专为远程模式不支持本地桥接'
     ],
     correct: 1,
     explanation: 'Standalone Bridge 是一个常驻守护进程，轮询拉取工作项，每个工作项 spawn 一个子 CLI 进程（claude --print 模式）。REPL Bridge 运行在 REPL 进程内部，把当前 REPL 会话直接桥接到 claude.ai。两种模式共享消息协议、JWT 刷新、权限回调等基础设施。'
@@ -677,10 +677,10 @@ const q = [
   {
     question: 'Bridge 的 token 刷新为什么 v1 和 v2 走不同路径？',
     options: [
-      'v1 用 WebSocket，v2 用 SSE，传输层不同',
-      'v1 是纯客户端操作（拿新 OAuth token 通过 stdin 发给子进程）；v2 的 JWT 绑定 session_id 和 worker epoch，必须走服务器重派',
-      'v1 不支持 token 刷新',
-      'v2 的刷新速度更快'
+      'v1 基于 WebSocket 而 v2 基于 SSE 致刷新策略不同',
+      'v1 token 可客户端替换而 v2 JWT 需服务端重新派发',
+      'v1 完全不支持 token 刷新需要用户主动重新登录',
+      'v2 的刷新链路更短所以整体速度比 v1 更快'
     ],
     correct: 1,
     explanation: 'v1 刷新走客户端的 stdin 更新 token 即可。v2 的 JWT 绑定 session_id 和 worker epoch，无法客户端侧替换，必须走服务器重派。v2 的每个 token 有明确的 session 绑定和 worker 身份，泄露影响范围更小，但刷新链路更长。'
@@ -688,10 +688,10 @@ const q = [
   {
     question: '消息去重使用 BoundedUUIDSet（环形缓冲区 + Set）而非无限增长的 Set，为什么？',
     options: [
-      'BoundedUUIDSet 查找更快',
-      'Bridge 是长运行进程，跑几天的 standalone bridge 积累大量 UUID 会导致内存泄漏；环形缓冲区容量满时自动淘汰最旧条目',
-      'Set 在 JavaScript 中不支持 UUID 格式',
-      '环形缓冲区是唯一可以 O(1) 操作的数据结构'
+      'BoundedUUIDSet 比原生 Set 具有更高的哈希查找性能',
+      '长运行 Bridge 进程若用无限 Set 会内存泄漏需环形缓冲区自动淘汰',
+      'JavaScript 的原生 Set 数据结构无法直接存储 UUID 格式',
+      '环形缓冲区是唯一能够在 O(1) 复杂度下执行所有操作的数据结构'
     ],
     correct: 1,
     explanation: '选择环形缓冲区而非无限增长的 Set，因为 Bridge 是长运行进程——跑几天的 standalone bridge 会积累大量 UUID，无限 Set 会导致内存泄漏。环形缓冲区容量满时自动淘汰最旧 UUID，且由于消息按时间顺序到达，被淘汰的总是最不可能再被回声的旧 UUID。'
@@ -699,10 +699,10 @@ const q = [
   {
     question: 'Standalone Bridge 的轮询间隔设计体现了什么权衡？',
     options: [
-      '始终 2 秒一次保证低延迟',
-      '始终 10 分钟一次节省资源',
-      '空闲时 2 秒保证用户在 claude.ai 发起会话后快速被接收；满载（活跃会话达上限）时切到 10 分钟，配合心跳保活',
-      '间隔由服务器控制'
+      '始终保持 2 秒一次高频轮询以确保最低的延迟和最佳体验',
+      '始终保持 10 分钟一次低频轮询以最大化节省计算与网络资源',
+      '空闲時 2 秒快速轮询而满载时切换为 10 分钟低频心跳保活',
+      '轮询间隔完全由服务器端通过控制消息动态下发指定'
     ],
     correct: 2,
     explanation: '空闲时 2 秒轮询，保证用户在网页端发起会话后能在 2 秒内被本地 Bridge 接收。满载时切换到 10 分钟轮询配合心跳保活——10 分钟不是随意选择，服务器的 BRIDGE_LAST_POLL_TTL 为 4 小时，10 分钟提供 24 倍裕量。'

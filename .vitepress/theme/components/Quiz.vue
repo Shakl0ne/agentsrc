@@ -1,7 +1,6 @@
 <template>
   <div class="quiz-container">
     <div class="quiz-header">
-      <span class="quiz-icon">🧩</span>
       <h3>本章 Quiz — 核心机制自检</h3>
     </div>
     <div class="quiz-body">
@@ -29,7 +28,7 @@
         <Transition name="quiz-fade">
           <div v-if="answered[qi]" class="quiz-explanation">
             <div class="quiz-result-badge" :class="selected[qi] === q.correct ? 'correct' : 'wrong'">
-              {{ selected[qi] === q.correct ? '✅ 回答正确' : '❌ 回答错误' }}
+              {{ selected[qi] === q.correct ? '回答正确' : '回答错误' }}
             </div>
             <p class="quiz-explanation-text">{{ q.explanation }}</p>
           </div>

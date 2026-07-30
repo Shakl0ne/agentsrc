@@ -320,25 +320,25 @@ CC 有多 Agent 系统（AgentTool + Swarm 跨进程），但它的上下文组�
 const q = [
   {
     question: 'Codex 为什么选择显式 context diffing（增量注入）策略，而不是像 Claude Code 那样每次重发完整 system prompt？',
-    options: ['因为 Codex 的 API 不支持 prompt caching', '主动控制 cache 行为、减少网络传输量、可以 diff API cache 看不到的内容（如 shell info），代价是代码复杂度更高', '显式 diff 比全量重发更简单', '因为 CC 的 API 要求每次发送完整 context'],
+    options: ['Codex 对接的 OpenAI API 不支持服务端 prompt cache 能力', '主动控制 cache 减少传输量代价是代码复杂度更高', '显式 diff 相比全量重发方案实现更简单便利', 'CC 对接的 Anthropic API 强制要求每次发送完整上下文'],
     correct: 1,
     explanation: 'Codex 只发送变更段来最大化 prefix cache 命中率，优点包括主动控制 cache、减少网络传输、diff API 看不到的信息。代价是代码复杂度高（维护 reference_context_item）、某些字段变化需新 turn。CC 选择每次重发完整 system prompt，依赖 API 服务端 cache。'
   },
   {
     question: '为什么 skills 和 plugins 不在 context diff 的字段列表里？',
-    options: ['因为它们从不变化', '这是一个设计权衡——减少 diff 计算复杂度，skills/plugins 列表变化时需发起新 turn', 'API 不支持增量更新 skills', '它们不属于上下文，而是单独管理'],
+    options: ['skills 和 plugins 在会话周期内永远不会发生变化', '为减少 diff 计算复杂度设计为变化时须发起新 turn', '底层模型 API 不支持对 skills 数据段做增量更新机制', 'skills 和 plugins 不属于上下文管理范畴由独立系统管理'],
     correct: 1,
     explanation: 'Codex 的注释表明这是一个明确的权衡：skills 和 plugins 不在 diff 的 6 个字段里，它们一旦注入就保持不变。变化时需重新发起 turn，减少了 diff 计算的复杂度。'
   },
   {
     question: 'reference_context_item 在什么情况下重置为 None，触发下一次全量注入？',
-    options: ['每次 turn 结束后', 'mid-turn compaction 执行后 或 新会话/fork 时', '每 5 分钟自动重置', '用户手动清空缓存时'],
+    options: ['每轮 turn 结束后自动重置为 None 以保持状态一致性', 'mid-turn compaction 执行后或新会话或 fork 子会话时', '经过设定的时间间隔如每五分钟自动执行全量注入刷新', '用户通过 TUI 界面手动执行缓存清空命令时触发'],
     correct: 1,
     explanation: 'reference_context_item 在两种情况下重置：一是 mid-turn compaction 执行时重建 history 使旧 reference 失效；二是新会话或 fork 出来的子会话第一次 turn。compact 后第一次 turn 总是发完整上下文是因为需要新的 baseline。'
   },
   {
     question: 'EnvironmentContext 段包含 subagents 字段，这个设计妙在哪里？',
-    options: ['只是用于显示子 agent 数量', '子 Agent 状态变化通过 diff 机制自然通知父 Agent，不需要额外同步代码', '用于限制子 Agent 数量', '只在调试模式下启用'],
+    options: ['在 TUI 界面显示当前活跃子 Agent 数量统计数据', '子 Agent 状态变化经 diff 机制自动通知父 Agent', '运行时检查子 Agent 数量不超过配置上限值', '调试模式下才收集传递子 Agent 状态信息'],
     correct: 1,
     explanation: '当 spawn 新子 Agent 后，环境上下文中的 subagents 字段变化，自动触发 environment update item。这是一个巧妙的设计——子 Agent 状态变化通过 diff 机制自然地传递给父 Agent，无需额外同步代码。'
   }

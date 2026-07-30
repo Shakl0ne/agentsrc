@@ -437,10 +437,10 @@ const q = [
   {
     question: 'Claude Code 选择 Bun 而非 Node.js 作为运行时，最关键的原因是什么？',
     options: [
-      '启动速度更快',
-      '原生支持 TypeScript 无需转译',
-      '编译期死代码消除（bun:bundle feature()）',
-      '更好的 npm 兼容性'
+      '显著降低启动阶段的进程加载时间开销',
+      '原生执行 TypeScript 省去独立转译步骤',
+      '通过编译期死代码消除实现特性按需裁剪',
+      '在包管理性能方面优于 Node.js 体验'
     ],
     correct: 2,
     explanation: '三个原因都成立，但编译期死代码消除是最关键的——它让 Claude Code 能在同一个代码库维护尚未公开的特性（如 Coordinator、Kairos 等近二十个 feature flag），打包时按 flag 裁剪出不同产物。这是能支撑 51 万行代码规模且灰度策略灵活的工程基础。'
@@ -448,10 +448,10 @@ const q = [
   {
     question: 'Claude Code 分层架构中，`hooks/` 目录的 104 个文件在分层中扮演什么角色？',
     options: [
-      '纯粹属于表现层，负责组件渲染逻辑',
-      '纯粹属于业务逻辑层，负责调用服务层 API',
-      '物理上属基础设施层，运行期跨表现层和业务逻辑层，是跨层胶水',
-      '属于独立的一层，不归入四层架构'
+      '直接归入表现层，仅承担组件渲染职责',
+      '完全属于业务逻辑层，专注编排服务层 API 调用',
+      '物理归入基础设施层，运行期横跨表现层与业务逻辑层',
+      '独立于四层架构之外，自成第五层抽象层次'
     ],
     correct: 2,
     explanation: 'hooks/ 物理上在基础设施层，但运行期绑定在组件树上，既调用业务逻辑层的 QueryEngine，又调用服务层的各种服务，还属于表现层的一部分。它是事实上的跨层胶水，CC 的「Hook 即业务」风格让逻辑天然随 UI 生命周期运行。'
@@ -459,21 +459,21 @@ const q = [
   {
     question: 'Claude Code 启动流程中，`startKeychainPrefetch()` 和 `startMdmRawRead()` 被放在所有 import 之前执行的主要目的是什么？',
     options: [
-      '避免循环依赖',
-      '在模块导入的 CPU 密集阶段并行执行 IO 操作，把等待时间藏进导入时间',
-      '确保钥匙串数据在模块求值前可用',
-      '满足安全合规要求，必须先验证身份再加载模块'
+      '避免模块间循环依赖导致的运行时加载错误',
+      '在导入期并行预热 IO 以将等待藏于 CPU 时间',
+      '确保钥匙串与 MDM 数据在模块求值前全部就绪',
+      '优先验证身份后再加载模块以满足安全合规要求'
     ],
     correct: 1,
     explanation: '这三个副作用在所有 import 之前执行，把「IO 等待」与「CPU 导入」重叠起来。钥匙串读取和 MDM 查询是 IO 等待、天然可并行，而模块导入是 CPU 密集且不可压缩的。等到模块导入完成时，这些 IO 操作通常已就绪，只需轻量 await。'
   },
   {
     question: '对比 Claude Code、OpenCode 和 Codex，Claude Code 最独特的架构特征是？',
-    options: [
-      '采用 React + Ink 渲染终端 UI',
-      'continuation-driven polling 主循环',
-      '内置跨平台沙箱',
-      '使用 Rust 编译型二进制'
+options: [
+      '基于 React 与自研 Ink 实现终端 UI 渲染',
+      '以 continuation polling 驱动主循环',
+      '内建跨平台沙箱以实现默认的文件系统隔离',
+      '使用 Rust 编译原生二进制以追求极致性能'
     ],
     correct: 1,
     explanation: 'Claude Code 的主循环是 continuation-driven polling——循环走向完全由 API 响应内容驱动，模型返回 tool_use 就继续，end_turn 就终止。这与 OpenCode 的显式 7 步循环和 Codex 的 Tokio event loop 形成根本差异。核心原因是 Anthropic 流式 API 天然适合「边收边处理」的模式。'

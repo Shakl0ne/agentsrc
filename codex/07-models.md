@@ -544,25 +544,25 @@ pub enum RealtimeWebrtcEvent {
 const q = [
   {
     question: 'ModelClientSession 为什么是 turn-scoped（每个 turn 创建新 session）的？',
-    options: ['为了简化代码逻辑', '复用 WebSocket 连接、保持 sticky routing（同一 turn 请求路由到同一台后端）、减少重复认证开销', '因为 API 要求每次 turn 都重新认证', '为了实现 load balancing'],
+    options: ['简化 session 的创建与销毁生命周期减少状态管理负担', '复用 WebSocket 连接并保持 sticky routing 且减少认证开销', '底层模型 API 强制要求每次新 turn 携带全新认证凭据', '为在负载均衡场景下实现请求分发提供更细粒度的控制'],
     correct: 1,
     explanation: '每个 turn 创建新 session，但同一 turn 内复用 WebSocket 连接和 sticky routing。这样 mid-turn compact 后重新 sampling 时可以复用连接、保持请求路由到同一台后端机器以获得更稳定的延迟和 cache 命中率。'
   },
   {
     question: 'Sticky routing 中 x-codex-turn-state header 的作用是什么？',
-    options: ['用于用户身份认证', '让 OpenAI 服务端识别"这是同一个 turn 的后续请求"，可以复用服务端状态（如 prefix cache），获得更稳定的延迟和命中率', '用于请求速率限制', '用于跟踪 API 版本'],
+    options: ['作为请求来源用户的身份凭据实现认证与鉴权', '标记同一 turn 内后续请求以复用服务端 prefix cache', '用于后端 API 对客户端请求实施速率限制与配额计算', '跟踪不同版本的 Responses API 以保证请求接口兼容性'],
     correct: 1,
     explanation: '客户端通过显式标记 x-codex-turn-state 告诉服务端"我还在这个 turn 里"。这是个微妙的优化——让服务端知道请求属于同一 turn，从而复用某些服务端状态如 prefix cache。'
   },
   {
     question: '模型切换触发自动 compact 的三个条件分别是什么？为什么用旧模型的上下文做压缩？',
-    options: ['任何模型切换都触发 compact；用旧模型是因为旧模型更快', 'previous_model_limit_reached（token 超新窗口）&& model_changed && old_window > new_window；用旧模型是因为旧模型有更大的上下文窗口，能处理更长的历史，避免压缩自身失败', '只在切到本地模型时触发；用新模型做压缩更准确', '只在手动切换时触发；用哪个模型做压缩都一样'],
+    options: ['任何模型切换均无条件触发 compact 且优先用新模型做压缩', 'token 超新窗口模型变更窗口缩小旧模型保障压缩成功', '仅在切到本地 OSS 模型时触发且由新模型执行压缩更准确', '仅在用户手动切换模型时触发两模型效果无实质差别'],
     correct: 1,
     explanation: '三个条件：当前 token 已超新模型窗口、模型确实切换了、从大窗口切到小窗口。用旧模型（大窗口）做压缩是防御性设计——旧模型能处理更长的历史，如果用新模型（小窗口）做压缩可能连历史都装不下。'
   },
   {
     question: 'Codex 支持 4 种模型 Provider（OpenAI/Bedrock/Ollama/LM Studio）而 Claude Code 只支持 Anthropic，这个差异带来的工程复杂度体现在哪里？',
-    options: ['只是配置项不同，复杂度差不多', '多后端需要 Provider 抽象层（ModelProviderInfo）、模型列表缓存（5 分钟 TTL 磁盘缓存）、认证多样性（OAuth/API key/External/JWT）、模型切换的边界处理（downshift compact）——这些都是 CC 不需要面对的复杂度', '多后端反而更简单因为可以复用代码', 'CC 也支持多后端只是文档没写'],
+    options: ['各 Provider 仅配置项不同整体工程复杂度差异并不大', '多后端带来 Provider 抽象模型缓存及认证多样性等复杂度', '支持多后端因可复用同一套代码设计反而更加简单', 'CC 实际也支持多后端只是官方文档未对外公开说明'],
     correct: 1,
     explanation: '多后端带来一系列连锁工程难题：统一的 Provider 抽象、模型缓存与刷新、多种认证方式、模型切换时的上下文窗口适配（downshift compact）。CC 单一后端深度优化，不需要这些抽象层，迭代更快。'
   }
