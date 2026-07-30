@@ -714,3 +714,42 @@ LLM 是个强大的推理引擎，给它好用的工具（Grep/Glob/Read），�
 **这是 Agent 工程的核心信条**，也是 OpenCode 整个设计的灵魂。
 
 今天分享就到这里，我们下篇见！
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'OpenCode 用 3 个机制替代了向量数据库（RAG），最核心的一个是什么？为什么这个机制比 RAG 更适合 Agent 场景？',
+    options: ['Grep/Glob/Read 让 LLM 自己搜索——LLM 理解代码语义，比 embedding 相似度搜索更精准；且 Grep 是实时搜索，RAG 需要预先 embedding 跟不上代码变化', 'SQLite 存储了所有对话历史', '指令文件系统替代了 RAG', 'filterCompacted 消息重排替代了向量检索'],
+    correct: 0,
+    explanation: 'OpenCode 选择「让 LLM 自己搜索」而不是「预先 embedding 让 RAG 找」。LLM 理解代码的语义，比 embedding 相似度搜索更精准（特别是找函数定义、error 字符串等精确匹配场景）。Grep 实时搜索文件系统，代码永远是最新的，而 RAG 需要预先 embedding，跟不上代码变化。这是 OpenCode 最重要的设计哲学：Agent 的智能应该来自 LLM 本身，而不是基础设施。'
+  },
+  {
+    question: 'Read 工具读取文件时自动注入附近的指令文件（instruction.resolve）。这个「按需注入」机制解决了什么问题？',
+    options: ['省去了用户手动配置指令文件', '避免在 system prompt 里塞所有指令文件（太贵），只在 LLM 实际读文件时注入和那个文件相关的指令——省 token 又精准', '让指令文件只能被读一次', '让指令文件可以被自动编辑'],
+    correct: 1,
+    explanation: '如果把所有指令文件都塞进 system prompt，token 消耗太大。instruction.resolve() 在 LLM 读文件时才注入相关指令——比如读 src/auth/ 下的文件自动注入 src/auth/AGENTS.md。这种按需加载省 token 又保证 LLM 拿到精准上下文。'
+  },
+  {
+    question: 'Skill 系统采用「两阶段加载」设计（system prompt 只注入描述，完整内容通过 skill 工具按需加载）。为什么这样设计？',
+    options: ['skill 工具不支持传参', '避免所有 skill 的完整内容都塞进 system prompt（爆炸）——先给 LLM 轻量描述，LLM 需要时才加载完整内容', '描述已经在 system prompt 中，不需要再加载完整内容', '两阶段加载是为了调试方便'],
+    correct: 1,
+    explanation: '第一阶段 system prompt 只有 name + description（轻量，告诉 LLM 有哪些 skill 可用）。第二阶段 LLM 决定需要时调用 skill 工具加载完整内容（按需）。避免了「所有 skill 完整内容都塞进 system prompt」的浪费。'
+  },
+  {
+    question: 'OpenCode 的 Compaction 采用「隔一轮执行」的设计（create 只插占位，下一轮才 process）。为什么不是直接执行 compaction？',
+    options: ['直接执行有 bug', '解耦「决定要压」和「真正去压」两个动作，让 runLoop 主循环保持纯粹的轮询+分发结构', '因为需要用户确认', 'LLM 一次只能做一件事'],
+    correct: 1,
+    explanation: 'create 只插入一条占位 user 消息到数据库，process 在下一轮的 tasks.pop() 中执行。这个设计解耦了两个动作，让 runLoop 主循环保持简洁，compaction 作为 task 走统一的任务队列。'
+  },
+  {
+    question: 'Claude Code 有独立的记忆系统（memdir，4 种记忆类型），OpenCode 没有。OpenCode 的设计哲学是什么？',
+    options: ['OpenCode 技术能力不够实现记忆系统', '不引入「记忆」这个抽象层——指令文件按需加载、对话历史 SQLite 持久化、filterCompacted 重排，已足够覆盖记忆需求，加 memdir 反而增加复杂度', 'OpenCode 用数据库查询替代了记忆', '记忆系统在 OpenCode 中是可选插件'],
+    correct: 1,
+    explanation: 'OpenCode 的设计哲学是不引入「记忆」作为独立抽象层。指令文件按需注入已覆盖项目知识，SQLite 持久化已覆盖会话历史，filterCompacted 重排已保证上下文自洽。再叠加一个 memdir 增加复杂度，收益有限。这是「功能完备性 vs 架构简洁」的取舍。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

@@ -722,3 +722,36 @@ Codex 的多 Agent 系统反映了一个不同假设：**多 Agent 应该从底�
 | `AgentGraphStore` trait | `agent-graph-store/src/store.rs:12` |
 | V1 completion watcher | `agent/control.rs:1036` |
 | 深度限制 V1 vs V2 | `tools/spec_plan.rs:290` |
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'Codex 多 Agent 系统的 AgentPath 为什么采用类似文件系统的路径设计（如 /root/researcher/worker）？',
+    options: ['只是为了让路径更短', '支持绝对路径（以 / 开头）、相对路径（worker）和特殊路径（/root），让 agent 间通信的寻址方式自然且灵活', '为了和文件系统路径一一对应', '这是 JSON 序列化的要求'],
+    correct: 1,
+    explanation: 'AgentPath 设计为类似文件系统的树状路径：绝对路径（/root/researcher 以 / 开头）、相对路径（worker 相对当前 agent）、特殊路径（/root 根 agent）。子 agent 不需要知道父 agent 的全局路径就能寻址，通信非常自然。'
+  },
+  {
+    question: 'V2 中 send_message 和 followup_task 的核心区别是什么？',
+    options: ['send_message 发给父 agent，followup_task 发给子 agent', 'send_message 用 QueueOnly（只入队不触发 turn），followup_task 用 TriggerTurn（入队并触发 turn）', 'send_message 有长度限制，followup_task 没有', '两者功能完全一样只是名字不同'],
+    correct: 1,
+    explanation: '这个区分是实现 map-reduce 模式的关键：父 agent 先用 send_message 批量发消息给多个子 agent（只入队不触发 turn），再用 followup_task 统一唤醒它们并行执行，最后 wait_agent 收集结果。'
+  },
+  {
+    question: '为什么 V2 移除了深度限制（V1 有），改为依赖 agent_max_threads（并发数限制）？',
+    options: ['因为 V2 的 agent 不能递归 spawn', '这是一个设计选择——V2 认为深度限制过于保守，依赖 agent 自身判断和并发数限制来防止递归失控更灵活', 'V2 还没有实现深度限制功能', '深度限制在 V2 中由 API 服务端控制'],
+    correct: 1,
+    explanation: 'V2 中 collab_tools_enabled 总是返回 true，不检查深度。依赖 agent 自己的判断和 agent_max_threads（并发数上限）来防止递归失控，体现了 V2 对 agent 能力的信任。'
+  },
+  {
+    question: 'Codex 的 CSV 批处理模式（spawn_agents_on_csv）中，默认并发上限和最大并发分别是多少？为什么？',
+    options: ['默认 4，最大 16', '默认 16，最大 64——并发槽位控制让大量 CSV 行分批 spawn，避免一次性 spawn 上千个 agent 搞挂系统', '默认 1，最大 10', '没有并发限制，全部同时 spawn'],
+    correct: 1,
+    explanation: '默认 16 并发（DEFAULT_AGENT_JOB_CONCURRENCY），最大 64（MAX_AGENT_JOB_CONCURRENCY）。并发槽位控制让大量 CSV 行分批 spawn worker agent，避免一次性创建上千个 agent 导致资源耗尽。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

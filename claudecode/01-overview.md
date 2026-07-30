@@ -429,3 +429,56 @@ Claude Code 是一个 51 万行级别的纯客户端终端 Agent：Bun 运行时
 后续章节将沿这条骨架逐层下钻：第 2 篇剖析 `QueryEngine` 的 continuation 机制与流式工具调度，第 3 篇展开工具系统，第 4 篇拆解五级压缩，第 5 篇进入 Agent 协作，第 7 篇聚焦权限系统的 AI 分类器。每一篇都回到本文建立的分层与启动框架，从宏观走向微观。
 
 理解 Claude Code 的最佳路径，是把本文的三个结论作为后续阅读的坐标：其一，它是纯客户端编排器，所有复杂度集中在「如何组织上下文、如何调度工具、如何管控权限」三件事上；其二，它的启动是一个「并行预热 + 串行装配」的过程，`profileCheckpoint` 打点让每个阶段可观测；其三，它的架构本质是 continuation-driven——没有忙等循环，流程推进完全由 API 返回值驱动。把握住这三点，后续每一篇源码精读都能在正确的抽象层级上展开。
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'Claude Code 选择 Bun 而非 Node.js 作为运行时，最关键的原因是什么？',
+    options: [
+      '启动速度更快',
+      '原生支持 TypeScript 无需转译',
+      '编译期死代码消除（bun:bundle feature()）',
+      '更好的 npm 兼容性'
+    ],
+    correct: 2,
+    explanation: '三个原因都成立，但编译期死代码消除是最关键的——它让 Claude Code 能在同一个代码库维护尚未公开的特性（如 Coordinator、Kairos 等近二十个 feature flag），打包时按 flag 裁剪出不同产物。这是能支撑 51 万行代码规模且灰度策略灵活的工程基础。'
+  },
+  {
+    question: 'Claude Code 分层架构中，`hooks/` 目录的 104 个文件在分层中扮演什么角色？',
+    options: [
+      '纯粹属于表现层，负责组件渲染逻辑',
+      '纯粹属于业务逻辑层，负责调用服务层 API',
+      '物理上属基础设施层，运行期跨表现层和业务逻辑层，是跨层胶水',
+      '属于独立的一层，不归入四层架构'
+    ],
+    correct: 2,
+    explanation: 'hooks/ 物理上在基础设施层，但运行期绑定在组件树上，既调用业务逻辑层的 QueryEngine，又调用服务层的各种服务，还属于表现层的一部分。它是事实上的跨层胶水，CC 的「Hook 即业务」风格让逻辑天然随 UI 生命周期运行。'
+  },
+  {
+    question: 'Claude Code 启动流程中，`startKeychainPrefetch()` 和 `startMdmRawRead()` 被放在所有 import 之前执行的主要目的是什么？',
+    options: [
+      '避免循环依赖',
+      '在模块导入的 CPU 密集阶段并行执行 IO 操作，把等待时间藏进导入时间',
+      '确保钥匙串数据在模块求值前可用',
+      '满足安全合规要求，必须先验证身份再加载模块'
+    ],
+    correct: 1,
+    explanation: '这三个副作用在所有 import 之前执行，把「IO 等待」与「CPU 导入」重叠起来。钥匙串读取和 MDM 查询是 IO 等待、天然可并行，而模块导入是 CPU 密集且不可压缩的。等到模块导入完成时，这些 IO 操作通常已就绪，只需轻量 await。'
+  },
+  {
+    question: '对比 Claude Code、OpenCode 和 Codex，Claude Code 最独特的架构特征是？',
+    options: [
+      '采用 React + Ink 渲染终端 UI',
+      'continuation-driven polling 主循环',
+      '内置跨平台沙箱',
+      '使用 Rust 编译型二进制'
+    ],
+    correct: 1,
+    explanation: 'Claude Code 的主循环是 continuation-driven polling——循环走向完全由 API 响应内容驱动，模型返回 tool_use 就继续，end_turn 就终止。这与 OpenCode 的显式 7 步循环和 Codex 的 Tokio event loop 形成根本差异。核心原因是 Anthropic 流式 API 天然适合「边收边处理」的模式。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

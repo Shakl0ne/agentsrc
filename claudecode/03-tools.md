@@ -1050,3 +1050,56 @@ OpenCode 走的是中间路线：工具接口比 Codex 丰富（有进度回调�
 - `src/hooks/useCanUseTool.tsx` — 权限判定入口
 - `src/types/tools.ts` — ToolProgressData 及各 Progress 类型（通过 Tool.ts 重导出；泄漏版本中缺失，路径由 Tool.ts:56 的 import 推断）
 - `src/constants/tools.ts` — 工具常量与禁用列表
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'Claude Code 的工具描述采用 JSON Schema 提交给 API 而非塞进系统提示，这一设计的关键好处是什么？',
+    options: [
+      '降低系统提示的 token 消耗',
+      '工具的添加和修改变得安全——改一个工具的 schema 不会意外破坏系统提示的格式，因为它们是分离的',
+      '让模型更容易理解工具功能',
+      '减少代码量'
+    ],
+    correct: 1,
+    explanation: '工具作为 API tools 字段的一等公民，参数类型由 input_schema 严格声明，模型按 tool_use block 协议产出结构化参数而非自由生成 JSON。这不仅降低了工具调用错误率，更重要的是 schema 与提示分离——改 schema 不会破坏提示格式、MCP 工具可在不重启进程的情况下动态接入。'
+  },
+  {
+    question: 'Tool 接口的 `buildTool` 工厂的默认值是 fail-closed 的，具体表现是什么？',
+    options: [
+      'isEnabled 默认 false，工具默认不可用',
+      'isConcurrencySafe 默认 false、isReadOnly 默认 false、toAutoClassifierInput 默认空字符串',
+      'checkPermissions 默认返回 deny',
+      '所有方法都需要显式实现，没有默认值'
+    ],
+    correct: 1,
+    explanation: '新工具默认不被并发执行（isConcurrencySafe: false）、默认被当成会写文件（isReadOnly: false）、默认不进入 auto 模式分类器（toAutoClassifierInput: ""）。所有放宽都需要显式声明，新增工具的成本集中在需要放宽的部分。'
+  },
+  {
+    question: 'assembleToolPool 中内置工具和 MCP 工具按不同规则排序，且不进行扁平排序的原因是什么？',
+    options: [
+      '为了代码可读性',
+      '为了尽量将不同来源的工具分开以便阅读，同时 uniqBy(\'name\') 使内置工具优先于同名的 MCP 工具',
+      '为了 prompt cache 稳定性——内置工具固定为连续前缀，MCP 工具作为可变后缀，插入中间会破坏 cache key',
+      '为了减少工具数量'
+    ],
+    correct: 2,
+    explanation: 'Anthropic API 的 prompt caching 按前缀匹配。内置工具固定为「按名字排序的连续前缀」，MCP 工具作为「可变后缀」接在后面。如果做扁平排序，MCP 工具会插到内置工具中间，MCP 顺序变化时所有下游 cache key 全部失效。'
+  },
+  {
+    question: 'ToolSearchTool 的延迟加载（shouldDefer）解决了什么工程问题？',
+    options: [
+      '减少工具实现的代码量',
+      '降低初始 prompt 的 token 占用——冷门工具的 schema 不塞进初始 prompt，模型需先搜索才能调用',
+      '提高工具执行速度',
+      '解决循环依赖'
+    ],
+    correct: 1,
+    explanation: 'CC 内置工具 50+，接入 MCP server 后可能再增加几十个。所有工具的完整 schema 塞进初始 prompt 不仅消耗大量 token，还会稀释模型注意力。shouldDefer 让冷门工具退居二线，只在模型主动搜索时才暴露完整 schema。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

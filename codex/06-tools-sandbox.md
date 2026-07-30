@@ -630,3 +630,36 @@ CC 没有这个机制——每次 `rm -rf /tmp/*` 都需要重新审批（除非
 | macOS Seatbelt 策略生成 | `sandboxing/src/seatbelt.rs:602` |
 | Linux 沙箱命令 | `sandboxing/src/landlock.rs:23` |
 | 进程加固 | `process-hardening/src/lib.rs:12` |
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'ToolExposure 的 4 种可见性级别设计的核心目的是什么？',
+    options: ['区分内置工具和第三方工具', '不是所有工具一开始就暴露给模型——Deferred 让工具通过 tool_search 动态发现，避免初始 tool 列表过长污染 prompt', '为了权限控制', '为了兼容不同的 API 版本'],
+    correct: 1,
+    explanation: 'Direct 初始可见，Deferred 初始隐藏通过 tool_search 发现，DirectModelOnly 仅初始列表不进 code-mode，Hidden 只用于 dispatch。Deferred 的设计灵感是避免初始 tool 列表过长、污染模型的 prompt 空间。'
+  },
+  {
+    question: 'Codex 的 ExecPolicy 使用 Starlark 语言定义规则（而非 JSON/YAML），这个设计的优势是什么？',
+    options: ['Starlark 是 OpenAI 内部标准', '表达力强（支持变量、条件）、开发者熟悉（Python 子集）、沙箱化（嵌入式语言设计），比 JSON/YAML 灵活', 'Starlark 编译更快', 'JSON/YAML 不支持网络规则'],
+    correct: 1,
+    explanation: 'Starlark 是 Python 的子集，由 Bazel 推广。Codex 用它定义规则：比 JSON/YAML 表达力强（支持变量、条件），比自创 DSL 通用，且 Starlark 本身就是设计成嵌入式语言，天然沙箱化。'
+  },
+  {
+    question: 'Claude Code 没有沙箱而 Codex 有完整跨平台沙箱，这个差异反映了两者什么不同的安全假设？',
+    options: ['CC 认为沙箱不重要', 'CC 假设"可信环境"（开发者本地使用，自己负责安全），Codex 假设"不可信环境"（可能部署到 CI/共享环境/远程服务器，必须默认安全）', 'CC 想降低开发成本', 'CC 的 TypeScript 无法实现沙箱'],
+    correct: 1,
+    explanation: 'CC 假设读者在本地开发，自己对自己负责，通过 PreToolUse hooks 让用户自定义拦截。Codex 假设代理可能被部署到 CI/共享环境/远程服务器，必须有默认安全（沙箱/ExecPolicy/进程加固/网络规则）。'
+  },
+  {
+    question: 'ReviewDecision::ApprovedExecpolicyAmendment 这个设计体现了什么思想？',
+    options: ['每次用户审批都弹窗确认', '用户的审批决策可以沉淀为 ExecPolicy 规则——一次允许，以后类似命令可自动批准，把判断"沉淀"为可持久化的规则', '表示用户不可修改 ExecPolicy', '这是在用户误操作时的兜底方案'],
+    correct: 1,
+    explanation: '用户批准 rm -rf /tmp/* 时，可以选择"以后类似命令自动批准"。这意味着把用户的单个决策"沉淀"成可持久化的 ExecPolicy 规则，一次决策长期生效。CC 没有这个机制，每次都要重新审批。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

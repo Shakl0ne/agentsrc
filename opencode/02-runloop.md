@@ -971,3 +971,42 @@ CC 的 subagent 体系比 OpenCode 复杂得多——有同步/异步/fork 三�
 CC 的 `query.ts` 是个 1,730 行的集中编排文件（委托给 StreamingToolExecutor 等模块）；OpenCode 把 runLoop / processor / llm / tools 分散到多个文件，每个文件职责单一。这种「**关注点分离**」的工程哲学，值得每一个做 Agent 系统的朋友深思。
 
 今天分享就到这里，我们下篇见！
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'OpenCode 的工具调用循环为什么嵌在主循环里（通过 finish: \"tool-calls\" 信号让循环继续），而不是做成独立的工具调度循环？',
+    options: ['独立循环性能更差', '因为 compaction、subtask 等任务也要插队进主循环，独立工具循环会导致循环嵌套，状态管理变复杂', 'Effect-TS 不支持单独的工具循环', '独立循环会导致 Deadlock'],
+    correct: 1,
+    explanation: '如果把工具调用做成独立循环，主循环就要变成「循环里嵌套循环」，compaction、subtask 等任务的调度逻辑会散落在两个循环中，状态管理会爆炸。OpenCode 的统一 while(true) 把所有「需要继续跑」的情况都收敛到主循环顶部重新判断。'
+  },
+  {
+    question: 'OpenCode 支持双运行时（Native Runtime 和 AI SDK），默认走 AI SDK。Native Runtime 存在的核心原因是什么？',
+    options: ['Native Runtime 比 AI SDK 更快', 'AI SDK 的 streamText() 内部把工具循环也包了，开发者无法控制工具执行时机；Native Runtime 让 OpenCode 自己控制，更灵活', 'Native Runtime 只是实验性代码，没有实际用途', 'AI SDK 只支持 Anthropic 模型'],
+    correct: 1,
+    explanation: 'AI SDK 的 streamText() 内部自动执行工具循环，开发者不知道工具是同步还是异步执行的，调试时不好控制。Native Runtime 让 OpenCode 自己控制工具执行时机，提供更精细的控制。但目前默认走 AI SDK 路径。'
+  },
+  {
+    question: 'runLoop 中退出条件判断的核心逻辑是什么？',
+    options: ['检查 lastAssistant 是否存在', '检查 finish 不是 tool-calls 且没有待处理工具调用——模型说「要调工具」循环就继续，说「我说完了」就退出', '检查 token 数是否超过限制', '检查用户是否按了 Ctrl+C'],
+    correct: 1,
+    explanation: '最关键的条件是 finish 不是 tool-calls 且没有待处理工具调用。模型说「我要调工具」循环继续，说「我说完了」就退出。OpenCode 没有独立的工具调度循环，这两个条件就是天然的工具调度信号。'
+  },
+  {
+    question: 'Doom Loop 检测中用 JSON.stringify 比较参数有一个潜在的设计隐患，是什么？',
+    options: ['JSON.stringify 对 null 会报错', 'JSON.stringify 处理大对象时会栈溢出', 'JSON.stringify 对 key 顺序敏感，相同语义的不同 key 顺序会被判为不同', 'JSON.stringify 不支持嵌套对象'],
+    correct: 2,
+    explanation: 'JSON.stringify({a: 1, b: 2}) 和 JSON.stringify({b: 2, a: 1}) 结果不同，但模型可能认为它们是相同调用。实际场景下模型一般保持参数顺序一致，影响不大，但更鲁棒的做法是用深度比较。'
+  },
+  {
+    question: 'Claude Code 有 10 种退出原因（Terminal discriminated union），OpenCode 只有 break/continue。这反映了什么设计差异？',
+    options: ['CC 的代码更复杂，说明质量不如 OpenCode', 'CC 为外部 SDK consumer 设计，需要细粒度退出原因；OpenCode 的 Effect 系统内部已管理状态，不需要显式暴露这么多退出原因', 'CC 的错误处理比 OpenCode 差', 'OpenCode 的 break/continue 没有覆盖所有退出场景'],
+    correct: 1,
+    explanation: 'CC 的 10 种 Terminal（completed、aborted_streaming、max_turns、hook_stopped 等）是为外部 SDK consumer 设计的，使用者需要知道具体为什么停下。OpenCode 用 Effect 系统管理状态，内部异常通过 TaggedError 传递，主循环只需要 break/continue 两个信号。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

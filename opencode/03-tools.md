@@ -934,3 +934,42 @@ const output = Effect.fn("Truncate.output")(function* (text, options = {}, agent
 更难得的是，OpenCode 用 656 行 tool.ts + registry.ts + 711 行 edit.ts + 312 行 permission 实现了 Claude Code 用更多代码（含 hooks 系统、独立工具）才实现的事——**简化的代价是放弃了 PreToolUse hooks 的灵活性**，但换来的是**统一的权限模型和内置 Doom Loop 检测**。
 
 今天分享就到这里，我们下篇见！
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'Edit 引擎的 9 种 Replacer 按精度从高到低尝试，当某个 Replacer 找到多个匹配时，Edit 引擎会怎么做？',
+    options: ['随机选一个匹配替换', '使用第一个匹配', '跳过这个 Replacer，让下一个精度更低的 Replacer 尝试，直到找到唯一匹配', '直接报错'],
+    correct: 2,
+    explanation: '这是 Edit 引擎最聪明的设计——精确匹配找到多个说明 oldString 太短不唯一，更宽松的匹配也找到多个就继续尝试下一个策略，直到有一个策略给出唯一匹配。如果全部多匹配，最后抛出「请提供更多上下文」的错误。'
+  },
+  {
+    question: 'Permission 系统为什么设计成 ask/allow/deny 三态而不是二态？',
+    options: ['三态更炫酷', 'ask 是重要中间状态——有些操作不能直接放行（有风险），也不能一概拒绝（用户可能确实需要），让用户决定最稳妥', 'deny 和 ask 在某些场景下等价', '这是 Effect-TS 的强制要求'],
+    correct: 1,
+    explanation: 'ask 的存在是因为很多敏感操作处于「不一定安全也不一定危险」的灰色地带。直接 deny 太粗暴，allow 太危险，「问用户」是最稳妥的中间态。'
+  },
+  {
+    question: 'BlockAnchorReplacer 要求 oldString 至少 3 行，用首尾行作锚点。为什么单一候选时相似度 0% 也接受？',
+    options: ['这是 bug，没有意义', '因为首尾锚点都已唯一匹配，中间内容稍微不一致没关系——agent 写代码不会差得太离谱', '为了通过单元测试', '0% 相似度意味着不匹配，应该拒绝'],
+    correct: 1,
+    explanation: '如果首尾锚点都唯一匹配，说明 LLM 已精确指出了要替换的块边界。中间行即使有空白或微调差异，只要首尾锚点对得上，替换就是安全的。这是「锚点确认边界后对中间内容宽容」的实用主义。'
+  },
+  {
+    question: '为什么 OpenCode 按模型路由工具（GPT 系用 apply_patch，其他用 edit/write），而 Claude Code 没有这种设计？',
+    options: ['OpenCode 实现有 bug', '因为 CC 只支持 Claude，不需要跨模型适配；OpenCode 要跑 8 家模型，不同模型对工具格式偏好不同', 'CC 的 API 不支持 apply_patch', 'GPT 模型不支持 edit 工具'],
+    correct: 1,
+    explanation: '这是跨厂商框架必须面对的复杂性。GPT 系模型对 unified patch 格式理解更好，Claude 系对 oldString+newString 精确替换更在行。CC 只支持 Claude，不需要这种路由。'
+  },
+  {
+    question: 'Permission 系统的 evaluate() 用 findLast（最后匹配胜出），而不是 findFirst（最先匹配）。为什么？',
+    options: ['findFirst 性能更差', '让后写的规则优先级更高——用户配置可以覆盖默认配置', 'findLast 是 JavaScript 特有的设计', '双重通配符只能用 findLast 实现'],
+    correct: 1,
+    explanation: 'findLast 让后添加的规则覆盖前面的规则。用户配置的优先级高，可以覆盖 OpenCode 的默认配置。这是配置覆盖机制的常见设计——最近的配置最有话语权。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

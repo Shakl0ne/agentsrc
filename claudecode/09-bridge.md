@@ -658,3 +658,56 @@ Bridge 系统的其余文件各有专职：
 **消息去重用环形缓冲区而非 Set**。`BoundedUUIDSet` 用环形数组 + Set 的组合实现 O(1) 的 add/has 和 O(capacity) 的内存。选择环形缓冲区而非无限增长的 Set，是因为 Bridge 是长运行进程——一个跑几天的 standalone bridge 会积累大量 UUID，无限 Set 会导致内存泄漏。环形缓冲区在容量满时自动淘汰最旧条目，由于消息按时间顺序到达，被淘汰的总是最不可能再被回声的旧 UUID。
 
 这些决策共同构成了一个在「远程可控」与「本地可靠」之间取得平衡的 Bridge 系统。2,999 行的 `bridgeMain.ts` 看似庞大，但每一段轮询间隔、每一个 token 刷新分支、每一次权限转发都有对应的源码逻辑可追溯——这正是 Claude Code 能把 Remote Control 做成「手机上审批权限、本地继续执行」这种跨设备体验的工程基础。
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'Bridge 系统的两种模式（Standalone Bridge 和 REPL Bridge）的核心区别是什么？',
+    options: [
+      'Standalone Bridge 不支持权限审批',
+      'Standalone Bridge 是独立守护进程，spawn 子 CLI 进程执行；REPL Bridge 运行在 REPL 进程内部，无需子进程',
+      'REPL Bridge 只支持 v1 传输',
+      'Standalone Bridge 只能用于远程模式'
+    ],
+    correct: 1,
+    explanation: 'Standalone Bridge 是一个常驻守护进程，轮询拉取工作项，每个工作项 spawn 一个子 CLI 进程（claude --print 模式）。REPL Bridge 运行在 REPL 进程内部，把当前 REPL 会话直接桥接到 claude.ai。两种模式共享消息协议、JWT 刷新、权限回调等基础设施。'
+  },
+  {
+    question: 'Bridge 的 token 刷新为什么 v1 和 v2 走不同路径？',
+    options: [
+      'v1 用 WebSocket，v2 用 SSE，传输层不同',
+      'v1 是纯客户端操作（拿新 OAuth token 通过 stdin 发给子进程）；v2 的 JWT 绑定 session_id 和 worker epoch，必须走服务器重派',
+      'v1 不支持 token 刷新',
+      'v2 的刷新速度更快'
+    ],
+    correct: 1,
+    explanation: 'v1 刷新走客户端的 stdin 更新 token 即可。v2 的 JWT 绑定 session_id 和 worker epoch，无法客户端侧替换，必须走服务器重派。v2 的每个 token 有明确的 session 绑定和 worker 身份，泄露影响范围更小，但刷新链路更长。'
+  },
+  {
+    question: '消息去重使用 BoundedUUIDSet（环形缓冲区 + Set）而非无限增长的 Set，为什么？',
+    options: [
+      'BoundedUUIDSet 查找更快',
+      'Bridge 是长运行进程，跑几天的 standalone bridge 积累大量 UUID 会导致内存泄漏；环形缓冲区容量满时自动淘汰最旧条目',
+      'Set 在 JavaScript 中不支持 UUID 格式',
+      '环形缓冲区是唯一可以 O(1) 操作的数据结构'
+    ],
+    correct: 1,
+    explanation: '选择环形缓冲区而非无限增长的 Set，因为 Bridge 是长运行进程——跑几天的 standalone bridge 会积累大量 UUID，无限 Set 会导致内存泄漏。环形缓冲区容量满时自动淘汰最旧 UUID，且由于消息按时间顺序到达，被淘汰的总是最不可能再被回声的旧 UUID。'
+  },
+  {
+    question: 'Standalone Bridge 的轮询间隔设计体现了什么权衡？',
+    options: [
+      '始终 2 秒一次保证低延迟',
+      '始终 10 分钟一次节省资源',
+      '空闲时 2 秒保证用户在 claude.ai 发起会话后快速被接收；满载（活跃会话达上限）时切到 10 分钟，配合心跳保活',
+      '间隔由服务器控制'
+    ],
+    correct: 2,
+    explanation: '空闲时 2 秒轮询，保证用户在网页端发起会话后能在 2 秒内被本地 Bridge 接收。满载时切换到 10 分钟轮询配合心跳保活——10 分钟不是随意选择，服务器的 BRIDGE_LAST_POLL_TTL 为 4 小时，10 分钟提供 24 倍裕量。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

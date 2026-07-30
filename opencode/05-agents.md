@@ -793,3 +793,42 @@ OpenCode 的 Schema 类型系统让 Agent 配置可以编程化、可验证、�
 **没有更好的，只有更适合的**——这就是工程取舍的魅力。
 
 今天分享就到这里，我们下篇见！
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'OpenCode 的 AgentV2 类型系统有三种 Mode（subagent/primary/all），而 Claude Code 的 Agent 是隐式区分。这个 schema 化的 Agent 定义带来了什么核心优势？',
+    options: ['运行效率更高', '类型安全、可编程扩展、配置可验证——Agent 配置可以编程化操作，编译期就能发现错误', '代码量更少', '支持更多 Agent 类型'],
+    correct: 1,
+    explanation: 'OpenCode 用 Schema 定义 Agent 类型（branded ID、Mode 枚举、permission 规则集），让 Agent 配置可编程、可验证、可扩展。CC 的 Agent 是隐式区分（通过 querySource 标记），没有公开的类型系统。OpenCode 的优势在于类型安全和工程保障。'
+  },
+  {
+    question: 'handleSubtask 中权限检查用的是 Permission.merge(taskAgent.permission, session.permission)。这个双重合并的设计意图是什么？',
+    options: ['减少代码量', '双重保险——即使子 agent 的 permission 很宽松，父 session 的 deny 规则仍然生效', '只有子 agent 的 permission 生效', '只有父 session 的 permission 生效'],
+    correct: 1,
+    explanation: '子 agent 执行时，权限规则集是子 agent permission + 父 session permission 的合并。这意味着父 session 拒绝的操作，子 agent 也无法执行。即使子 agent 的 permission 写得宽松，父 session 的限制仍然有效。'
+  },
+  {
+    question: 'OpenCode 用 tasks.pop() 串行调度 SubAgent，Claude Code 用 coordinator 并行模式。OpenCode 选择串行的核心取舍是什么？',
+    options: ['串行比并行快', '串行模型简单可控、适合线性任务流；代价是子 agent 不能并行执行，响应速度慢于 CC 的并行模式', 'OpenCode 的技术栈不支持并行', '并行模型无法实现 SubAgent 隔离'],
+    correct: 1,
+    explanation: 'OpenCode 的串行模型简单可控，适合「线性任务流」（探索代码→写代码→review）。代价是放弃并行能力，响应时间比 CC 慢。CC 的 coordinator 并行模式在大规模任务调度上更强大，但实现复杂。这是「实现简单 vs 性能强大」的取舍。'
+  },
+  {
+    question: 'OpenCode 默认禁止子 agent 再调 task（嵌套 task）。Claude Code 的 Fork 模式也禁止递归 fork。为什么两个框架都做了这个设计？',
+    options: ['因为技术上行不通', '递归 SubAgent 是巨大的复杂度黑洞——状态管理、错误恢复、死循环检测都会指数级变复杂，干脆禁掉', '用户不需要这个功能', '性能限制'],
+    correct: 1,
+    explanation: '两个框架都意识到「递归 subagent」会让状态管理指数级变复杂（错误恢复、死循环检测、资源管理），这是个趋同演化——各自独立做了相同的设计决策。'
+  },
+  {
+    question: 'explore agent 的 permission 设置是「*: deny」然后显式白名单 grep/glob/list/bash/webfetch/websearch/read。plan agent 用通配符控制 edit 权限（*: deny 但 .opencode/plans/*.md: allow）。这两种模式区别在哪？',
+    options: ['没有实质区别，只是写法不同', 'explore 是全局 deny + 白名单（只读搜索），plan 是全局 deny + 针对特定路径的 allow（只读 + 写计划文件）。前者适合严格限制角色，后者适合精细路径控制', 'explore 用白名单更安全', 'plan 用通配符更灵活'],
+    correct: 1,
+    explanation: 'explore 的全 deny+白名单适合严格只读角色，不允许任何意外操作。plan 的 deny+路径通配符 allow 实现了更精细的权限——禁止编辑任何文件，但允许写 plan 目录下的计划文件。两种模式针对不同场景，体现了 Permission 通配符系统的灵活性。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

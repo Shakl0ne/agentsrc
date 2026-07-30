@@ -1070,3 +1070,56 @@ OpenCode 和 Codex 的每次压缩都在关键路径上同步调用 LLM——压
 | Session Memory 服务 | `src/services/SessionMemory/sessionMemory.ts` |
 | Session Memory 工具 | `src/services/SessionMemory/sessionMemoryUtils.ts` |
 | Session Memory Prompt | `src/services/SessionMemory/prompts.ts` |
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'Claude Code 5 级压缩机制的核心设计思想是什么？',
+    options: [
+      '尽可能压缩对话历史以节省 token',
+      '能用数据结构变换解决的就不调 LLM——4 级在数据结构层面操作，只有最终级才调 LLM 做摘要',
+      '每次 API 调用前都做全量压缩',
+      '始终使用 LLM 做最高质量的摘要'
+    ],
+    correct: 1,
+    explanation: 'CC 的 5 级压缩：Auto Compact（触发阈值时先试 session memory）、Micro Compact（轻量清理工具结果）、API Microcompact（服务端原生清理）、Reactive Compact（413 时反应式压缩）、Session Memory Compact（利用后台异步提取的记忆）。前 4 级都不调 LLM，这与 OpenCode 和 Codex 每级都调 LLM 形成鲜明对比。'
+  },
+  {
+    question: '为什么 Micro Compact 的「缓存编辑路径」（cached microcompact）比直接修改消息更优？',
+    options: [
+      '因为它不需要客户端计算，更省 CPU',
+      '因为它在不修改客户端消息数组的情况下通过 cache_edits API 删除服务端缓存中的工具结果，客户端 cache key 不被破坏',
+      '因为它需要更少的代码实现',
+      '因为它可以直接使用服务端的 token 计数'
+    ],
+    correct: 1,
+    explanation: 'Cached microcompact 不修改客户端消息数组——它在 API 请求层附加 cache_edits 块，告诉服务端「这些工具结果可以从缓存中删除」。这样客户端消息不变、cache key 不被破坏，但服务端 token 计数不再计入被删除的内容。这是 CC「prompt cache aware」设计的核心体现。'
+  },
+  {
+    question: 'Auto Compact 的断路器（连续失败 3 次停止重试）是基于什么线上数据设计的？',
+    options: [
+      '在线下测试中发现的死循环问题',
+      '线上数据：1,279 个会话有 50+ 次连续失败（最高 3,272 次），每天浪费约 250K API 调用',
+      '模型训练数据的统计结果',
+      '没有依据，是经验值'
+    ],
+    correct: 1,
+    explanation: '源码注释记录：BQ 2026-03-10 数据显示 1,279 个会话有 50+ 次连续失败（最高 3,272 次），每天浪费约 250K API 调用。断路器让当前 session 不再尝试 auto compact，避免无效调用。'
+  },
+  {
+    question: 'Session Memory Compact 如何实现「零 LLM 调用的高质量压缩」？',
+    options: [
+      '它只压缩工具结果，不做语义摘要',
+      '它利用后台异步提取的 session memory——LLM 调用成本前置到对话进行中的后台，压缩时直接读取已提取的记忆文件',
+      '它使用规则匹配而不是模型推理',
+      '它直接丢弃旧消息不做任何处理'
+    ],
+    correct: 1,
+    explanation: 'SessionMemory 在对话后台运行一个 forked agent，定期提取关键信息写入 markdown 文件。压缩触发时只需读取文件，不需要实时调 LLM。这把 LLM 调用成本从压缩的关键路径上移走，前置到对话进行中的后台。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

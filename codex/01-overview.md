@@ -330,4 +330,35 @@ MODULE.bazel  BUILD.bazel  defs.bzl  rbe.bzl  .bazelversion
 | 模型管理 | `model-provider/` | 第 7 篇 |
 | 设计哲学对比总结 | 全系列 | 第 8 篇 |
 
+## 章节小测
 
+<script setup>
+const q = [
+  {
+    question: 'Codex 为什么选择 Rust 作为主要实现语言，而 Claude Code 使用 TypeScript？',
+    options: ['Rust 开发速度更快', 'Rust 提供系统级能力（沙箱/进程加固）和内存安全，CC 选择 TypeScript 追求快速迭代和生态集成', 'Rust 有更好的异步框架支持', 'Codex 团队只会 Rust'],
+    correct: 1,
+    explanation: 'Rust 的选择源于 Codex 的"系统级软件"定位——沙箱、进程加固、WebSocket 都需要系统级能力。CC 选 TypeScript 则是因为开发速度快、与 npm 生态无缝集成、async generator 天然适合 agent 循环抽象。'
+  },
+  {
+    question: 'Codex 的 npm 包 @openai/codex 的本质是什么？',
+    options: ['纯 Rust 代码通过 wasm 打包', '一个薄薄的 JavaScript 壳，检测平台后 spawn 对应的 Rust 二进制', 'Rust 编译成 Node.js 原生插件', '纯 JavaScript 实现的 CLI 工具'],
+    correct: 1,
+    explanation: '用户安装的是 npm 包，但这是一个薄薄的 JS 壳，实际所有代码在 codex-rs/ 这个 Rust Cargo 工作区里，npm 包只负责检测平台并启动对应的 Rust 二进制。'
+  },
+  {
+    question: 'Codex 的主循环与 Claude Code 的主循环在设计模式上的本质区别是什么？',
+    options: ['Codex 是 while-true 轮询，CC 是事件驱动', 'Codex 是事件驱动的 reactor（channel 消息传递），CC 是 continuation-driven polling loop', '两者都是事件驱动，只是实现语言不同', 'Codex 是同步循环，CC 是异步循环'],
+    correct: 1,
+    explanation: 'Codex 的 submission_loop 是事件驱动的 reactor，通过 async_channel 接收 Submission 消息后再分派；CC 的 queryLoop 是 continuation-driven 的 polling loop，用 async generator 在同一个函数里按顺序驱动一切。'
+  },
+  {
+    question: 'Codex 的压缩策略与 Claude Code 最根本的不同是什么？',
+    options: ['Codex 有更多压缩级别', 'Codex 的所有压缩实现都涉及 LLM 调用，而 CC 前 4 级压缩是纯数据结构操作', 'Codex 只在手动触发时压缩，CC 自动压缩', 'Codex 不压缩上下文，CC 才压缩'],
+    correct: 1,
+    explanation: 'Codex 的 3 种压缩实现（Local/Remote v1/Remote v2）都调用 LLM，是"质量优先"设计；CC 的 5 级压缩中前 4 级是纯数据结构操作（截断/Snip/Microcompact/Context Collapse），第 5 级才调 LLM，是"成本优先"设计。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

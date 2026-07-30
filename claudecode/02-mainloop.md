@@ -914,3 +914,56 @@ CC 的主循环设计有几个值得学习的关键点：
 | `src/services/compact/autoCompact.ts` | 351 | 自动压缩阈值计算、熔断机制 |
 | `src/cost-tracker.ts` | 323 | 成本追踪、token 计数、模型用量统计 |
 | `src/costHook.ts` | 22 | 进程退出时的成本快照保存 |
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'Claude Code 主循环为什么选择 continuation-driven 而非 OpenCode 的固定步骤循环？',
+    options: [
+      '因为 JavaScript 引擎不支持尾调用优化',
+      'Anthropic 流式 API 天然适合边收边处理，且 7 种异常路径在固定步骤模式下会严重膨胀循环结构',
+      '为了实现 async generator 语法',
+      '为了减少代码行数'
+    ],
+    correct: 1,
+    explanation: 'CC 的循环至少涉及 7 种异常恢复路径（压缩、输出截断、stop hook 阻断等）。如果用显式步骤模式，每种异常都要插入分支判断，代码会严重膨胀。continuation-driven 把所有异常处理集中在 continue 路径，正常路径保持简洁。'
+  },
+  {
+    question: 'QueryEngine 和 queryLoop 两层之间的通信机制是什么，这种设计的好处在哪里？',
+    options: [
+      '回调函数，方便错误传播',
+      '事件发射器，实现松耦合',
+      'async generator：queryLoop yield 消息，QueryEngine for await 消费',
+      '共享内存变量，减少开销'
+    ],
+    correct: 2,
+    explanation: 'queryLoop 是 async function*，每产生一条消息就 yield；QueryEngine.submitMessage 用 for await 消费。这让循环逻辑与会话管理解耦——queryLoop 可以脱离真实文件系统和 SDK 运行时被单独测试。'
+  },
+  {
+    question: 'Claude Code 的 stop_hook_blocking 继续路径为什么必须保持 hasAttemptedReactiveCompact 标志位？',
+    options: [
+      'TypeScript 类型系统要求',
+      '为防止死循环：压缩 → 仍太长 → 错误 → stop hook 阻断 → 再次压缩 → 无限重复',
+      '压缩后的消息格式不同，需要标志位调整解析',
+      '用于性能统计遥测'
+    ],
+    correct: 1,
+    explanation: '如果不保持该标志，循环会陷入死循环：压缩 → 还是太长 → 错误 → stop hook 阻断 → 再次压缩……无限消耗 API 调用。这是实践中发现的 bug，通过保持标志位修复。'
+  },
+  {
+    question: 'Claude Code 主循环在 maxTurns 默认不设上限的前提下，依靠哪些机制控制失控风险？',
+    options: [
+      '默认不设上限是设计失误',
+      'SDK 调用方显式传 maxTurns、maxBudgetUsd 成本兜底、denial tracking 工具拒绝追踪',
+      'Claude 模型保证不会陷入无限循环',
+      'OpenCode 和 Codex 也不设上限'
+    ],
+    correct: 1,
+    explanation: '交互式 REPL 用户可随时 Ctrl+C 中断。SDK 场景下三层面控制：调用方可传 maxTurns、循环层用 maxBudgetUsd 做成本安全阀、工具层追踪被拒绝的调用。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

@@ -537,3 +537,36 @@ pub enum RealtimeWebrtcEvent {
 | WebRTC 入口 | `realtime-webrtc/src/lib.rs:72` |
 | macOS only 限制 | `#[cfg(target_os = "macos")]` |
 | 音频电平 200ms 轮询 | `realtime-webrtc/src/native.rs:215` |
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'ModelClientSession 为什么是 turn-scoped（每个 turn 创建新 session）的？',
+    options: ['为了简化代码逻辑', '复用 WebSocket 连接、保持 sticky routing（同一 turn 请求路由到同一台后端）、减少重复认证开销', '因为 API 要求每次 turn 都重新认证', '为了实现 load balancing'],
+    correct: 1,
+    explanation: '每个 turn 创建新 session，但同一 turn 内复用 WebSocket 连接和 sticky routing。这样 mid-turn compact 后重新 sampling 时可以复用连接、保持请求路由到同一台后端机器以获得更稳定的延迟和 cache 命中率。'
+  },
+  {
+    question: 'Sticky routing 中 x-codex-turn-state header 的作用是什么？',
+    options: ['用于用户身份认证', '让 OpenAI 服务端识别"这是同一个 turn 的后续请求"，可以复用服务端状态（如 prefix cache），获得更稳定的延迟和命中率', '用于请求速率限制', '用于跟踪 API 版本'],
+    correct: 1,
+    explanation: '客户端通过显式标记 x-codex-turn-state 告诉服务端"我还在这个 turn 里"。这是个微妙的优化——让服务端知道请求属于同一 turn，从而复用某些服务端状态如 prefix cache。'
+  },
+  {
+    question: '模型切换触发自动 compact 的三个条件分别是什么？为什么用旧模型的上下文做压缩？',
+    options: ['任何模型切换都触发 compact；用旧模型是因为旧模型更快', 'previous_model_limit_reached（token 超新窗口）&& model_changed && old_window > new_window；用旧模型是因为旧模型有更大的上下文窗口，能处理更长的历史，避免压缩自身失败', '只在切到本地模型时触发；用新模型做压缩更准确', '只在手动切换时触发；用哪个模型做压缩都一样'],
+    correct: 1,
+    explanation: '三个条件：当前 token 已超新模型窗口、模型确实切换了、从大窗口切到小窗口。用旧模型（大窗口）做压缩是防御性设计——旧模型能处理更长的历史，如果用新模型（小窗口）做压缩可能连历史都装不下。'
+  },
+  {
+    question: 'Codex 支持 4 种模型 Provider（OpenAI/Bedrock/Ollama/LM Studio）而 Claude Code 只支持 Anthropic，这个差异带来的工程复杂度体现在哪里？',
+    options: ['只是配置项不同，复杂度差不多', '多后端需要 Provider 抽象层（ModelProviderInfo）、模型列表缓存（5 分钟 TTL 磁盘缓存）、认证多样性（OAuth/API key/External/JWT）、模型切换的边界处理（downshift compact）——这些都是 CC 不需要面对的复杂度', '多后端反而更简单因为可以复用代码', 'CC 也支持多后端只是文档没写'],
+    correct: 1,
+    explanation: '多后端带来一系列连锁工程难题：统一的 Provider 抽象、模型缓存与刷新、多种认证方式、模型切换时的上下文窗口适配（downshift compact）。CC 单一后端深度优化，不需要这些抽象层，迭代更快。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

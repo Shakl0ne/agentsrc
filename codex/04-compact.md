@@ -495,3 +495,36 @@ Codex 用 diffing 优化（见第三篇），所以 compact 后必须显式决�
 | Manual 触发 | `handlers.rs:834` |
 | Compact 后 warning | `compact.rs:319` |
 | ContextWindowExceeded 时砍最旧 | `compact.rs:251-260` |
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'Codex 选择哪种压缩实现时，核心判断依据是什么？',
+    options: ['总是优先用 Local 压缩', '通过 should_use_remote_compact_task 判断 provider 是否支持 remote compaction，支持则走 Remote（V2/V1），否则走 Local', '根据历史长度自动选择', '用户手动选择压缩方式'],
+    correct: 1,
+    explanation: '先判断 provider 是否支持 remote compaction（OpenAI 官方 provider 支持），支持再检查 Feature::RemoteCompactionV2 是否开启决定走 V2 还是 V1，都不满足则 fallback 到 Local。Ollama/LM Studio 这类本地 provider 走 Local。'
+  },
+  {
+    question: 'InitialContextInjection 枚举的两种策略（BeforeLastUserMessage vs DoNotInject）分别对应什么场景？',
+    options: ['BeforeLastUserMessage 用于 pre-turn，DoNotInject 用于 manual', 'BeforeLastUserMessage 用于 mid-turn（模型正在工具循环中，压缩完还要继续 sampling），DoNotInject 用于 pre-turn/manual（压缩完 turn 就结束，下一轮自然全量注入）', '两者没有实质区别', 'DoNotInject 用于所有场景'],
+    correct: 1,
+    explanation: 'Mid-turn 场景下模型正在工具循环中，压缩后必须继续 sampling，如果不注入初始上下文模型会丢失 developer instructions 等关键信息。Pre-turn/manual 场景压缩完整个 turn 结束，下次 turn 自然走 record_context_updates 全量注入。'
+  },
+  {
+    question: 'Local compact 实现中，当 compact 自身也超过 context window 时，Codex 做了什么处理？',
+    options: ['直接报错终止', '砍掉历史中最旧的一条消息重试，保新不保旧', '自动切换到 Remote 压缩', '降低摘要精度以减少 token'],
+    correct: 1,
+    explanation: '砍掉 history.items[0]（最早的那条记录）再重试。这样会破坏 prefix cache，但目的是"保新不保旧"——保留最近的对话和 compact prompt，让生成的摘要质量更高。'
+  },
+  {
+    question: 'Claude Code 的 5 级压缩与 Codex 的 3 种 LLM 调用压缩，两种设计哲学的根本差异是什么？',
+    options: ['Codex 压缩效果更好，CC 压缩更快', 'CC 是"成本优先"——前 4 级用便宜的数据结构操作省空间；Codex 是"质量优先"——任何压缩都调 LLM 保证摘要质量', 'CC 比 Codex 压缩层级更多所以更好', '两者没有任何本质区别'],
+    correct: 1,
+    explanation: 'CC 的哲学是优先用便宜操作（数据结构变换）省空间，只有迫不得已才调 LLM，大多数会话走不到第 5 级。Codex 的哲学是任何压缩都涉及 LLM 保证质量，通过选择本地/远程 LLM 来优化成本。CC 策略对长会话更经济，Codex 策略对短会话更简单直接。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

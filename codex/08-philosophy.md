@@ -351,3 +351,36 @@ SessionTask (4 种实现)
 | 6 | [工具系统与安全沙箱](/codex/06-tools-sandbox) | ToolExecutor、MCP、ExecPolicy、沙箱 |
 | 7 | [模型管理与 Provider 抽象](/codex/07-models) | 4 种 Provider、AuthManager、WebRTC |
 | 8 | [Codex vs CC 设计哲学对比](/codex/08-philosophy) | 3 个核心假设、连锁反应、未来启示 |
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: '文章提出的 3 个核心假设差异中，哪一个最能解释 Codex 和 CC 在架构上的根本分歧？',
+    options: ['编程语言选择', 'Agent 是"工具调用循环"还是"任务编排系统"、在"可信环境"还是"不可信环境"运行、复杂任务用"单 Agent"还是"多 Agent"——这三个假设决定了 80% 的架构差异', '开源还是闭源', '社区贡献方式不同'],
+    correct: 1,
+    explanation: '这三个假设回答了"AI Agent 是什么"这个核心问题。CC 认为 Agent=工具调用循环、可信环境、单 Agent；Codex 认为 Agent=任务编排系统、不可信环境、多 Agent。文章核心观点是这些假设差异不是随机的，而是源于团队对 Agent 本质的不同理解。'
+  },
+  {
+    question: 'Codex 的"多 Agent"假设引发了怎样的连锁工程反应？',
+    options: ['只需要加一个 spawn_agent 工具就行了', '多 Agent → Agent 通信 → AgentPath 寻址 → AgentGraphStore 拓扑持久化 → AgentStatus 状态机 → completion watcher → CSV 批处理等一连串子系统', '多 Agent 假设影响很小', '多 Agent 只是 V2 新增的特性，V1 没有'],
+    correct: 1,
+    explanation: '核心假设会引发连锁反应：假设需要多 Agent，就必须有 Agent 间通信机制，因此设计了 AgentPath 寻址；有寻址就需要持久化拓扑（AgentGraphStore）；有通信就需要状态机（7 种 AgentStatus）；有子 Agent 就需要完成通知（completion watcher）。CC 没有这个假设所以这些都不需要。'
+  },
+  {
+    question: '文章认为 CC 和 Codex 哪种设计哲学更好？',
+    options: ['Codex 更好因为更安全', 'CC 更好因为更简单', '没有绝对优劣，只有适用场景——个人开发者本地使用 CC 更好，企业部署/多模型/复杂任务编排场景 Codex 更好', '两者都还不够好'],
+    correct: 2,
+    explanation: '文章核心观点是"没有正确的哲学，只有适合场景的哲学"：CC 的简单性对个人开发者是优势，Codex 的复杂性对企业部署是必要的。两个产品都成功了，说明不同哲学适应不同场景。'
+  },
+  {
+    question: '文章认为未来 Agent 框架的两个必然趋势是什么？',
+    options: ['Rust 和 TypeScript 的融合', '多 Agent 将成为默认配置，安全（沙箱/策略引擎）也将成为必备——前者是功能需求，后者是企业部署需求', '全量上下文发送和 LLM-only 压缩', 'WebSocket 和 HTTP 混合架构'],
+    correct: 1,
+    explanation: '文章指出两个趋势：真多 Agent 是必然（CC 社区强烈要求，CC 团队正在重构中；Codex 已成熟）；默认安全将成为必需（随着 Agent 部署到 CI/共享环境，CC 的不沙箱策略在企业场景下是劣势）。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>

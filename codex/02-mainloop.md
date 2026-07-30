@@ -346,3 +346,36 @@ Codex 的 submission_loop ≈ 单消费者消息队列（如 Kafka consumer）
 | Mid-turn auto compact | `turn.rs:292-301` |
 | SessionTask trait | `tasks/mod.rs:207` |
 | 4 种 Task 实现 | `tasks/regular.rs`, `compact.rs`, `review.rs`, `user_shell.rs` |
+
+## 章节小测
+
+<script setup>
+const q = [
+  {
+    question: 'Codex 的 submission_loop 与 Claude Code 的 queryLoop 核心设计差异是什么？',
+    options: ['Codex 使用 while-true 轮询，CC 使用回调函数', 'submission_loop 是事件驱动的 reactor（channel 消息分发），queryLoop 是 continuation-driven 的 async generator polling', 'Codex 使用多线程并行处理，CC 使用单线程串行', '两者架构完全相同只是语言不同'],
+    correct: 1,
+    explanation: 'submission_loop 通过 async_channel 接收 Submission（包装 Op 枚举），被动响应消息分派到不同 handler；queryLoop 是一个 1,477 行的 async generator，用 while-true 驱动一切——等待输入、调模型、执行工具、压缩全在同一个函数里。'
+  },
+  {
+    question: 'Codex 的 SessionTask trait 为什么设计了 abort 方法？',
+    options: ['只是为了优雅关闭程序', '因为任何时候只有一个活跃的 SessionTask，spawn 新任务前必须先 abort 旧任务', 'abort 用于处理用户退出登录', 'abort 是 Rust 的 Drop trait 的包装'],
+    correct: 1,
+    explanation: 'Session::spawn_task 会先 abort 所有之前的任务再 spawn 新任务，确保任何时候只有一个活跃的 task。这种设计避免了并发冲突，简化了状态管理。'
+  },
+  {
+    question: 'Mid-turn compact 的触发条件是什么？',
+    options: ['只要 token 超限就触发', 'token_limit_reached 和 needs_follow_up 两个条件都满足才触发', '用户必须手动触发', '每轮对话结束后自动触发'],
+    correct: 1,
+    explanation: '两个条件必须同时满足：token 超限（token_limit_reached）且模型要求继续（needs_follow_up，如还有未执行完的 tool call）。如果模型已返回 final message 但 token 超限，不 compact——下一轮 pre-turn compact 会处理。'
+  },
+  {
+    question: 'Codex 选择事件驱动 reactor 模式而非 CC 的 continuation-driven polling，带来了什么长期影响？',
+    options: ['代码更简单易读', '天然支持并行子 Agent 和后台任务（channel + 多协程基础设施），CC 要加并行需要大规模重构', '性能更差但更安全', '编译时间更短'],
+    correct: 1,
+    explanation: 'Codex 的 channel + 多协程基础设施让并行子 Agent 和后台任务成为自然能力；CC 的 queryLoop 是单线程 async generator，要加并行子 Agent 需对核心循环进行大规模重构。这就是架构决策的长期影响。'
+  }
+]
+</script>
+
+<Quiz :questions="q"></Quiz>
