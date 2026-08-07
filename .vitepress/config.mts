@@ -30,8 +30,20 @@ export default withMermaid(defineConfig({
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/agentsrc/logo.svg' }],
     ['link', { rel: 'stylesheet', href: '/agentsrc/custom.css' }],
     ['meta', { property: 'og:site_name', content: 'Agent Src' }],
-    ['meta', { property: 'og:type', content: 'article' }],
+    ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:locale', content: 'zh-CN' }],
+    ['meta', { property: 'og:url', content: 'https://shakl0ne.github.io/agentsrc/' }],
+    ['meta', { property: 'og:title', content: 'Agent Src — AI Agent 源码精读' }],
+    ['meta', { property: 'og:description', content: 'AI Agent 源码精读 — 逐行拆解 Claude Code、OpenCode 与 Codex 的架构设计、实现原理与工程哲学' }],
+    ['meta', { property: 'og:image', content: 'https://shakl0ne.github.io/agentsrc/og-banner.png' }],
+    ['meta', { property: 'og:image:width', content: '1200' }],
+    ['meta', { property: 'og:image:height', content: '630' }],
+    ['meta', { property: 'og:image:alt', content: 'Agent Src — AI Agent 源码精读' }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:site', content: '@shakl0ne' }],
+    ['meta', { name: 'twitter:title', content: 'Agent Src — AI Agent 源码精读' }],
+    ['meta', { name: 'twitter:description', content: '逐行拆解 Claude Code、OpenCode 与 Codex 的架构设计、源码实现与工程哲学' }],
+    ['meta', { name: 'twitter:image', content: 'https://shakl0ne.github.io/agentsrc/og-banner.png' }],
     ['style', {}, `
       /* Fix mermaid foreignObject bottom text clipping */
       .mermaid .label foreignObject div {

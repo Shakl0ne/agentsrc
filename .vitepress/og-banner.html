@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200, height=630">
+<title>Agent Src - OG Banner</title>
+<style>
+  /* Reset */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* Root: exact 1200×630 */
+  html, body {
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+    background: #0a1628;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+    color: #e0e0e0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Main container — fills the viewport exactly */
+  .banner {
+    position: relative;
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    background: linear-gradient(135deg, #0a1628 0%, #0d1b2a 40%, #0a1628 100%);
+  }
+
+  /* ── Terminal window chrome ── */
+  .terminal-chrome {
+    position: absolute;
+    top: 36px;
+    left: 64px;
+    width: 480px;
+    height: 360px;
+    border-radius: 10px;
+    border: 1px solid #1a2a47;
+    background: #0d1b2a;
+    box-shadow:
+      0 0 0 1px rgba(0,212,255,0.06),
+      0 24px 80px rgba(0,0,0,0.5),
+      inset 0 1px 0 rgba(255,255,255,0.03);
+    overflow: hidden;
+    z-index: 1;
+  }
+
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 14px;
+    background: #0a1422;
+    border-bottom: 1px solid #1a2a47;
+  }
+
+  .terminal-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    opacity: 0.7;
+  }
+
+  .terminal-dot--red    { background: #ff5f57; }
+  .terminal-dot--yellow { background: #febc2e; }
+  .terminal-dot--green  { background: #28c840; }
+
+  .terminal-title {
+    flex: 1;
+    text-align: center;
+    font-size: 11px;
+    color: #4a6a8a;
+    letter-spacing: 0.5px;
+  }
+
+  .terminal-body {
+    position: relative;
+    padding: 16px 18px;
+    height: calc(100% - 36px);
+    font-size: 13px;
+    line-height: 1.85;
+    font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+    color: #3a5a7a;
+  }
+
+  .terminal-body .line {
+    display: block;
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .terminal-body .line--active {
+    color: #e0e0e0;
+  }
+
+  .terminal-body .line .keyword  { color: #00D4FF; }
+  .terminal-body .line .comment  { color: #2a4a6a; }
+  .terminal-body .line .string   { color: #FFB347; }
+  .terminal-body .line .fn       { color: #00D4FF; opacity: 0.85; }
+  .terminal-body .line .num      { color: #00D4FF; }
+  .terminal-body .line .punct    { color: #2a4a6a; }
+
+  /* Scanning beam */
+  .scanning-beam {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 28px;
+    top: 110px;
+    background: linear-gradient(90deg, transparent 0%, rgba(0,212,255,0.08) 20%, rgba(0,212,255,0.14) 50%, rgba(0,212,255,0.08) 80%, transparent 100%);
+    border-top: 1px solid rgba(0,212,255,0.18);
+    border-bottom: 1px solid rgba(0,212,255,0.18);
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  /* ── Content area (right-aligned or overlapping) ── */
+  .content {
+    position: absolute;
+    left: 600px;
+    top: 0;
+    bottom: 0;
+    width: 600px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-left: 64px;
+    z-index: 10;
+  }
+
+  /* Logo */
+  .logo-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .logo-wrapper svg {
+    flex-shrink: 0;
+  }
+
+  .logo-label {
+    font-size: 14px;
+    color: #4a6a8a;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  /* Title */
+  .title {
+    font-size: 72px;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 18px;
+    color: #f0f0f0;
+  }
+
+  .title .accent {
+    color: #00D4FF;
+  }
+
+  /* Subtitle */
+  .subtitle {
+    font-size: 30px;
+    font-weight: 600;
+    color: #c0d0e0;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+    line-height: 1.3;
+  }
+
+  /* Tagline */
+  .tagline {
+    font-size: 16px;
+    font-weight: 500;
+    color: #8aa0b8;
+    line-height: 1.6;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .tagline .pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 4px;
+    background: rgba(0,212,255,0.08);
+    border: 1px solid rgba(0,212,255,0.18);
+    color: #00D4FF;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  .tagline .sep {
+    color: #3a5a7a;
+    font-size: 18px;
+    margin: 0 4px;
+  }
+
+  /* ── URL hint (bottom-right) ── */
+  .url-hint {
+    position: absolute;
+    bottom: 28px;
+    right: 48px;
+    font-size: 13px;
+    color: #3a5a7a;
+    letter-spacing: 0.5px;
+    z-index: 10;
+  }
+
+  /* ── Decorative: faint grid lines / noise overlay ── */
+  .deco-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.15;
+    background-image:
+      linear-gradient(0deg, transparent 97%, rgba(0,212,255,0.12) 97%, rgba(0,212,255,0.12) 100%),
+      linear-gradient(90deg, transparent 97%, rgba(0,212,255,0.06) 97%, rgba(0,212,255,0.06) 100%);
+    background-size: 40px 40px;
+  }
+
+  /* Subtle diagonal accent stripe */
+  .accent-stripe {
+    position: absolute;
+    top: -100px;
+    right: -100px;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(ellipse at center, rgba(0,212,255,0.05) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Bottom glow line */
+  .glow-line {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, #00D4FF 30%, #00D4FF 70%, transparent 100%);
+    opacity: 0.5;
+    z-index: 20;
+  }
+
+  /* Subtle top border accent */
+  .top-accent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #00D4FF 0%, transparent 60%);
+    opacity: 0.35;
+    z-index: 20;
+  }
+</style>
+</head>
+<body>
+<div class="banner">
+  <!-- Decorative layers -->
+  <div class="deco-grid"></div>
+  <div class="accent-stripe"></div>
+  <div class="top-accent"></div>
+  <div class="glow-line"></div>
+
+  <!-- Terminal window (left side) -->
+  <div class="terminal-chrome">
+    <div class="terminal-bar">
+      <div class="terminal-dot terminal-dot--red"></div>
+      <div class="terminal-dot terminal-dot--yellow"></div>
+      <div class="terminal-dot terminal-dot--green"></div>
+      <div class="terminal-title">agentsrc — src/main.ts</div>
+    </div>
+    <div class="terminal-body">
+      <div class="line comment">// agent.src — Claude Code 源码精读</div>
+      <div class="line"><span class="keyword">import</span> <span class="punct">{</span> <span class="fn">Agent</span><span class="punct">,</span> <span class="fn">Tool</span> <span class="punct">}</span> <span class="keyword">from</span> <span class="string">'@anthropic/agent'</span></div>
+      <div class="line"></div>
+      <div class="line line--active"><span class="keyword">async function</span> <span class="fn">initAgent</span><span class="punct">(</span><span class="punct">)</span> <span class="punct">{</span></div>
+      <div class="line line--active">  <span class="keyword">const</span> <span class="fn">agent</span> <span class="punct">=</span> <span class="keyword">new</span> <span class="fn">Agent</span><span class="punct">(</span><span class="punct">{</span></div>
+      <div class="line line--active">    <span class="fn">model</span><span class="punct">:</span> <span class="string">'claude-sonnet-4'</span><span class="punct">,</span></div>
+      <div class="line line--active">    <span class="fn">tools</span><span class="punct">:</span> <span class="punct">[</span><span class="fn">Read</span><span class="punct">,</span> <span class="fn">Write</span><span class="punct">,</span> <span class="fn">Bash</span><span class="punct">]</span><span class="punct">,</span></div>
+      <div class="line line--active">  <span class="punct">}</span><span class="punct">)</span></div>
+      <div class="line line--active">  <span class="keyword">await</span> <span class="fn">agent</span><span class="punct">.</span><span class="fn">run</span><span class="punct">(</span><span class="string">'实现用户登录'</span><span class="punct">)</span></div>
+      <div class="line"><span class="punct">}</span></div>
+      <div class="line"></div>
+      <div class="line comment">// 逐行拆解 · 每一行都有故事</div>
+    </div>
+    <div class="scanning-beam"></div>
+  </div>
+
+  <!-- Content block (right-aligned) -->
+  <div class="content">
+    <div class="logo-wrapper">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64">
+        <rect x="3" y="5" width="26" height="22" rx="3" fill="#0d1b2a" stroke="#00D4FF" stroke-width="2"/>
+        <rect x="7" y="14" width="12" height="6" rx="1.5" fill="#00D4FF" opacity="0.15"/>
+        <line x1="8" y1="12" x2="18" y2="12" stroke="#2a4a6a" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="8" y1="16" x2="16" y2="16" stroke="#00D4FF" stroke-width="2" stroke-linecap="round"/>
+        <line x1="8" y1="20" x2="22" y2="20" stroke="#2a4a6a" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="26" cy="8" r="2" fill="#FFB347"/>
+      </svg>
+      <span class="logo-label">Open Source</span>
+    </div>
+
+    <h1 class="title">Agent <span class="accent">Src</span></h1>
+
+    <p class="subtitle">AI Agent 源码精读</p>
+
+    <div class="tagline">
+      逐行拆解
+      <span class="sep">·</span>
+      <span class="pill">Claude Code</span>
+      <span class="sep">·</span>
+      <span class="pill">OpenCode</span>
+      <span class="sep">·</span>
+      <span class="pill">Codex</span>
+    </div>
+  </div>
+
+  <!-- URL hint -->
+  <div class="url-hint">shakl0ne.github.io/agentsrc</div>
+</div>
+</body>
+</html>
