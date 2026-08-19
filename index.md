@@ -24,6 +24,7 @@ hero:
 | 04 | [上下文压缩](/opencode/04-compact) | 2 级压缩（Prune + Compact）、锚定摘要、消息重排 | ~14K |
 | 05 | [Agent 系统](/opencode/05-agents) | SubAgent 隔离调度、tasks.pop() 串行模型、与 CC 对比 | ~13K |
 | 06 | [上下文架构](/opencode/06-context) | 5 层上下文注入、指令文件 + Skill 系统、为什么不用 RAG | ~13K |
+| 07 | [plan-execute-verify 编排](/opencode/07-plan-execute-verify) | 规划/执行/验证三阶段编排、oh-my-openagent 机制解析 | ~13K |
 
 <p class="catalog-cta"><a href="opencode/" class="VPButton medium brand">进入 OpenCode 专栏 →</a></p>
 

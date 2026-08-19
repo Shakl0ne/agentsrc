@@ -3,7 +3,7 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 import { giscusPlugin } from 'vitepress-plugin-giscus'
 
 export default withMermaid(defineConfig({
-  srcExclude: ['agent/**', 'archive/**', 'jds/**', 'tmp/**', 'node_modules/**', '**/verify-*.md', 'AGENTS.md', 'TODO.md'],
+  srcExclude: ['agent/**', 'archive/**', 'jds/**', 'tmp/**', 'docs/**', 'node_modules/**', '**/verify-*.md', 'AGENTS.md', 'TODO.md'],
   base: '/agentsrc/',
   lang: 'zh-CN',
   title: 'Agent Src',
@@ -113,6 +113,7 @@ export default withMermaid(defineConfig({
       { text: 'OpenCode', link: '/opencode/' },
       { text: 'Codex', link: '/codex/' },
       { text: 'Claude Code', link: '/claudecode/' },
+      { text: 'DeepSeek Harness', link: '/deepseek/' },
     ],
 
     sidebar: {
@@ -127,6 +128,7 @@ export default withMermaid(defineConfig({
             { text: '4. 上下文压缩', link: '/opencode/04-compact' },
             { text: '5. Agent 系统', link: '/opencode/05-agents' },
             { text: '6. 上下文架构', link: '/opencode/06-context' },
+            { text: '7. plan-execute-verify 编排', link: '/opencode/07-plan-execute-verify' },
           ],
         },
       ],
@@ -161,6 +163,22 @@ export default withMermaid(defineConfig({
             { text: '8. MCP 集成架构', link: '/claudecode/08-mcp' },
             { text: '9. Bridge 桥接与远程模式', link: '/claudecode/09-bridge' },
             { text: '10. 记忆系统与上下文注入', link: '/claudecode/10-memory' },
+          ],
+        },
+      ],
+      '/deepseek/': [
+        {
+          text: 'DeepSeek Harness 源码精读',
+          items: [
+            { text: '专栏介绍', link: '/deepseek/' },
+            { text: '1. 全景：一切皆插件', link: '/deepseek/01-overview' },
+            { text: '2. Cordis 组合框架', link: '/deepseek/02-cordis' },
+            { text: '3. Agent 接口与默认 loop', link: '/deepseek/03-agent-loop' },
+            { text: '4. 会话日志与上下文投影', link: '/deepseek/04-session-log' },
+            { text: '5. 工具系统与执行管线', link: '/deepseek/05-tools-pipeline' },
+            { text: '6. Capability 缝体系', link: '/deepseek/06-capability-seams' },
+            { text: '7. 压缩 / 上下文注入 / 子代理', link: '/deepseek/07-compaction-context-subagent' },
+            { text: '8. 自改 / hooks 桥 / 生态', link: '/deepseek/08-self-modification-hooks' },
           ],
         },
       ],

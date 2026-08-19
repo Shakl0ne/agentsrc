@@ -20,6 +20,7 @@ title: OpenCode 源码精读
 | 4 | [上下文压缩：Compact 2 级机制](/opencode/04-compact) | 源码解析 | ~14,000 字 |
 | 5 | [Agent 系统：SubAgent 与 Claude Code 对比](/opencode/05-agents) | 源码解析 | ~13,000 字 |
 | 6 | [上下文架构：5 层上下文注入](/opencode/06-context) | 源码解析 | ~13,000 字 |
+| 7 | [plan-execute-verify 编排机制](/opencode/07-plan-execute-verify) | 源码解析 | ~13,000 字 |
 
 ## 关于系列
 
