@@ -200,7 +200,7 @@ export default withMermaid(defineConfig({
 
     footer: {
       message: 'Agent Src — AI Agent 源码精读',
-      copyright: 'Copyright © 2026 Shaco',
+      copyright: 'Copyright © 2026 Shakl0ne',
     },
 
     editLink: false,
