@@ -39,7 +39,7 @@
 |------|------|
 | 文章署名/作者展示 | `shaco`（全小写，无空格） |
 | GitHub 用户名 | `Shakl0ne` |
-| 导航 GitHub 图标链接 | `https://github.com/Shakl0ne` |
+| 导航 GitHub 图标链接 | `https://github.com/Shakl0ne/agentsrc` |
 
 禁止出现：
 - ❌ "凌皓"、"小林" 等其他化名

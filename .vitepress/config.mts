@@ -114,6 +114,7 @@ export default withMermaid(defineConfig({
       { text: 'Codex', link: '/codex/' },
       { text: 'Claude Code', link: '/claudecode/' },
       { text: 'DeepSeek Harness', link: '/deepseek/' },
+      { text: 'Reading', link: '/reading/' },
     ],
 
     sidebar: {
@@ -182,10 +183,19 @@ export default withMermaid(defineConfig({
           ],
         },
       ],
+      '/reading/': [
+        {
+          text: 'Reading · 论文解读与随笔',
+          items: [
+            { text: '专栏介绍', link: '/reading/' },
+            { text: '1. Skill 到底为什么有效，又在哪失效', link: '/reading/01-skill-paper' },
+          ],
+        },
+      ],
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/Shakl0ne' },
+      { icon: 'github', link: 'https://github.com/Shakl0ne/agentsrc' },
     ],
 
     footer: {

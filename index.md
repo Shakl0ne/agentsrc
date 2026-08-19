@@ -8,7 +8,7 @@ hero:
 
 ## 导读目录
 
-本博客覆盖 **Claude Code**、**OpenCode** 和 **Codex** 三款主流终端编程 Agent。OpenCode（TypeScript）和 Codex（Rust）是当下最先进的两款开源终端编程 Agent，Claude Code 则是 Anthropic 官方闭源实现——三者的源码在本站均有深度解读。
+本博客覆盖 **Claude Code**、**OpenCode** 和 **Codex** 三款主流终端编程 Agent，外加 **DeepSeek Harness** 这一通用 agent harness。OpenCode（TypeScript）和 Codex（Rust）是当下最先进的两款开源终端编程 Agent，Claude Code 则是 Anthropic 官方闭源实现——四者的源码在本站均有深度解读。其中 dsh 以"一切皆插件"的架构思路提供了与前三者不同的引擎视角。
 
 <div class="catalog-grid">
 
@@ -63,6 +63,33 @@ hero:
 | 10 | [记忆系统与上下文注入](/claudecode/10-memory) | claude.md、memdir 持久化、SessionMemory | ~13K |
 
 <p class="catalog-cta"><a href="claudecode/" class="VPButton medium brand">进入 Claude Code 专栏 →</a></p>
+
+### DeepSeek Harness 源码精读
+
+> DeepSeek 开源通用 agent harness 源码深度解析，基于 vendored Cordis 插件框架，四十余万行 TypeScript、两百多个 package
+
+| # | 文章 | 主题 | 字数 |
+|---|------|------|------|
+| 01 | [全景：一切皆插件](/deepseek/01-overview) | 无特权核心、profile/bundle 装配、vendored Cordis、规模实测 | ~8K |
+| 02 | [Cordis 组合框架](/deepseek/02-cordis) | Context/effect/waterfall、Service 声明注入、per-agent scope、Loader+patch | ~12K |
+| 03 | [Agent 接口与默认 loop](/deepseek/03-agent-loop) | step vs turn、turn 生命周期事件、inbox、waterfall vs serial、swappable | ~11K |
+| 04 | [会话日志与上下文投影](/deepseek/04-session-log) | SessionEvent 追加日志、deriveMessages 投影、model-visible ⟺ logged、fork/resume | ~9K |
+| 05 | [工具系统与执行管线](/deepseek/05-tools-pipeline) | 注册表与 scope、schema+prompt 组合、pre→execute→post、guard 守卫 | ~10K |
+| 06 | [Capability 缝体系](/deepseek/06-capability-seams) | Seam 三元组、Provider 互换=整套移动、沙箱后端、approval 挂缝 | ~10K |
+| 07 | [压缩/上下文注入/子代理](/deepseek/07-compaction-context-subagent) | 压缩可换缝、agent.inject 排队、ctx.subagents provider 注册表 | ~10K |
+| 08 | [自改/hooks 桥/生态](/deepseek/08-self-modification-hooks) | self-referential cordis toolset、CC/Codex hooks 翻译桥、typed-Decision 拦截 | ~10K |
+
+<p class="catalog-cta"><a href="deepseek/" class="VPButton medium brand">进入 DeepSeek Harness 专栏 →</a></p>
+
+### Reading · 论文解读与随笔
+
+> 走出源码逐行，站到更高一层——解读与 Agent 工程相关的论文，分享阅读笔记与工程随笔。首篇解读的是"Agent Skill 为何有效、又为何失效"。
+
+| # | 文章 | 主题 | 字数 |
+|---|------|------|------|
+| 01 | [Skill 到底为什么有效，又在哪失效](/reading/01-skill-paper) | Demystifying Agent Skills 论文解读：12 种 skill-use 模式、何时该用 / 何时有害 | ~4K |
+
+<p class="catalog-cta"><a href="reading/" class="VPButton medium brand">进入 Reading 专栏 →</a></p>
 
 </div>
 

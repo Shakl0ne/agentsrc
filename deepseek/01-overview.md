@@ -14,6 +14,7 @@ title: DeepSeek Harness 全景：一个"一切皆插件"的通用 agent harness
 
 这篇文章先把全景铺开：它是什么、代码怎么组织、为什么这么组织，以及它和 OpenCode、Codex 到底是不是同一类东西。
 
+![dsh 全景架构：profile / bundle 分层装配一棵插件树](/images/deepseek/article-01-architecture.png)
 
 ## 一、同能不同构：它和你熟悉的终端 Agent 不是一回事
 
