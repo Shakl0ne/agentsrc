@@ -31,3 +31,9 @@ title: DeepSeek Harness 源码精读
 | 6 | [Capability 缝体系：为什么换一个实现能牵一发动全身](/deepseek/06-capability-seams) | 源码解析 | ~10,000 |
 | 7 | [压缩 / 上下文注入 / 子代理：装配式的长会话扩展](/deepseek/07-compaction-context-subagent) | 源码解析 | ~10,000 |
 | 8 | [自改 / hooks 桥 / 生态：agent 学会改自己、也接得住别家的协议](/deepseek/08-self-modification-hooks) | 源码解析 | ~10,000 |
+
+## 整体架构速览
+
+以下是 dsh 的装配链全景：空 root → bundle 层 → patch 覆盖 → 装配成的插件树，再到 CLI / Web 两个产品壳。
+
+![dsh 装配链架构：profile / bundle 分层组装一棵插件树](/images/deepseek/article-01-architecture.png)
