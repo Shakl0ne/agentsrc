@@ -68,3 +68,14 @@
 .VPHero .actions {
   justify-content: center !important;
 }
+
+/* Markdown inline images (article figures, column index overviews): display at
+   full content width instead of intrinsic small size. Applies to all columns so
+   architecture/flow diagrams stay readable. */
+.vp-doc p > img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin: 0.5rem 0;
+}
