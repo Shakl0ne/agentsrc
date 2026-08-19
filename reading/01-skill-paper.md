@@ -5,7 +5,7 @@ title: Skill 到底为什么有效，又在哪失效——Demystifying Agent Ski
 # Skill 到底为什么有效，又在哪失效
 
 ::: tip 论文信息
-- **论文**：《Demystifying Agent Skills: Why They Work—Until They Don't》
+- **论文**：[《Demystifying Agent Skills: Why They Work—Until They Don't》](https://arxiv.org/abs/2608.14036)
 - **机构**：Princeton / UCSD / Stanford / USC / Johns Hopkins
 - **版本**：arXiv:2608.14036v1，2026 年 8 月预印本
 - **阅读时长**：约 20 分钟
@@ -140,6 +140,4 @@ RQ4 提示：库越大、skill 越相近，自动检索越难命中。库大时�
 一句打包，但拆成三句：**skill 是过程锚，不是知识库**——稳定的是动作而非补充知识，6.06pp 来自表示形态而非多次训练；**检索是独立瓶颈**——命中与成功松耦合，池越大越相似越难，精确 ground-truth 既不充分也不必要；**失效来自边界**——修执行层而不修算法推理，且会带来误用，关键不在"写没写"而在"何时用、用哪个、怎么适配"。
 
 ---
-> **论文原文**：[Demystifying Agent Skills: Why They Work—Until They Don't](https://arxiv.org/abs/2608.14036)（arXiv:2608.14036）
->
 > 本篇为**论文解读**，与本站源码专栏互为补充。数据均取自论文正文与附录 A 各表（表 1/2/3/11/15/16），无杜撰。
