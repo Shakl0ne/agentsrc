@@ -4,7 +4,7 @@ title: Claude Code 源码精读
 
 # Claude Code 源码精读
 
-> An Anthropic 官方终端编程 Agent 源码深度解析
+> Anthropic 官方终端编程 Agent 源码深度解析
 
 这里是「**Claude Code 源码精读**」专栏，基于泄漏源码分析 Claude Code 的架构设计与核心机制。
 

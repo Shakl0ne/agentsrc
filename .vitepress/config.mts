@@ -3,7 +3,7 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 import { giscusPlugin } from 'vitepress-plugin-giscus'
 
 export default withMermaid(defineConfig({
-  srcExclude: ['agent/**', 'archive/**', 'jds/**', 'tmp/**', 'docs/**', 'node_modules/**', '**/verify-*.md', 'AGENTS.md', 'TODO.md'],
+  srcExclude: ['agent/**', 'archive/**', 'jds/**', 'tmp/**', 'docs/**', 'node_modules/**', '**/verify-*.md', 'AGENTS.md', 'README.md', 'TODO.md'],
   base: '/agentsrc/',
   lang: 'zh-CN',
   title: 'Agent Src',
