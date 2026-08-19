@@ -12,7 +12,7 @@ title: DeepSeek Harness 源码精读
 
 ## 关于本系列
 
-本系列基于 **`dsh-v0.1.0-rc.7`**（master @ `99f6f02`，2026-08-17）编写。项目处于 developer preview，迭代很快，文中机制以该基线为准。
+本系列基于 **`dsh-v0.1.0-rc.7`** 编写。项目处于 developer preview，迭代很快，文中机制以该基线为准。
 
 - **源码层**：`packages/` 约 **40+ 万行** TypeScript、**220+ 个 package**（按组分布：core / api / llm / shell / subprocess / fs / lsp / web / compaction / context / subagent / hooks / session / workflow …）
 - **技术底座**：vendored Cordis（事件 / 插件 / 生命周期）+ TypeScript
@@ -31,14 +31,3 @@ title: DeepSeek Harness 源码精读
 | 6 | [Capability 缝体系：为什么换一个实现能牵一发动全身](/deepseek/06-capability-seams) | 源码解析 | ~10,000 |
 | 7 | [压缩 / 上下文注入 / 子代理：装配式的长会话扩展](/deepseek/07-compaction-context-subagent) | 源码解析 | ~10,000 |
 | 8 | [自改 / hooks 桥 / 生态：agent 学会改自己、也接得住别家的协议](/deepseek/08-self-modification-hooks) | 源码解析 | ~10,000 |
-
-## 文章顺序（建议按此阅读）
-
-1. **全景** —— 篇开场把整座 harness 的地图画出来：几十个 package 怎么被 `dsh --profile` 组装成一个跑得起来的 agent。
-2. **Cordis 组合框架** —— 核心的中枢、组合、全生命周期模型；理解它，才能读后面所有机制的"骨架"。
-3. **Agent 接口与默认 loop** —— 一个回合（turn）怎么被拆成 message batch、推导、工具调用、结束判定。
-4. **会话日志与上下文投影** —— 模型看到的上下文从哪来；日志如何做持久化与重建。
-5. **工具系统与执行管线** —— 工具 request 怎么穿过 pre-execute / execute / post-execute 变成真实行动。
-6. **Capability 缝体系** —— 换一个 Provider 为什么能牵一发动全身；Definition / Provider / Consumer 三件套。
-7. **压缩 / 上下文注入 / 子代理** —— 长会话怎么活下来：可换缝 + `agent.inject()` 队列 + Provider 注册表。
-8. **自改 / hooks 接口 / 生态** —— 我能改自己、也能原样接住 Claude Code / Codex 的 `hooks.json`；最后对比三栏收尾。

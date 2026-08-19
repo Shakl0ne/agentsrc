@@ -4,7 +4,7 @@ title: Cordis 组合框架：几十个 package 靠什么拼成一个 agent
 
 # Cordis 组合框架：几十个 package 靠什么拼成一个 agent
 
-> 本文基于 `dsh-v0.1.0-rc.7`（master @ 99f6f02，2026-08-17）。项目处于 developer preview，迭代很快，文中机制以该基线为准。
+> 本文基于 `dsh-v0.1.0-rc.7`。项目处于 developer preview，迭代很快，文中机制以该基线为准。
 
 连载第一篇讲清了 `dsh` 的全景：几十个 package，没有一个不可变的中央循环，全靠一台可组合的插件树。但紧接着就冒出一个更硬的问题——**这几十个互相独立的 package，到底靠什么在运行期拼成一个 agent？** 谁负责把它们装进一棵树？谁决定先后？谁提供"每个插件共有的底座"？
 

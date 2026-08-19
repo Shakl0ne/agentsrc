@@ -4,7 +4,7 @@ title: Capability 缝体系：为什么换一个实现能牵一发动全身
 
 # Capability 缝体系：为什么换一个实现能牵一发动全身
 
-> 本文基于 `dsh-v0.1.0-rc.7`（master @ 99f6f02，2026-08-17）。项目处于 developer preview，迭代很快，文中机制以该基线为准。
+> 本文基于 `dsh-v0.1.0-rc.7`。项目处于 developer preview，迭代很快，文中机制以该基线为准。
 
 前五篇把 `dsh` 从"插件森林"一步步走到"工具管线"。第六篇触及它真正区别于终端 agent 的核心抽象：**capability 缝（capability seam）**。
 

@@ -4,7 +4,7 @@ title: DeepSeek Harness 全景：一个"一切皆插件"的通用 agent harness
 
 # DeepSeek Harness 全景：一个"一切皆插件"的通用 agent harness
 
-> 本文基于 `dsh-v0.1.0-rc.7`（master @ 99f6f02，2026-08-17）。项目处于 developer preview，迭代很快，文中机制以该基线为准。
+> 本文基于 `dsh-v0.1.0-rc.7`。项目处于 developer preview，迭代很快，文中机制以该基线为准。
 
 本站拆过的三个终端编程 Agent——OpenCode、Codex、Claude Code——都有同一个共同点：它们围绕"替用户写代码"这件事，各自实现了一个主循环。今天我们换一个物种：DeepSeek 开源的通用 agent harness，`dsh`。它不替用户写代码，也不打算被某一种产品独占，而是做一台可以被任意产品装配的通用 agent 引擎。为此，它选择了与前三个完全不同的架构路线：**everything is a plugin**。
 

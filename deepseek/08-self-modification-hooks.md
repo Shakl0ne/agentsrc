@@ -4,7 +4,7 @@ title: 自改 / hooks 桥 / 生态：agent 学会改自己、也接得住别家�
 
 # 自改 / hooks 桥 / 生态：agent 学会改自己、也接得住别家的协议
 
-> 本文基于 `dsh-v0.1.0-rc.7`（master @ 99f6f02，2026-08-17）。项目处于 developer preview，迭代很快，文中机制以该基线为准。
+> 本文基于 `dsh-v0.1.0-rc.7`。项目处于 developer preview，迭代很快，文中机制以该基线为准。
 
 前七篇我们把 `dsh` 从插件森林、Cordis、agent-loop、会话日志、工具管线、capability 缝，一路看到压缩 / 上下文注入 / 子代理这些"长会话扩展"。现在是收尾的第八篇，聊三件"往更大处收"的事：
 

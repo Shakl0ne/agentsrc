@@ -4,7 +4,7 @@ title: Agent 接口与默认 loop：一个 agent 到底怎么跑一个回合
 
 # Agent 接口与默认 loop：一个 agent 到底怎么跑一个回合
 
-> 本文基于 `dsh-v0.1.0-rc.7`（master @ 99f6f02，2026-08-17）。项目处于 developer preview，迭代很快，文中机制以该基线为准。
+> 本文基于 `dsh-v0.1.0-rc.7`。项目处于 developer preview，迭代很快，文中机制以该基线为准。
 
 前两篇：`dsh` 是一片插件的森林，Cordis 是拼森林的框架。那么问题来了——**在这棵插件树里，真正驱动 agent"跑一个回合"的那个东西，长什么样？**
 
