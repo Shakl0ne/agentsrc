@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 860" width="960" height="860">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1320" width="900" height="1320" role="img" aria-label="DSH profile and bundle assembly flow">
 <style>
-  text { font-family: "Inter", -apple-system, "Helvetica Neue", Arial, "PingFang SC", sans-serif; fill: #f0f6fc; }
+  text { font-family: "Inter", -apple-system, "Helvetica Neue", Arial, "PingFang SC", sans-serif; }
 </style>
 <defs>
   <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -8,103 +8,75 @@
     <stop offset="50%" stop-color="#161b22"/>
     <stop offset="100%" stop-color="#0d1117"/>
   </linearGradient>
-  <radialGradient id="glow-blue" cx="30%" cy="40%" r="45%">
-    <stop offset="0%" stop-color="rgba(88,166,255,0.15)"/>
-    <stop offset="100%" stop-color="rgba(88,166,255,0)"/>
-  </radialGradient>
-  <radialGradient id="glow-purple" cx="70%" cy="60%" r="40%">
-    <stop offset="0%" stop-color="rgba(188,140,255,0.12)"/>
-    <stop offset="100%" stop-color="rgba(188,140,255,0)"/>
-  </radialGradient>
   <linearGradient id="text-grad" x1="0%" y1="0%" x2="100%" y2="0%">
     <stop offset="0%" stop-color="#58a6ff"/>
     <stop offset="100%" stop-color="#bc8cff"/>
   </linearGradient>
-  <marker id="arrow-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-    <polygon points="0 0, 8 3, 0 6" fill="#58a6ff"/>
+  <marker id="arrow-blue" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#58a6ff"/>
   </marker>
-  <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-    <polygon points="0 0, 8 3, 0 6" fill="#3fb950"/>
+  <marker id="arrow-green" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#3fb950"/>
   </marker>
 </defs>
-<rect width="960" height="860" fill="url(#bg)"/>
-<rect width="960" height="860" fill="url(#glow-blue)"/>
-<rect width="960" height="860" fill="url(#glow-purple)"/>
-<text x="480" y="40" text-anchor="middle" font-size="20" font-weight="700" fill="url(#text-grad)">DSH — Profile / Bundle Assembly</text>
-<text x="480" y="64" text-anchor="middle" font-size="12" fill="#8b949e">empty root -&gt; bundle layer -&gt; profile patch -&gt; home overlay -&gt; shell pick</text>
-<rect x="330" y="90" width="300" height="50" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="330" y="90" width="300" height="50" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="344" y="114" font-size="13" font-weight="600" fill="#f0f6fc">EMPTY ROOT</text>
-<text x="344" y="132" font-size="11" fill="#8b949e">every profile starts blank</text>
-<line x1="480" y1="142" x2="480" y2="172" stroke="#58a6ff" stroke-width="2" opacity="0.8" marker-end="url(#arrow-blue)"/>
-<rect x="20" y="178" width="920" height="112" rx="12" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
-<text x="36" y="200" font-size="11" font-weight="700" fill="#58a6ff">BUNDLE LAYER</text>
-<rect x="40" y="210" width="270" height="62" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="40" y="210" width="270" height="62" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="54" y="234" font-size="13" font-weight="600" fill="#f0f6fc">dsh-base</text>
-<text x="54" y="252" font-size="11" fill="#8b949e">common core</text>
-<text x="332" y="244" font-size="16" fill="#8b949e">+</text>
-<rect x="360" y="210" width="280" height="62" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="360" y="210" width="280" height="62" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="374" y="234" font-size="13" font-weight="600" fill="#f0f6fc">dsh-web-app / headless</text>
-<text x="374" y="252" font-size="11" fill="#8b949e">browser / one-shot</text>
-<text x="702" y="248" font-size="13" fill="#8b949e">more bundles</text>
-<line x1="480" y1="292" x2="480" y2="322" stroke="#58a6ff" stroke-width="2" opacity="0.8" marker-end="url(#arrow-blue)"/>
-<text x="50" y="346" font-size="11" font-weight="700" fill="#bc8cff">PATCH OVERLAY (EACH ROW OVERRIDABLE)</text>
-<rect x="40" y="358" width="430" height="48" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="40" y="358" width="430" height="48" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="54" y="382" font-size="13" font-weight="600" fill="#f0f6fc">profile  cordis.patch.yml</text>
-<text x="54" y="400" font-size="11" fill="#8b949e">profile-scoped override</text>
-<rect x="40" y="418" width="430" height="48" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="40" y="418" width="430" height="48" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="54" y="442" font-size="13" font-weight="600" fill="#f0f6fc">home / user cordis.patch.yml</text>
-<text x="54" y="460" font-size="11" fill="#8b949e">machine-level overlay</text>
-<rect x="40" y="478" width="430" height="48" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="40" y="478" width="430" height="48" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="54" y="502" font-size="13" font-weight="600" fill="#f0f6fc">--patch overlay (CLI top)</text>
-<text x="54" y="520" font-size="11" fill="#8b949e">command-line override</text>
-<line x1="260" y1="528" x2="260" y2="558" stroke="#58a6ff" stroke-width="2" opacity="0.8" marker-end="url(#arrow-blue)"/>
-<text x="272" y="550" font-size="11" fill="#8b949e">apply in order</text>
-<text x="806" y="346" font-size="11" font-weight="700" fill="#f78166">ENTRY SHELLS</text>
-<rect x="760" y="352" width="180" height="46" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="760" y="352" width="180" height="46" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="774" y="376" font-size="13" font-weight="600" fill="#f0f6fc">apps/cli (dsh)</text>
-<text x="774" y="394" font-size="11" fill="#8b949e">CLI</text>
-<rect x="760" y="412" width="180" height="46" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="760" y="412" width="180" height="46" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="774" y="436" font-size="13" font-weight="600" fill="#f0f6fc">apps/web</text>
-<text x="774" y="454" font-size="11" fill="#8b949e">browser frontend</text>
-<rect x="20" y="558" width="920" height="216" rx="12" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.14)" stroke-width="1"/>
-<text x="50" y="580" font-size="11" font-weight="700" fill="#3fb950">ASSEMBLED PLUGIN TREE (NO PRIVILEGED CORE)</text>
-<rect x="500" y="588" width="260" height="52" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="500" y="588" width="260" height="52" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="514" y="612" font-size="13" font-weight="600" fill="#f0f6fc">ctx.agents (agent-loop)</text>
-<text x="514" y="630" font-size="11" fill="#8b949e">default driver, swappable</text>
-<path d="M 630 642 L 140 650" stroke="rgba(255,255,255,0.3)"/>
-<path d="M 630 642 L 350 650" stroke="rgba(255,255,255,0.3)"/>
-<path d="M 630 642 L 562 650" stroke="rgba(255,255,255,0.3)"/>
-<path d="M 630 642 L 774 650" stroke="rgba(255,255,255,0.3)"/>
-<rect x="40" y="650" width="200" height="60" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="40" y="650" width="200" height="60" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="54" y="674" font-size="13" font-weight="600" fill="#f0f6fc">ctx.tools</text>
-<text x="54" y="692" font-size="11" fill="#8b949e">tool registry</text>
-<rect x="256" y="650" width="196" height="60" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="256" y="650" width="196" height="60" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="270" y="674" font-size="13" font-weight="600" fill="#f0f6fc">ctx.session</text>
-<text x="270" y="692" font-size="11" fill="#8b949e">session log</text>
-<rect x="468" y="650" width="196" height="60" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="468" y="650" width="196" height="60" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="482" y="674" font-size="13" font-weight="600" fill="#f0f6fc">ctx.shell / fs / sandbox</text>
-<text x="482" y="692" font-size="11" fill="#8b949e">capability seams</text>
-<rect x="680" y="650" width="196" height="60" rx="12" fill="rgba(255,255,255,0.03)"/>
-<rect x="680" y="650" width="196" height="60" rx="12" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-<text x="694" y="674" font-size="13" font-weight="600" fill="#f0f6fc">ctx.compaction / subagent</text>
-<text x="694" y="692" font-size="11" fill="#8b949e">session extensions</text>
-<path d="M 850 460 L 850 650 L 740 668" stroke="#3fb950" stroke-width="1.5" fill="none" stroke-dasharray="5,3" marker-end="url(#arrow-green)"/>
-<g transform="translate(40, 806)">
-<line x1="0" y1="8" x2="30" y2="8" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow-blue)"/>
-<text x="38" y="12" font-size="11" fill="#8b949e">assembly flow</text>
-<line x1="150" y1="8" x2="180" y2="8" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-green)"/>
-<text x="188" y="12" font-size="11" fill="#8b949e">core -&gt; shells</text>
+<rect width="900" height="1320" fill="url(#bg)"/>
+
+<!-- Title -->
+<text x="450" y="58" text-anchor="middle" font-size="36" font-weight="700" fill="url(#text-grad)">DSH — Profile / Bundle Assembly</text>
+<text x="450" y="96" text-anchor="middle" font-size="19" fill="#8b949e">empty root -&gt; bundle -&gt; patch overlay -&gt; plugin tree: every piece is a swappable plugin</text>
+
+<!-- ===== STAGE 1: EMPTY ROOT ===== -->
+<text x="230" y="150" font-size="18" font-weight="700" fill="#58a6ff" letter-spacing="0.08em">STAGE 1 · ROOT</text>
+<rect x="230" y="168" width="440" height="104" rx="20" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="450" y="224" text-anchor="middle" font-size="32" font-weight="700" fill="#f0f6fc">EMPTY ROOT</text>
+<text x="450" y="256" text-anchor="middle" font-size="18" fill="#8b949e">every profile starts blank</text>
+
+<line x1="450" y1="272" x2="450" y2="326" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- ===== STAGE 2: dsh-base ===== -->
+<text x="230" y="368" font-size="18" font-weight="700" fill="#58a6ff" letter-spacing="0.08em">STAGE 2 · BUNDLE</text>
+<rect x="230" y="386" width="440" height="104" rx="20" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="450" y="442" text-anchor="middle" font-size="32" font-weight="700" fill="#f0f6fc">dsh-base</text>
+<text x="450" y="474" text-anchor="middle" font-size="18" fill="#8b949e">common core bundle</text>
+
+<line x1="450" y1="490" x2="450" y2="544" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- ===== STAGE 3: PRODUCT SHELLS (two below the fork) ===== -->
+<text x="230" y="570" font-size="18" font-weight="700" fill="#58a6ff" letter-spacing="0.08em">STAGE 3 · SHELLS</text>
+<rect x="230" y="588" width="208" height="112" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="334" y="648" text-anchor="middle" font-size="24" font-weight="700" fill="#f0f6fc">dsh-web-app</text>
+<text x="334" y="684" text-anchor="middle" font-size="17" fill="#8b949e">browser / headless</text>
+<rect x="462" y="588" width="208" height="112" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="566" y="648" text-anchor="middle" font-size="24" font-weight="700" fill="#f0f6fc">dsh-headless</text>
+<text x="566" y="684" text-anchor="middle" font-size="17" fill="#8b949e">one-shot runner</text>
+
+<line x1="450" y1="700" x2="450" y2="754" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- ===== STAGE 4: PATCH LAYER ===== -->
+<text x="230" y="786" font-size="18" font-weight="700" fill="#bc8cff" letter-spacing="0.08em">STAGE 4 · PATCH OVERRIDE</text>
+<rect x="230" y="804" width="440" height="148" rx="20" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="450" y="856" text-anchor="middle" font-size="30" font-weight="700" fill="#f0f6fc">cordis.patch.yml</text>
+<text x="450" y="896" text-anchor="middle" font-size="18" fill="#8b949e">profile -&gt; home -&gt; --patch</text>
+<text x="450" y="924" text-anchor="middle" font-size="17" fill="#8b949e">applied in order, upper layer wins</text>
+
+<line x1="450" y1="952" x2="450" y2="1006" stroke="#3fb950" stroke-width="4" marker-end="url(#arrow-green)"/>
+
+<!-- ===== STAGE 5: PLUGIN TREE ===== -->
+<text x="230" y="1038" font-size="18" font-weight="700" fill="#3fb950" letter-spacing="0.08em">STAGE 5 · PLUGIN TREE</text>
+<rect x="230" y="1056" width="208" height="140" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="334" y="1106" text-anchor="middle" font-size="22" font-weight="700" fill="#f0f6fc">ctx.agents</text>
+<text x="334" y="1140" text-anchor="middle" font-size="16" fill="#8b949e">agent-loop</text>
+<text x="334" y="1168" text-anchor="middle" font-size="16" fill="#8b949e">swappable driver</text>
+<rect x="462" y="1056" width="208" height="140" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="566" y="1106" text-anchor="middle" font-size="22" font-weight="700" fill="#f0f6fc">seams</text>
+<text x="566" y="1140" text-anchor="middle" font-size="16" fill="#8b949e">tools / shell</text>
+<text x="566" y="1168" text-anchor="middle" font-size="16" fill="#8b949e">fs / session</text>
+
+<!-- Legend -->
+<g transform="translate(230, 1236)">
+  <line x1="0" y1="10" x2="34" y2="10" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+  <text x="44" y="16" font-size="17" fill="#8b949e">assembly flow (ordered)</text>
+  <line x1="330" y1="10" x2="364" y2="10" stroke="#3fb950" stroke-width="4" stroke-dasharray="8,5" marker-end="url(#arrow-green)"/>
+  <text x="374" y="16" font-size="17" fill="#8b949e">product shells / ext</text>
 </g>
 </svg>
