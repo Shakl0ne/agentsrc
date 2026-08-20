@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1190" width="900" height="1190" role="img" aria-label="OpenCode runLoop main loop architecture">
+<style>
+  text { font-family: "Inter", -apple-system, "Helvetica Neue", Arial, "PingFang SC", sans-serif; }
+  .step   { fill: rgba(255,255,255,0.04); stroke: rgba(255,255,255,0.4); }
+  .stepLLM{ fill: rgba(88,166,255,0.10); stroke: #58a6ff; }
+</style>
+<defs>
+  <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#0d1117"/>
+    <stop offset="50%" stop-color="#161b22"/>
+    <stop offset="100%" stop-color="#0d1117"/>
+  </linearGradient>
+  <linearGradient id="text-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#58a6ff"/>
+    <stop offset="100%" stop-color="#3fb950"/>
+  </linearGradient>
+  <marker id="arrow-blue" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#58a6ff"/>
+  </marker>
+  <marker id="arrow-green" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#3fb950"/>
+  </marker>
+  <marker id="arrow-purple" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#bc8cff"/>
+  </marker>
+</defs>
+
+<rect width="900" height="1330" fill="url(#bg)"/>
+
+<!-- Title -->
+<text x="450" y="44" text-anchor="middle" font-size="36" font-weight="700" fill="url(#text-grad)">OpenCode - runLoop</text>
+<text x="450" y="78" text-anchor="middle" font-size="17" fill="#8b949e">while(true) main loop: step cycle until the model stops</text>
+
+<!-- ENTRY -->
+<rect x="230" y="104" width="440" height="92" rx="20" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.45)" stroke-width="4"/>
+<text x="450" y="156" text-anchor="middle" font-size="30" font-weight="700" fill="#f0f6fc">USER INPUT</text>
+<text x="450" y="186" text-anchor="middle" font-size="17" fill="#8b949e">message \/ tool result \/ skill</text>
+<line x1="450" y1="200" x2="450" y2="260" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- RUNLOOP header -->
+<rect x="230" y="266" width="440" height="56" rx="14" fill="rgba(88,166,255,0.12)" stroke="#58a6ff" stroke-width="4"/>
+<text x="450" y="292" text-anchor="middle" font-size="22" font-weight="700" fill="#caf0f8" letter-spacing="0.06em">RUNLOOP - STEP CYCLE</text>
+<text x="450" y="313" text-anchor="middle" font-size="14" fill="#8b949e">one pass = one model request + its tools</text>
+<line x1="450" y1="342" x2="450" y2="392" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- STEP 1 -->
+<text x="44" y="428" text-anchor="middle" font-size="16" font-weight="700" fill="#58a6ff" letter-spacing="0.1em">1</text>
+<rect x="150" y="392" width="620" height="60" rx="14" class="step"/>
+<text x="450" y="426" text-anchor="middle" font-size="25" font-weight="700" fill="#f0f6fc">create user message</text>
+<line x1="450" y1="452" x2="450" y2="488" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- STEP 2 -->
+<text x="44" y="510" text-anchor="middle" font-size="16" font-weight="700" fill="#58a6ff" letter-spacing="0.1em">2</text>
+<rect x="150" y="488" width="620" height="60" rx="14" class="step"/>
+<text x="450" y="522" text-anchor="middle" font-size="25" font-weight="700" fill="#f0f6fc">check context overflow</text>
+<line x1="450" y1="548" x2="450" y2="584" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- STEP 3 -->
+<text x="44" y="606" text-anchor="middle" font-size="16" font-weight="700" fill="#58a6ff" letter-spacing="0.1em">3</text>
+<rect x="150" y="584" width="620" height="60" rx="14" class="step"/>
+<text x="450" y="618" text-anchor="middle" font-size="25" font-weight="700" fill="#f0f6fc">resolve available tools</text>
+<line x1="450" y1="644" x2="450" y2="680" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- STEP 4 -->
+<text x="44" y="702" text-anchor="middle" font-size="16" font-weight="700" fill="#58a6ff" letter-spacing="0.1em">4</text>
+<rect x="150" y="680" width="620" height="60" rx="14" class="step"/>
+<text x="450" y="714" text-anchor="middle" font-size="25" font-weight="700" fill="#f0f6fc">assemble system prompt</text>
+<line x1="450" y1="740" x2="450" y2="776" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- STEP 5 LLM -->
+<text x="44" y="798" text-anchor="middle" font-size="16" font-weight="700" fill="#58a6ff" letter-spacing="0.1em">5</text>
+<rect x="150" y="776" width="620" height="60" rx="14" class="stepLLM"/>
+<text x="450" y="810" text-anchor="middle" font-size="25" font-weight="700" fill="#f0f6fc">LLM call (Effect-TS + AI SDK)</text>
+<line x1="450" y1="836" x2="450" y2="872" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- STEP 6 -->
+<text x="44" y="894" text-anchor="middle" font-size="16" font-weight="700" fill="#58a6ff" letter-spacing="0.1em">6</text>
+<rect x="150" y="872" width="620" height="60" rx="14" class="step"/>
+<text x="450" y="906" text-anchor="middle" font-size="25" font-weight="700" fill="#f0f6fc">run tools / write back result</text>
+
+<!-- CONTINUE branch -->
+<path d="M 450 932 L 862 932 L 862 291 L 858 293" stroke="#bc8cff" stroke-width="4" fill="none" marker-end="url(#arrow-purple)"/>
+<text x="856" y="948" text-anchor="middle" font-size="15" fill="#bc8cff">more steps ?</text>
+<line x1="450" y1="932" x2="450" y2="1000" stroke="#3fb950" stroke-width="4" marker-end="url(#arrow-green)"/>
+
+<!-- RESPONSE -->
+<rect x="230" y="1014" width="440" height="70" rx="18" fill="rgba(63,185,80,0.10)" stroke="#3fb950" stroke-width="4"/>
+<text x="450" y="1046" text-anchor="middle" font-size="26" font-weight="700" fill="#3fb950">response returns</text>
+<text x="450" y="1072" text-anchor="middle" font-size="15" fill="#8b949e">loop exits when model stops</text>
+
+<!-- legend -->
+<line x1="230" y1="1120" x2="264" y2="1120" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+<text x="276" y="1126" font-size="15" fill="#8b949e">forward step</text>
+<line x1="520" y1="1120" x2="554" y2="1120" stroke="#bc8cff" stroke-width="4" marker-end="url(#arrow-purple)"/>
+<text x="566" y="1126" font-size="15" fill="#8b949e">loop on more steps</text>
+
+</svg>

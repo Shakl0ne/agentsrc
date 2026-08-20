@@ -33,18 +33,6 @@ title: OpenCode 源码精读
 
 ## 整体架构速览
 
-以下是 OpenCode 核心架构的主循环流程预览：
+以下是 OpenCode 核心架构的主循环流程：
 
-```mermaid
-flowchart TD
-    A[用户输入] --> B[runLoop 入口]
-    B --> C[Step 1: 创建 User 消息]
-    C --> D[Step 2: 检查上下文溢出]
-    D --> E[Step 3: 解析可用工具]
-    E --> F[Step 4: 组装 System Prompt]
-    F --> G[Step 5: LLM 调用]
-    G --> H[Step 6: 工具执行 / 结果写回]
-    H --> I{继续?}
-    I -->|工具结果| C
-    I -->|stop/finish| J[响应返回]
-```
+![OpenCode runLoop 主循环：用户输入 → 6 步 step cycle → 继续 / 响应](/images/opencode/article-index-architecture.png)

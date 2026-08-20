@@ -34,26 +34,9 @@ title: Codex 源码精读
 
 ## 整体架构速览
 
-以下是 Codex 核心引擎 `codex-core` 的主循环流程预览：
+以下是 Codex 核心引擎 `codex-core` 的反应器 + turn 流程：
 
-```mermaid
-flowchart TD
-    A[用户输入 / 系统事件] -->|async_channel| B[submission_loop]
-    B -->|Op::UserTurn| C[run_turn]
-    B -->|Op::Compact| D[CompactTask]
-    B -->|Op::Interrupt| E[Abort Task]
-    C --> F[build_initial_context]
-    C --> G[Token Check]
-    G -->|超限| H[run_auto_compact]
-    H -->|压缩完成| C
-    G -->|正常| I[LLM 采样]
-    I --> J[工具调用]
-    J --> K[Tool Dispatch]
-    K -->|pre-hook| L[ExecPolicy 审查]
-    K -->|execute| M[SandboxManager]
-    K -->|post-hook| N[结果写回]
-    I -->|stop| O[响应返回]
-```
+![Codex 反应器架构：submission_loop 分发 Ops，run_turn 驱动采样与工具](/images/codex/article-index-architecture.png)
 
 ## 三个终端 Agent 对比
 

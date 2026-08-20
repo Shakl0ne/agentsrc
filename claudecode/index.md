@@ -55,16 +55,4 @@ Claude Code 是 Anthropic 官方出品的终端 AI 编程助手，用 TypeScript
 
 ## 架构速览
 
-```mermaid
-flowchart TD
-    A[用户输入] --> B[processUserInput 处理]
-    B --> C[QueryEngine.query]
-    C --> D[API 流式调用]
-    D --> E{Claude 返回}
-    E -->|text| F[实时渲染到终端]
-    E -->|tool_use| G[权限检查]
-    G --> H[工具执行]
-    H --> I[构造 ToolResult]
-    I --> C
-    E -->|message_stop| J[完成响应]
-```
+![Claude Code 主循环：QueryEngine 流式调用，分流渲染 / 工具执行 / 完成](/images/claudecode/article-index-architecture.png)
