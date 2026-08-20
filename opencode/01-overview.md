@@ -1,475 +1,204 @@
 ---
-title: OpenCode 整体架构：近 10 万行源码全景
+title: OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条装配链
 ---
 
-# OpenCode 整体架构：近 10 万行 TypeScript 源码全景
+# OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条装配链
 
-<img src="/images/opencode/article-01-hero.png" alt="OpenCode 整体架构" style="width:100%; border-radius:8px; margin:1rem 0;">
+![OpenCode 整体架构](/images/opencode/article-01-hero.png)
 
-最近 AI Agent 火得一塌糊涂，Claude Code、Cursor、Cline 各种工具层出不穷。但有个开源项目特别值得关注——**OpenCode**。
+如果一个终端里能跑的 AI 编程助手，源码拆成几十个包、上万个文件，能接 **30 多家模型厂商**，还要在同一个进程里把命令行、HTTP 接口、WebSocket、插件、快照挨个伺候好……
 
-为什么值得？因为它是**少数几个完整开源、跨厂商、生产可用的 AI Agent 框架**。更难得的是，它的代码质量非常高——用 TypeScript + Effect-TS 写的，结构清晰、模块化、可读性强。
+它凭什么不乱？
 
-今天这篇是「**OpenCode 源码精读**」系列的开篇，目标是让你对 OpenCode 的整体架构有个全景认知。看完能同时 get 三个问题：
+停一下，先别翻答案。反问一句：如果让你来设计这个东西，你会从哪儿下手？大多数人第一反应是「先写 `runLoop`，让模型能一轮轮转起来」。但真到几万行的规模你会发现——**能让系统不塌的，不是某一个主循环写得有多漂亮，而是它怎么被组织成一条「装配链」**：入口、运行时、模型、持久化、扩展，每一段守好自己那一段，再拼成一个可运行的整体。这就是本系列第一篇要交付的东西。
 
-- 第一，**OpenCode 是什么？和 Claude Code 什么关系？**——为什么这个项目值得研究
-- 第二，**包结构怎么分层？**——Core 抽象层 + Opencode 实现层的分工
-- 第三，**runLoop 7 步预览**——主循环的完整骨架
+看完这篇，你会 get 到三个问题：
 
-后面我会按由浅入深的顺序，把这个开源 Agent 的核心机制一个个讲清楚。这是开篇，先给你一张全景图。
+- 第一，这个 10 万行引擎被拆成了哪几块，为什么是「契约 / 模型 / 实现」三体；
+- 第二，一个命令从你手上按下，是怎么被**装配成一条能跑起来的链**的；
+- 第三，持久化和扩展是怎么长出来、却不把主干拖乱的。
 
+我们先从「设计一个通用 Agent 引擎到底要摊开哪些摊子」说起。
 
+## 一、先把问题摆出来：做一个「通用 Agent 引擎」的摊子有多大
 
-## 一、OpenCode 是什么？和 Claude Code 什么关系？
+### 1.1 一个能想象的任务
 
-### 1.1 一个让你「先别翻答案」的问题
+想象你被要求做一个**通用的、开源可扩展的终端编程 Agent**。不是给自家某个模型写个玩具，而是要让它：
 
-我先抛一个问题让你估算下，**先别往下翻看答案**：
+- 能接**几十家不同厂商的模型**——Anthropic、OpenAI、Google、以及一堆开源可兼容的协议端点；
+- 既能当 **CLI 命令行**跑，又能被 **Web / SDK** 拉起来当服务；
+- 还得让人**写插件扩展**它的行为，而不需要改它核心。
 
-**OpenCode 的源码有多大规模？**
+在你动手敲第一行 `run()` 之前，先把这件事摊开看：**它不是一个「循环」，而是四类完全不同的负担叠在一起**——模型差异、运行时主循环、持久化、可扩展性。
 
-- A. 1 万行
-- B. 5 万行
-- C. 10 万行
+### 1.2 先拆出四类负担
 
-公布答案：**B 接近 C**——核心实现包 `packages/opencode/src/` 有 **86,715 行** TypeScript，抽象层 `packages/core/src/` 有 **12,405 行**。加起来接近 **10 万行**。
+把「通用 Agent 引擎」的复杂度摊到桌面上，其实是四堆互不相干的问题：
 
-这是个相当大的项目。但和 Claude Code 的代码量相比如何？CC 是闭源的，但根据泄漏分析，`query.ts` 一个文件就有 1,730 行——它的总规模应该在数十万行级别。
+| 负担 | 它的本质 | 要回答的问题 |
+|------|---------|-------------|
+| **模型差异** | 各家厂商的接口、协议、能力都不一样 | 怎么用一个抽象把几十家 `说得不同` 的模型统一进来 |
+| **运行时主循环** | 模型不是一次性，是要「感知→分析→行动→反馈」反复迭代 | 这个迭代的骨架怎么保持着，又不散落一地 |
+| **持久化** | Agent 是一次又一次的会话，中途崩了要能续上 | 状态存哪、怎么查、怎么升级 |
+| **可扩展** | 第三方要能用、能改 | 怎么让别人叠加能力而不改内核 |
 
-### 1.2 OpenCode 的定位
+这四个问题，正是后面所有章节要解决的四个「为什么」。而 OpenCode 给的答案有一个共同的形式：**把每一种负担，都变成一个独立的、可替换的「层次」，再用一条装配链把它们拼起来。** 下面我们先把引擎本身分成哪几块讲清楚。
 
-OpenCode 是一个开源的 AI Agent CLI 工具，定位和 Claude Code 类似——**终端里的 AI 编程助手**。但有几个关键区别：
+## 二、三大引擎包：为什么是「契约 / 模型 / 实现」三体
 
-| 维度 | Claude Code | OpenCode |
-|------|-------------|----------|
-| **开源** | 闭源 | ✅ 完全开源（Apache-2.0） |
-| **模型厂商** | 仅 Claude | ✅ 8 家（Anthropic/OpenAI/Gemini/Codex/Trinity/Kimi/...） |
-| **运行时** | Bun | Bun + Effect-TS |
-| **持久化** | JSONL 文件 | SQLite + Drizzle ORM |
+先看 OpenCode 真正的代码骨架。它不是一个包包打天下的巨石，而是一个有边界、有依赖方向的 monorepo——核心引擎由三个包构成：`core`、`llm`、`opencode`。
 
-**OpenCode 的核心价值**：
+![三大引擎包：core 底座 / llm 模型层 / opencode 实现层](/images/opencode/article-01-packages.png)
 
-1. **跨厂商**——你可以用任意模型，不被锁死在 Anthropic
-2. **开源**——能看源码、能改、能学
-3. **自部署**——数据完全在你手里
-4. **可扩展**——Plugin 系统 + Skill 系统让任何人都能加新能力
+### 2.1 `core`：契约 + 厂商接入基座，是整个系统的底座
 
-### 1.3 和 Claude Code 的关系
+`packages/core` 是整个系统里唯一一个**不依赖任何内部包**的底座。它放的东西有两类：
 
-OpenCode 在很多设计上参考了 Claude Code——比如：
+- **类型与契约**：`session`、`message`、`agent`、`model`、`tool-output`、`provider`……这些是系统的「名词表」，规定“一个会话长什么样”“一个模型长什么样”。
+- **厂商接入基座**：它的 `src/plugin/provider/` 下放了 **30+ 个 Provider 适配器**（Anthropic、OpenAI、Google、Bedrock、Azure、以及一堆 openai-compatible、openrouter、togetherai……），每个都是一个「把一个厂商装进系统」的接线器。
 
-- `CLAUDE.md` 指令文件兼容（OpenCode 也读 CLAUDE.md）
-- 工具系统设计（Read/Edit/Write/Grep/Glob/Task 等工具命名一致）
-- Compact 摘要的 9 段格式（和 CC 类似）
+这就点破一层：**厂商接入 OpenCode 不是「写死在代码里的 N 家」，而是「往基座上插一个适配器」**。你想支持一个新厂商，代码量不至于很小——新写一个 adapter，在 `provider/` 目录挂上即可。这是它能「接得住 30 多家」而代码不乱的根本原因。
 
-但 OpenCode 也做了大量**自己的设计**：
+### 2.2 `llm`：独立的模型协议层，把「厂商协议」抽象成可换的一块
 
-- **Provider 抽象层**——让一个代码库跑 8 家模型
-- **Effect-TS DI**——用声明式依赖注入管理 ~40 个服务
-- **SQLite 持久化**——比 JSONL 更结构化
-- **AgentV2 Schema**——类型安全的 Agent 配置
-- **Permission 三态系统**——ask/allow/deny + Doom Loop 检测
+如果你注意上一条，会发现模型相关的逻辑其实有两层：一层是「每个厂商怎么接」（core 的 adapter），另一层是「怎么按协议对齐」。OpenCode 把它单独抽成 `packages/llm`。
 
-整个系列会围绕这些差异点展开，每篇都会做硬核对比。
+`llm` 包是个**独立的模型协议层**——它把各家厂商的报文、认证、路由整理到底层的公共 abstraction（Protocol / Endpoint / Auth / Framing 四个维度），只依赖 `effect` + `http-recorder`，不和 session、运行时耦合。它的存在意味着：**「模型怎么接」这件事，是整个引擎里可以独立演进、独立替换的一块**。这不是实现细节，而是设计上的一个刻意分层决策：模型层的稳定性，不该被运行时里那些频繁变动的逻辑一起裹挟。
 
-## 二、包结构：Core 抽象层 + Opencode 实现层
+### 2.3 `opencode`：所有「运行时实现」的家
 
-OpenCode 的代码分两个核心包：
+`packages/opencode` 是三个包里最大的一块，也是**真正干活的引擎**：`session/`（会话与主循环）、`tool/`（几十个内置工具）、`server/`（HTTP 服务）、`mcp/`、`skill/`、`snapshot/`、`storage/`（SQLite 持久化）、`git/`、`permission/`……几乎除了「契约」和「纯模型协议」之外，一切实现都在这里。
 
-### 2.1 整体包结构
+### 2.4 三者怎么咬合：依赖方向决定「谁在底座」
 
-```mermaid
-flowchart TD
-    subgraph Core["packages/core - 抽象层 (~12K 行)"]
-        B1["agent.ts - AgentV2 类型"]
-        B2["session.ts - Session 类型"]
-        B3["model.ts - Model 类型"]
-        B4["plugin.ts - Plugin Hook"]
-        B5["permission.ts - Permission"]
-        B6["provider.ts - Provider"]
-    end
-    subgraph Opencode["packages/opencode - 实现层 (~86K 行)"]
-        C1["session/ - 会话实现"]
-        C2["tool/ - 工具系统"]
-        C3["agent/ - Agent 实现"]
-        C4["mcp/ - MCP 集成"]
-        C5["plugin/ - Plugin 加载"]
-        C6["skill/ - Skill 系统"]
-        C7["background/ - 后台任务"]
-        C8["bus/ - 事件总线"]
-    end
+把三块放一起，依赖方向非常清晰：
 
-    Mono["OpenCode Monorepo"] --> Core
-    Mono --> Opencode
-```
+- `core` 在**最底**，什么都不依赖（不依赖任何内部包，只靠纯 npm 外部件）；
+- `llm` **独立中立**，也和内部无强耦合；
+- `opencode` 在**最顶**，同时依赖 `core`、`llm`、`sdk`、`plugin`、`ui`——它是「装配链」上把别的包拼成一个可运行品的那一段。
 
-**两个核心包**：
-
-- **`packages/core/src/`**（12,405 行）——**抽象层**，定义所有类型和接口
-- **`packages/opencode/src/`**（86,715 行）——**实现层**，所有具体实现
-
-### 2.2 Core 包：抽象层
-
-Core 包只有 ~12K 行，但定义了所有关键类型：
-
-| 文件 | 行数 | 作用 |
-|------|------|------|
-| `agent.ts` | 147 | AgentV2 类型（ID/Mode/Info/Interface/Service） |
-| `session.ts` | 13 | Session 类型 |
-| `model.ts` | 116 | Model 类型 |
-| `plugin.ts` | 191 | Plugin Hook 规范（7 种 hook） |
-| `permission.ts` | 45 | Permission 核心评估引擎 |
-| `provider.ts` | 120 | Provider 抽象 |
-| `schema.ts` | 112 | 基础 ID 类型 |
-
-Core 包的代码量小，但定义了所有「**契约**」——实现层必须遵守这些接口。
-
-### 2.3 Opencode 包：实现层
-
-Opencode 包有 ~87K 行，是真正的实现：
-
-| 目录 | 作用 |
-|------|------|
-| `src/session/` | 会话流程（runLoop / processor / llm / tools / system / instruction / compaction） |
-| `src/tool/` | 18 个内置工具（Edit/Grep/Glob/Read/Write/Shell/Task/Skill/...） |
-| `src/agent/` | 8 个内置 Agent（build/plan/general/explore/scout/compaction/title/summary） |
-| `src/mcp/` | MCP 集成（stdio/SSE/StreamableHTTP） |
-| `src/plugin/` | Plugin 加载和 hook 触发 |
-| `src/skill/` | Skill 系统发现和注入 |
-| `src/background/` | 后台任务调度 |
-| `src/bus/` | 事件总线（pub/sub） |
-| `src/config/` | 配置加载 |
-| `src/provider/` | 8 个 Provider 实现 |
-| `src/permission/` | Permission 服务 |
-| `src/storage/` | 存储抽象 |
-| `src/server/` | HTTP 服务器 |
-| `src/snapshot/` | 快照系统 |
+大小上看：`core` ≈ 1.2 万行、`llm` ≈ 8.7 千行、`opencode` ≈ 8.2 万行。**契约和协议最少，实现最多**——这本身就是一个健康的比例：抽象不要比实现更复杂。
 
-整个 `packages/opencode/src/` 目录有 42 个子目录，覆盖了一个完整 Agent 系统的所有方面。
+（具体到每个子系统的做法，后面 02 推进会深入主循环、03 讲工具、04 讲压缩、05 讲 Agent、06 讲上下文，逐层打开。本篇只给骨架。）
 
-### 2.4 技术栈
+## 三、一条装配链：从你敲命令到它跑起来
 
-OpenCode 用了几个比较特别的技术：
+三块放在那还只是一堆包；真正让系统活起来的，是它们被**装配成一条链**。这条链的入口只有一主。
 
-| 技术 | 用途 |
-|------|------|
-| **TypeScript** | 主语言 |
-| **Effect-TS** | 函数式 effect 系统，管理依赖注入和副作用 |
-| **AI SDK (Vercel)** | 默认 LLM 调用层 |
-| **Drizzle ORM** | SQLite 类型安全 ORM |
-| **Bun** | JS 运行时（比 Node 快） |
-| **Schema** | Effect 的运行时类型系统 |
+![OpenCode 装配链：入口 → 运行时 → 会话主循环 → 工具 → 持久化与扩展](/images/opencode/article-01-assembly.png)
 
-**Effect-TS 是最大的特色**——它让 OpenCode 拥有了：
+### 3.1 单一入口：一个 `index.ts` 拉起整个运行时
 
-- 声明式依赖注入（~40 个 Service）
-- 类型安全的错误处理（TaggedError）
-- 可组合的 Effect（generator 风格）
-- Stream 抽象（处理 LLM 流）
+`packages/opencode/src/index.ts` 是唯一入口，用 yargs 装好 20+ 个子命令（run / serve / tui / acp / mcp / providers / agent / …）。真正长驻的是 `serve`：它拉起一个 **Engine runtime**（Effect 装配的运行时），同一个进程里同时把 **HTTP API** 和 **WebSocket** 两个面开出来。
 
-这是 OpenCode 和 Claude Code 的最大架构差异——CC 是命令式 TypeScript，OpenCode 是 Effect-TS 函数式风格。
+- 这也意味着：终端里敲 `opencode`(CLI) 和网页里连它 (Web/HTTP) 是**同一套引擎**，只是面不同入口——设计上省了一大份「双实现」。
 
+![单一入口 -> 引擎运行时 -> 同进程开 HTTP API 与 WebSocket](/images/opencode/article-01-entry.png)
 
+### 3.2 会话主循环：一条可以被反复走的循环
 
-## 三、Provider 抽象：8 家模型的统一接口
+引擎起来之后，核心是 `session` 里的主循环（`session/processor.ts`）：它承接一个 prompt，进入「感知 → 分析 → 行动 → 反馈」的迭代，直到模型决定停下来/输出。工具的执行、压缩的触发（上下文溢出）都在这个循环里被安排。
 
-![Provider 抽象：8 家模型统一接入](/images/opencode/article-01-provider-funnel.png)
+——这一篇不停在它的一格一格。**首要任务只是理解：它是那条「装配链」的中心骨，所有其它层（模型、工具、持久化、插件）都挂在它身上来回打转。**至于每一格怎么走、事件怎么处理，这里就不再展开了。
 
-这是 OpenCode 最值得讲的设计——一个代码库跑 8 家模型。
+### 3.3 一条链的结果：各守一段，化整为零
 
-### 3.1 8 个 Provider Prompt
+把上往下整个走一遍：
+**入口（index.ts/serve）→ 运行时 → 会话主循环（processor）→ 模型（core adapter + llm）→ 工具执行 → SQLite 持久化 / plugin-mcp-skill 扩展**。
 
-不同模型厂商的 prompt 理解能力不同，OpenCode 为每个厂商准备了专用的 system prompt：
+每一步都清楚自己「从谁手里接、往谁手里送」。这正是它过了快 10 万行还能读得懂、改得动的原因：不是哪一段写得特别神奇，而是**装配链把复杂度切成了可以一段段替换的皮带**。
 
-```ts
-// src/session/system.ts:19-33
-export function provider(model: Provider.Model) {
-  if (model.api.id.includes("gpt-4") || model.api.id.includes("o1") || model.api.id.includes("o3"))
-    return [PROMPT_BEAST]
-  if (model.api.id.includes("gpt")) {
-    if (model.api.id.includes("codex")) return [PROMPT_CODEX]
-    return [PROMPT_GPT]
-  }
-  if (model.api.id.includes("gemini-")) return [PROMPT_GEMINI]
-  if (model.api.id.includes("claude")) return [PROMPT_ANTHROPIC]
-  if (model.api.id.toLowerCase().includes("trinity")) return [PROMPT_TRINITY]
-  if (model.api.id.toLowerCase().includes("kimi")) return [PROMPT_KIMI]
-  return [PROMPT_DEFAULT]
-}
-```
+## 四、持久化与扩展：让系统可核、可生长
 
-| Provider | Prompt 文件 |
-|----------|------------|
-| Claude | `anthropic.txt` |
-| GPT-4/o1/o3 | `beast.txt` |
-| GPT 系列 | `gpt.txt` |
-| Codex | `codex.txt` |
-| Gemini | `gemini.txt` |
-| Trinity | `trinity.txt` |
-| Kimi | `kimi.txt` |
-| 其他 | `default.txt` |
+装好了主链之后，还有两块把「系统从能跑到可用」补齐：持久化让你能续、扩展让你能长。
 
-### 3.2 模型路由：apply_patch vs edit/write
+### 4.1 持久化：状态可查，还能安全升级
 
-不仅是 prompt，连工具都按模型路由：
+Agent 是反复的会话，状态不能都压在内存。OpenCode 用 **SQLite + Drizzle** 做持久化（schema 在 `session.sql.ts` / `storage` 里定义），并带一条**数据迁移**机制：从旧的 JSON 存储能一次迁到结构化 DB（`json-migration`）。这里想说的是一个抽象：**把状态「落到更可查询的结构」，而不是 append-only 的纯文本**——这样程序能审计、能恢复、能升级。
 
-```ts
-// src/tool/registry.ts:322-325
-const usePatch =
-  input.modelID.includes("gpt-") && 
-  !input.modelID.includes("oss") && 
-  !input.modelID.includes("gpt-4")
-if (tool.id === ApplyPatchTool.id) return usePatch
-if (tool.id === EditTool.id || tool.id === WriteTool.id) return !usePatch
-```
+### 4.2 扩展面：改行为指针不动核心
 
-GPT 非-oss 非-4 系模型用 `apply_patch` 工具，其他模型用 `edit` + `write`。这是因为不同模型对工具调用的格式偏好不同。
+它让第三方能扩展，靠的是 `plugin`（公共包，供外部插件作者用）+ `mcp` + `skill` + `snapshot` + `background` 这些挂在运行时之上的能力。关键是：**你要叠加一个新能力，不需要碰核心引擎**——插件做成一个「机制」外挂在运行时，还受 `permission` 约束。这和后面聊 plan-execute-verify 时「插件在原生 hook 上叠加策略」的思路是一脉相承的。
 
-### 3.3 双运行时切换
+![持久化 + 扩展面：SQLite 为底，plugin/mcp/skill/snapshot 由 permission 门控](/images/opencode/article-01-extension.png)
 
-OpenCode 支持两种 LLM 运行时：
+## 五、解构这套设计背后的工程哲学
 
-| 运行时 | 触发条件 | 实现位置 |
-|--------|---------|---------|
-| **Native Runtime** | `OPENCODE_EXPERIMENTAL_NATIVE_LLM=true` + OpenAI/Anthropic | `src/session/llm/native-runtime.ts` |
-| **AI SDK**（默认） | 默认 | `src/session/llm/ai-sdk.ts` |
+### 5.1 五条好用的抽象
 
-Native Runtime 让 OpenCode 自己控制工具执行时机，AI SDK 让它支持任意 provider。详细对比见：[OpenCode 主循环 runLoop](/opencode/02-runloop)
+回顾整篇，这套体系最值得带走的是五条抽象，而非某段代码：
 
+1. **契约底座先行**：`core` 只放类型与厂商接入基座，不依赖任何内部包——「名词」和「动词」分干净。
+2. **模型层独立**：`llm` 把厂商协议独立成包，模型接入是可评测、可换的。
+3. **单一入口**：CLI 和 Web 用同一引擎，一个 `index.ts` 装配起所有子命令。
+4. **一条装配链**：入口 → 运行时 → 会话主循环 → 工具 → 持久化 / 扩展，层层咬合。
+5. **扩展不拆**：插件 / mcp / skill 栓在运行时外围，受 permission 门控，不动内核。
 
+### 5.2 设计哲学：抽象要与直觉，Scale 在于「大纲」
 
-## 四、Effect-TS DI 架构：~40 个 Service
+把这些条反过来看，OpenCode 的设计哲学其实是一句朴素的话：**一个系统能多大而不乱，不靠某一行代码，而靠「是否一开始就把复杂度切成有边界的层次」，以及「每层次是否只守一件事」。**
 
-![Effect-TS DI 依赖注入网络](/images/opencode/article-01-effect-di.png)
-
-OpenCode 全局使用 Effect-TS 的 Context.Service 实现依赖注入，~40 个 Service 分布在各个模块：
-
-```ts
-// 示例：AgentV2.Service 定义
-export class Service extends Context.Service<Service, Interface>()("@opencode/v2/Agent") {}
-```
-
-每个 Service 是一个 Context Tag，可以通过 `yield* SomeService` 拿到。
-
-### 4.1 主要 Service 一览
-
-| Service | 作用 |
-|---------|------|
-| `AgentV2.Service` | Agent 管理 |
-| `Session.Service` | Session 管理 |
-| `LLM.Service` | LLM 调用 |
-| `ToolRegistry.Service` | 工具注册 |
-| `Permission.Service` | 权限检查 |
-| `Plugin.Service` | Plugin hook |
-| `Skill.Service` | Skill 加载 |
-| `Config.Service` | 配置读取 |
-| `Bus` | 事件总线 |
-| `Truncate.Service` | 输出截断 |
-| `InstanceState` | 工作目录级别状态 |
-| `BackgroundJob.Service` | 后台任务 |
-| `MCP.Service` | MCP 集成 |
-| `Server.Service` | HTTP 服务器 |
-
-> 以上为主要 Service，全仓实际有 ~80 个 `Context.Service` 声明，详见后续章节。
-
-### 4.2 InstanceState 模式
-
-OpenCode 用 `InstanceState` 实现工作目录级别的单例：
-
-```ts
-const state = InstanceState.make(() => {
-  // 在工作目录级别初始化各种服务
-  // 同一个工作目录的多次访问共享状态
-})
-```
-
-**关键设计**：
-
-- `ScopedCache` 让中间结果可缓存
-- 同一个工作目录的多次访问共享状态
-- 不同工作目录互相隔离
-
-这让 OpenCode 可以**同时管理多个项目**，每个项目有独立的 agent、session、permission 状态。
-
-
-
-## 五、runLoop 7 步预览
-
-这是整个 OpenCode 的核心。runLoop 在 `src/session/prompt.ts:1244`，约 254 行。
-
-### 5.1 主循环骨架
-
-```ts
-const runLoop: (sessionID: SessionID) => Effect.Effect<MessageV2.WithParts> = Effect.fn("SessionPrompt.run")(
-  function* (sessionID: SessionID) {
-    while (true) {
-      // Step 1: 创建 User 消息 + filterCompacted
-      // Step 2: 检查上下文溢出（compact）
-      // Step 3: 解析可用工具（SessionTools.resolve）
-      // Step 4: 组装 system prompt（env + instructions + skills）
-      // Step 5: LLM 调用（handle.process）
-      // Step 6: 工具执行 → 结果写回
-      // Step 7: 判断继续/退出
-    }
-    yield* compaction.prune({ sessionID }).pipe(Effect.ignore, Effect.forkIn(scope))
-    return yield* lastAssistant(sessionID)
-  },
-)
-```
-
-> 上面是骨架预览，完整实现（含 7 步逐行拆解）见：[OpenCode 主循环 runLoop](/opencode/02-runloop)
-
-### 5.2 7 步流程图
-
-```mermaid
-flowchart TD
-    A[用户输入] --> B[Step 1: 创建 User 消息]
-    B --> C[Step 2: 检查溢出<br/>compact?]
-    C --> D[Step 3: 解析工具<br/>SessionTools.resolve]
-    D --> E[Step 4: 组装 system prompt<br/>env+instructions+skills]
-    E --> F[Step 5: LLM 调用<br/>handle.process]
-    F --> G[Step 6: 工具执行]
-    G --> H[Step 7: 判断继续/退出]
-    H -->|continue| C
-    H -->|stop| I[返回响应]
-    I --> J[prune 异步 fork]
-```
-
-### 5.3 关键设计点
-
-**1. 工具循环嵌在主循环里**——通过 `finish: "tool-calls"` 信号让循环继续，避免独立工具调度循环。
-
-**2. 双运行时切换**——Native Runtime 让 OpenCode 自己控制工具执行，AI SDK 让它支持任意 provider。
-
-**3. Doom Loop 检测**——连续 3 次同参数工具调用触发权限询问。
-
-**4. prune 异步执行**——runLoop 退出后立刻返回响应，prune 在后台默默跑。
-
-详细的 7 步拆解见：[OpenCode 主循环 runLoop](/opencode/02-runloop)
-
-
-
-## 六、OpenCode vs Claude Code：整体架构对比
-
-这是开篇定调的对比表，整个系列每篇都会做更深度的章节级对比。
-
-| 维度 | Claude Code | OpenCode |
-|------|-------------|----------|
-| **开源状态** | 闭源 | ✅ 完全开源 |
-| **代码量** | 不公开（推测数十万行） | ~100K 行（87K + 12K） |
-| **模型支持** | 仅 Claude | ✅ 8 家 |
-| **运行时** | Bun + 命令式 TS | Bun + Effect-TS 函数式 |
-| **DI 架构** | 显式 State 对象 | ✅ ~40 个 Effect Service |
-| **持久化** | JSONL 文件 | ✅ SQLite + Drizzle ORM |
-| **Provider 抽象** | 无（仅 Claude） | ✅ 8 个 Provider Prompt |
-| **主循环** | `query.ts`（1,730 行集中编排） | `prompt.ts` runLoop（254 行）+ 分散模块 |
-| **工具循环** | 流式并行（StreamingToolExecutor） | stream 后统一处理 |
-| **Compact 机制** | 多级（microCompact + apiMicrocompact + autoCompact + compact） | 2 级（prune/compact） |
-| **SubAgent 调度** | coordinator 并行模式 | tasks.pop() 串行 |
-| **Doom Loop 检测** | ❌ 无 | ✅ 连续 3 次同参数触发 ask |
-| **AST 搜索** | ❌ 无（仅 ripgrep） | ❌ 无（仅 ripgrep） |
-| **自动记忆** | ✅ memdir 4 种类型 | ❌ 无 |
-| **Prompt Cache** | ✅ 深度集成（`cache_control` + break detection） | ✅ 默认开启（`cache: "auto"`，跨厂商适配） |
-
-### 6.1 两种工程哲学
-
-**Claude Code 的哲学**：**深度优化 + 锁定 Anthropic 生态**
-
-- 用 `cache_edits` 等 Anthropic 内部 API 做性能优化
-- 5 级 Compact 策略（前 4 级零 LLM 调用）
-- StreamingToolExecutor 流式并行工具执行
-- 1,730 行的 query.ts 集中编排主循环（委托给 StreamingToolExecutor 等模块）
-
-**OpenCode 的哲学**：**通用性 + 简洁**
-
-- 跨 8 家模型厂商，不依赖任何厂商特定 API
-- 2 级 Compact 策略，思路直接
-- tasks.pop() 串行调度，简单可控
-- Effect-TS 模块化，每个文件职责单一
-
-**没有更好的，只有更适合的**：
-
-- 如果你是 Anthropic 用户，CC 的优化深度无与伦比
-- 如果你想跨厂商、想自部署、想看源码学——OpenCode 完胜
-这就是为什么 OpenCode 值得研究——它代表了「**通用 Agent 框架**」的一种解法。
-
-![两种工程哲学：深度优化 vs 通用简洁](/images/opencode/article-01-philosophy.png)
-
-## 七、系列导航
-
-这是「**OpenCode 源码精读**」系列的开篇，整个系列规划了 6 篇文章：
-
-| # | 文章 | 重点 |
-|---|------|------|
-| 1 | **OpenCode 整体架构**（本文） | 全景认知，定调对比 |
-| 2 | [OpenCode 主循环 runLoop](/opencode/02-runloop) | 7 步主循环 + Doom Loop + 双运行时 |
-| 3 | [OpenCode 工具系统](/opencode/03-tools) | Tool.Def + Edit 10 策略 + Permission 三态 |
-| 4 | [OpenCode 上下文压缩](/opencode/04-compact) | Compact 2 级机制 + 9 段摘要 + 锚定更新 |
-| 5 | [OpenCode Agent 系统](/opencode/05-agents) | AgentV2 + SubAgent + tasks.pop() vs coordinator |
-| 6 | [OpenCode 上下文架构](/opencode/06-context) | 5 层上下文注入 + 为什么不用 RAG |
-
-**建议阅读顺序**：
-
-- **新手**：按 1→2→3→4→5→6 顺序读
-- **想直接看核心机制**：跳到 4（Compact）和 5（Agent 系统）
-- **想理解整体设计**：从 1（本文）开始
-
-
-
-## 最后
-
-写到这里，OpenCode 的整体架构就给你过完了。
-
-回过头看，OpenCode 不是个简单的「**调 LLM 写代码**」工具，它在**架构、循环、工具、压缩、Agent、上下文**每一个维度都做了精致的设计：
-
-- **包结构**：Core 抽象层（12K 行）+ Opencode 实现层（87K 行），关注点分离
-- **Provider 抽象**：8 家模型厂商的统一接口，跨厂商兼容
-- **Effect-TS DI**：~40 个 Service 的声明式依赖注入
-- **runLoop 7 步**：简洁的主循环，工具循环嵌在主循环里
-- **工具系统**：18 个内置工具 + 10 种 Edit 匹配策略 + Permission 三态
-- **Compact 2 级**：Prune + Compact，简洁但够用
-- **Agent 系统**：8 个内置 Agent + 隔离机制 + tasks.pop() 串行
-- **5 层上下文注入**：从 System Prompt 到 Messages，金字塔结构
-
-更难得的是，OpenCode 用约 10 万行 TypeScript + Effect-TS 实现了 Claude Code 数十万行才能做到的事——**简化的代价是放弃了流式工具执行（StreamingToolExecutor）**，但换来的是**跨厂商兼容、代码可读、开源透明**。
-
-整个系列的后续文章会逐一深入这些机制，每篇都会和 Claude Code 做硬核对比——这是我们同时拥有两份源码的独家优势。
-
-今天分享就到这里，我们下篇见！
+它把全栈用 **Effect** 一统（贯穿 core 的 Schema、opencode 的运行时装配、HTTP 服务），因为「依赖注入 + 声明式装配」，在模块很多的地方反而更稳——效果是：引擎是「装配出来的」，而不是「内联写死」的。
 
 ## 章节小测
 
 <script setup>
 const q = [
   {
-    question: 'OpenCode 用 Effect-TS 做依赖注入（~40 个 Service），而 Claude Code 用显式 State 对象。这两种方式的核心 trade-off 是什么？',
-    options: ['使用命令式 Promise 以降低异步理解成本', '提供声明式依赖注入与类型安全的 Effect Context', '采用显式全局状态对象以简化运行时状态查询', '依赖装饰器语法实现模块自动装配与依赖检测'],
-    correct: 1,
-    explanation: 'Effect-TS 的 Context.Service 让依赖声明式可组合，并通过 TypeScript 泛型提供编译期类型安全；但函数式编程范式学习曲线陡峭。CC 的显式 State 对象更接近传统命令式编程，上手简单，但缺少声明式 DI 的类型安全保障。这是「学习成本 vs 工程保障」的取舍。'
+    question: 'OpenCode 把引擎拆成 core / llm / opencode 三包，依赖方向最准确的是？',
+    options: [
+      "'opencode' 依赖 'core' 与 'llm'，'core' 做底座不依赖任何内部包，'llm' 独立协议层",
+      "'core' 依赖 'opencode' 和 'llm'，因为实现要在契约之上",
+      "三个包互相循环依赖，谁都依赖谁，靠 Effect 解耦",
+      "'llm' 是最底层，反过来依赖 'opencode' 的运行时才能找回厂商"
+    ],
+    correct: 0,
+    explanation: 'core 是最底底座（无内部依赖），llm 独立中立，opencode 依赖 core+llm+sdk+plugin+ui 做装配。三个包依赖方向清晰单向，才能化整为零。'
   },
   {
-    question: 'OpenCode 用 SQLite + Drizzle ORM 做持久化，Claude Code 用 JSONL 文件。这个选择背后的核心设计考虑是什么？',
-    options: ['选用 JSONL 以追求极致可读性与手动编辑备份便利', '选用 SQLite 以支持结构化查询与事务级一致保障', '选用 PostgreSQL 以提供分布式查询与高并发写入性能', '选用 LevelDB 以追求嵌入式键值存储的高写入吞吐'],
+    question: '厂商接入的核心设计是什么？',
+    options: [
+      '在代码里写死 N 家厂商标记，硬编码判断走哪个',
+      'core/plugin/provider 里放 N 个适配器，向 core 插一个即可接入新厂商',
+      'model 不作为变量，每个厂商一个独立分支的 prompt 模板',
+      '用一个巨型 if/else 在运行时 route 到 8 家'
+    ],
     correct: 1,
-    explanation: 'SQLite 提供结构化查询、事务支持和级联删除，适合需要审计和程序化访问的场景。JSONL 是 append-only 的纯文本格式，可直接用文本编辑器查看，备份就是复制文件。这是「可查询性 vs 可读性」的典型取舍。'
+    explanation: '厂商接入是「往 core 的 provider/ 目录插 adapter」的可插拔方式，所以能接 30+ 家而不乱。选项 A/D 是静态写死，C 与事实不符。'
   },
   {
-    question: 'OpenCode 将代码分为 Core 抽象层（12K 行）和 Opencode 实现层（87K 行）。这种分层设计的主要目的是什么？',
-    options: ['让静态类型检查在编译期自动推断跨层依赖关系', '由 Core 层定义契约并由 Opencode 层提供实现', '将运行时代码与编译时代码划为两套独立编译单元', '按团队分工将核心逻辑与辅助功能横向拆开'],
+    question: '关于「单一入口」，正确的是？',
+    options: [
+      'CLI 和 Web 用两套独立引擎分别实现，入口不同需要并行维护两份',
+      '有一个 index.ts 一个代码入口，它是唯一 CLI 入口（yargs 装 20+ 子命令），跑 serve 同进程开 HTTP + WebSocket',
+      '入口只有一个 serve 命令，不支持 CLI，必须走 HTTP',
+      '每个子命令都编译成一个独立二进制，无共享装配'
+    ],
     correct: 1,
-    explanation: 'Core 包定义 AgentV2、Session、Permission、Provider 等所有关键类型和接口（契约），Opencode 包提供具体实现。这种分层让接口和实现解耦——契约稳定时实现层可独立演进，也方便社区理解哪些是框架核心概念。'
+    explanation: 'cli 和 web 等等是同一套引擎同一入口，靠 index.ts(serve 等子命令)装配，同进程开出 HTTP API 和 WebSocket。'
   },
   {
-    question: 'OpenCode 支持 8 家模型厂商，为每家准备了不同 system prompt，甚至对工具做了模型路由（GPT 系用 apply_patch，其他用 edit/write）。这反映的是什么设计决策？',
-    options: ['优先确保工具接口规范在各模型之间保持完全一致', '针对模型偏好的工具格式差异进行差异化适配路由', '要求模型统一采用最小公共工具集以减少适配工作量', '通过模型端自动检测并切换自身使用的工具格式'],
+    question: '把持久化用 SQLite + Drizzle + 迁移链路做，而非 JSONL，主要说明什么抽象？',
+    options: [
+      '它是 append-only 的纯文本，适合日志级的顺序追加与手工翻阅',
+      '它把会话状态落到可结构化查询、带迁移链的底座，能审计能恢复能升级',
+      '它牺牲查询能力换取最小的安装体积，只承担轻量存取不是会话续命',
+      '它只适合单机一次性写入，无法支撑多次会话之间的状态重建'
+    ],
     correct: 1,
-    explanation: 'OpenCode 的核心理念是「适配模型差异」而不是「强制模型统一」。GPT 系对 patch 格式（统一 diff）理解更好，Claude 系对 oldString+newString 精确替换更在行。这种按模型路由的工程经验，是跨厂商框架必须面对的复杂性。'
+    explanation: 'SQLite + Drizzle 支撑结构化查询、事务与迁移，把会话状态做成可持续于升级的底座，而不是只靠 append-only JSONL 的手工可读。'
   },
   {
-    question: 'OpenCode 的 Doom Loop 检测（连续 3 次同参数工具调用触发 ask）为什么用「询问用户」而不是「直接禁止」？',
-    options: ['由开发团队在编译期为每个工具预设最大连续调用次数', '将死循环判断逻辑下放到每个工具自身的执行流程中', '在轮询任务状态等合法场景下阻断循环将破坏正常流程', '通过异步超时机制强制终止连续同参数的工具调用序列'],
-    correct: 2,
-    explanation: '直接禁止虽然简单，但会破坏合法场景（轮询任务状态、监控文件变化等）。询问用户让用户判断「这次是真的卡住了还是正常循环」，既防死循环又不伤合法用途。这是 Permission 系统复用为 Doom Loop 检测的精妙之处。'
+    question: '「装配链」为什么是开这篇的核心？',
+    options: [
+      '证明主循环写得足够漂亮，靠一条循环就能压住 Agent 的随意输出',
+      '把复杂度切成「入口→运行时→主循环→工具→持久化/扩展」各段，层层可替换，才得以大而不乱',
+      '证明这个项目的代码行数全网最少，所以读起来天然轻松',
+      '证明单个模型足够强大，一套提示词就能统摄所有子系统的细节'
+    ],
+    correct: 1,
+    explanation: '核心哲学：靠一条可断可换、各守一段的装配链把快 10 万行化整为零，架构追求「大纲美」而非一行代码。'
   }
 ]
 </script>
