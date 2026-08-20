@@ -33,6 +33,4 @@ title: OpenCode 源码精读
 
 ## 整体架构速览
 
-以下是 OpenCode 核心架构的主循环流程：
-
-![OpenCode runLoop 主循环：用户输入 → 6 步 step cycle → 继续 / 响应](/images/opencode/article-index-architecture.png)
+![OpenCode Monorepo 包拓扑：CLI 入口 → packages/opencode 实现枢纽 → packages/core 契约底座](/images/opencode/article-index-architecture.png)
