@@ -1,11 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img" aria-label="OpenCode Assembly Chain Hero">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" width="1200" height="720" role="img" aria-label="OpenCode Assembly Chain Hero">
   <style>
     text { font-family: -apple-system, "Helvetica Neue", Arial, "PingFang SC", sans-serif; }
     .ttl { font-family: Georgia, "Times New Roman", serif; font-weight: 700; fill: #f5f0eb; }
-    .sub { font-size: 15px; fill: #a39787; font-weight: 500; }
-    .tag { font-size: 11px; fill: #6b5f53; letter-spacing: 0.12em; text-transform: uppercase; }
-    .gear-label { font-size: 12px; fill: #f5f0eb; font-weight: 600; }
-    .chain-label { font-size: 10px; fill: #a39787; }
+    .sub { font-size: 16px; fill: #a39787; font-weight: 500; }
+    .tag { font-size: 14px; fill: #6b5f53; letter-spacing: 0.12em; text-transform: uppercase; }
+    .gear-label { font-size: 14px; fill: #f5f0eb; font-weight: 600; }
+    .chain-label { font-size: 12px; fill: #a39787; }
     .big-num { font-family: Georgia, "Times New Roman", serif; font-weight: 700; fill: #d4a574; }
     .accent { fill: #d4a574; }
     .dim { fill: #6b5f53; }
@@ -13,16 +13,13 @@
   </style>
 
   <defs>
-    <!-- Ambient radial glow -->
     <radialGradient id="glow" cx="50%" cy="45%" r="45%">
       <stop offset="0%" stop-color="#d4a574" stop-opacity="0.06"/>
       <stop offset="100%" stop-color="#d4a574" stop-opacity="0"/>
     </radialGradient>
-    <!-- Gold arrow marker -->
-    <marker id="arr-gold" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0,10 3.5,0 7" fill="#d4a574"/>
+    <marker id="arr-gold" markerWidth="14" markerHeight="10" refX="12" refY="5" orient="auto">
+      <polygon points="0 0,14 5,0 10" fill="#d4a574"/>
     </marker>
-    <!-- Horizontal line glow -->
     <filter id="lineGlow">
       <feGaussianBlur stdDeviation="2" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
@@ -30,72 +27,72 @@
   </defs>
 
   <!-- Background -->
-  <rect width="1200" height="630" fill="#0a0a0a"/>
-  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect width="1200" height="720" fill="#0a0a0a"/>
+  <rect width="1200" height="720" fill="url(#glow)"/>
 
   <!-- Decorative horizontal lines -->
-  <line x1="80" y1="170" x2="1120" y2="170" stroke="#d4a574" stroke-width="0.5" opacity="0.2"/>
-  <line x1="80" y1="460" x2="1120" y2="460" stroke="#d4a574" stroke-width="0.5" opacity="0.2"/>
+  <line x1="60" y1="185" x2="1140" y2="185" stroke="#d4a574" stroke-width="0.8" opacity="0.2"/>
+  <line x1="60" y1="510" x2="1140" y2="510" stroke="#d4a574" stroke-width="0.8" opacity="0.2"/>
 
   <!-- Top tag line -->
-  <text x="600" y="55" text-anchor="middle" class="tag">OpenCode Source Deep Dive · Part 01</text>
+  <text x="600" y="62" text-anchor="middle" class="tag">OpenCode Source Deep Dive · Part 01</text>
 
   <!-- Main title -->
-  <text x="600" y="110" text-anchor="middle" class="ttl" font-size="40" fill="#f5f0eb">The Assembly Chain</text>
-  <text x="600" y="150" text-anchor="middle" class="ttl" font-size="20" fill="#c9a96e">A 100K-Line Open-Source Terminal AI Agent</text>
+  <text x="600" y="122" text-anchor="middle" class="ttl" font-size="48">The Assembly Chain</text>
+  <text x="600" y="164" text-anchor="middle" class="ttl" font-size="24" fill="#c9a96e">A 100K-Line Open-Source Terminal AI Agent</text>
 
-  <!-- Assembly chain visualization: CLI → Gears → Model -->
+  <!-- Assembly chain: CLI → Engine → Session → Model -->
   <!-- Node 1: CLI Shell -->
-  <rect x="100" y="210" width="200" height="100" rx="8" fill="#111111" stroke="#d4a574" stroke-width="1.5"/>
-  <text x="200" y="248" text-anchor="middle" font-size="18" font-weight="700" fill="#d4a574">CLI SHELL</text>
-  <text x="200" y="270" text-anchor="middle" font-size="11" fill="#a39787">index.ts · yargs</text>
-  <text x="200" y="290" text-anchor="middle" font-size="10" fill="#6b5f53">20+ subcommands</text>
+  <rect x="60" y="220" width="230" height="115" rx="8" fill="#111111" stroke="#d4a574" stroke-width="2.5"/>
+  <text x="175" y="260" text-anchor="middle" font-size="24" font-weight="700" fill="#d4a574">CLI SHELL</text>
+  <text x="175" y="284" text-anchor="middle" font-size="14" fill="#a39787">index.ts · yargs</text>
+  <text x="175" y="306" text-anchor="middle" font-size="13" fill="#6b5f53">20+ subcommands</text>
 
   <!-- Arrow CLI → Runtime -->
-  <line x1="300" y1="260" x2="380" y2="260" stroke="#d4a574" stroke-width="2" marker-end="url(#arr-gold)" filter="url(#lineGlow)"/>
+  <line x1="290" y1="277" x2="370" y2="277" stroke="#d4a574" stroke-width="3" marker-end="url(#arr-gold)" filter="url(#lineGlow)"/>
 
   <!-- Node 2: Engine Runtime -->
-  <rect x="380" y="200" width="220" height="120" rx="8" fill="#111111" stroke="#d4a574" stroke-width="1.5"/>
-  <text x="490" y="238" text-anchor="middle" font-size="18" font-weight="700" fill="#d4a574">ENGINE RUNTIME</text>
-  <text x="490" y="260" text-anchor="middle" font-size="11" fill="#a39787">Effect-TS + serve</text>
-  <text x="490" y="280" text-anchor="middle" font-size="10" fill="#6b5f53">HTTP API + WebSocket</text>
-  <text x="490" y="298" text-anchor="middle" font-size="10" fill="#6b5f53">session / processor</text>
+  <rect x="370" y="208" width="250" height="138" rx="8" fill="#111111" stroke="#d4a574" stroke-width="2.5"/>
+  <text x="495" y="250" text-anchor="middle" font-size="24" font-weight="700" fill="#d4a574">ENGINE RUNTIME</text>
+  <text x="495" y="278" text-anchor="middle" font-size="14" fill="#a39787">Effect-TS + serve</text>
+  <text x="495" y="300" text-anchor="middle" font-size="13" fill="#6b5f53">HTTP API + WebSocket</text>
+  <text x="495" y="322" text-anchor="middle" font-size="13" fill="#6b5f53">session / processor</text>
 
-  <!-- Arrow Runtime → Gear/Module -->
-  <line x1="600" y1="260" x2="680" y2="260" stroke="#d4a574" stroke-width="2" marker-end="url(#arr-gold)" filter="url(#lineGlow)"/>
+  <!-- Arrow Runtime → Session -->
+  <line x1="620" y1="277" x2="695" y2="277" stroke="#d4a574" stroke-width="3" marker-end="url(#arr-gold)" filter="url(#lineGlow)"/>
 
-  <!-- Node 3: Session Loop / Gears -->
-  <rect x="680" y="200" width="220" height="120" rx="8" fill="#111111" stroke="#d4a574" stroke-width="1.5"/>
-  <text x="790" y="238" text-anchor="middle" font-size="18" font-weight="700" fill="#d4a574">SESSION LOOP</text>
-  <text x="790" y="260" text-anchor="middle" font-size="11" fill="#a39787">runLoop · 7-step cycle</text>
-  <text x="790" y="280" text-anchor="middle" font-size="10" fill="#6b5f53">LLM call + tool registry</text>
-  <text x="790" y="298" text-anchor="middle" font-size="10" fill="#6b5f53">compact · permission</text>
+  <!-- Node 3: Session Loop -->
+  <rect x="695" y="208" width="250" height="138" rx="8" fill="#111111" stroke="#d4a574" stroke-width="2.5"/>
+  <text x="820" y="250" text-anchor="middle" font-size="24" font-weight="700" fill="#d4a574">SESSION LOOP</text>
+  <text x="820" y="278" text-anchor="middle" font-size="14" fill="#a39787">runLoop · 7-step cycle</text>
+  <text x="820" y="300" text-anchor="middle" font-size="13" fill="#6b5f53">LLM call + tool registry</text>
+  <text x="820" y="322" text-anchor="middle" font-size="13" fill="#6b5f53">compact · permission</text>
 
   <!-- Arrow Session → Model -->
-  <line x1="900" y1="260" x2="980" y2="260" stroke="#d4a574" stroke-width="2" marker-end="url(#arr-gold)" filter="url(#lineGlow)"/>
+  <line x1="945" y1="277" x2="1010" y2="277" stroke="#d4a574" stroke-width="3" marker-end="url(#arr-gold)" filter="url(#lineGlow)"/>
 
   <!-- Node 4: Model Layer -->
-  <rect x="980" y="210" width="180" height="100" rx="8" fill="#111111" stroke="#d4a574" stroke-width="1.5"/>
-  <text x="1070" y="248" text-anchor="middle" font-size="18" font-weight="700" fill="#d4a574">MODEL LAYER</text>
-  <text x="1070" y="270" text-anchor="middle" font-size="11" fill="#a39787">8 providers</text>
-  <text x="1070" y="290" text-anchor="middle" font-size="10" fill="#6b5f53">Claude · GPT · Gemini · ...</text>
+  <rect x="1010" y="220" width="170" height="115" rx="8" fill="#111111" stroke="#d4a574" stroke-width="2.5"/>
+  <text x="1095" y="260" text-anchor="middle" font-size="24" font-weight="700" fill="#d4a574">MODEL</text>
+  <text x="1095" y="284" text-anchor="middle" font-size="14" fill="#a39787">8 providers</text>
+  <text x="1095" y="306" text-anchor="middle" font-size="13" fill="#6b5f53">Claude · GPT · Gemini · ...</text>
 
-  <!-- Bottom area: key metrics -->
-  <text x="600" y="420" text-anchor="middle" font-size="14" fill="#c9a96e" font-weight="600">"Large yet orderly — modules interlock layer by layer"</text>
+  <!-- Bottom area: key quote -->
+  <text x="600" y="470" text-anchor="middle" font-size="16" fill="#c9a96e" font-weight="600">"Large yet orderly — modules interlock layer by layer"</text>
 
   <!-- Metric boxes -->
-  <rect x="200" y="480" width="180" height="90" rx="6" fill="none" stroke="#d4a574" stroke-width="0.5" opacity="0.4"/>
-  <text x="290" y="515" text-anchor="middle" class="big-num" font-size="36">~100K</text>
-  <text x="290" y="545" text-anchor="middle" font-size="11" fill="#a39787">lines of TypeScript</text>
+  <rect x="180" y="530" width="210" height="100" rx="8" fill="none" stroke="#d4a574" stroke-width="1" opacity="0.4"/>
+  <text x="285" y="572" text-anchor="middle" class="big-num" font-size="44">~100K</text>
+  <text x="285" y="602" text-anchor="middle" font-size="14" fill="#a39787">lines of TypeScript</text>
 
-  <rect x="460" y="480" width="180" height="90" rx="6" fill="none" stroke="#d4a574" stroke-width="0.5" opacity="0.4"/>
-  <text x="550" y="515" text-anchor="middle" class="big-num" font-size="36">8</text>
-  <text x="550" y="545" text-anchor="middle" font-size="11" fill="#a39787">provider adapters</text>
+  <rect x="440" y="530" width="210" height="100" rx="8" fill="none" stroke="#d4a574" stroke-width="1" opacity="0.4"/>
+  <text x="545" y="572" text-anchor="middle" class="big-num" font-size="44">8</text>
+  <text x="545" y="602" text-anchor="middle" font-size="14" fill="#a39787">provider adapters</text>
 
-  <rect x="720" y="480" width="180" height="90" rx="6" fill="none" stroke="#d4a574" stroke-width="0.5" opacity="0.4"/>
-  <text x="810" y="515" text-anchor="middle" class="big-num" font-size="36">18</text>
-  <text x="810" y="545" text-anchor="middle" font-size="11" fill="#a39787">built-in tools</text>
+  <rect x="700" y="530" width="210" height="100" rx="8" fill="none" stroke="#d4a574" stroke-width="1" opacity="0.4"/>
+  <text x="805" y="572" text-anchor="middle" class="big-num" font-size="44">18</text>
+  <text x="805" y="602" text-anchor="middle" font-size="14" fill="#a39787">built-in tools</text>
 
   <!-- Bottom edge decorative -->
-  <rect x="0" y="610" width="1200" height="20" fill="#d4a574" opacity="0.08"/>
+  <rect x="0" y="695" width="1200" height="25" fill="#d4a574" opacity="0.08"/>
 </svg>

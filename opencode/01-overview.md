@@ -115,7 +115,7 @@ title: OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条�
 
 ### 4.1 持久化：状态可查，还能安全升级
 
-Agent 是反复的会话，状态不能都压在内存。OpenCode 用 **SQLite + Drizzle** 做持久化（schema 在 `session.sql.ts` / `storage` 里定义），并带一条**数据迁移**机制：从旧的 JSON 存储能一次迁到结构化 DB（`json-migration`）。这里想说的是一个抽象：**把状态「落到更可查询的结构」，而不是 append-only 的纯文本**——这样程序能审计、能恢复、能升级。
+Agent 是反复的会话，状态不能都压在内存。OpenCode 用 **SQLite + Drizzle** 做持久化（schema 在 `session.sql.ts` / `storage` 里定义）。这里想说的是一个抽象：**把状态「落到更可查询的结构」，而不是 append-only 的纯文本**——这样程序能审计、能恢复。
 
 ### 4.2 扩展面：改行为指针不动核心
 
