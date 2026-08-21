@@ -1,57 +1,77 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-label="OpenCode Persistence and Extension">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" role="img" aria-label="OpenCode core and extension surface overview">
   <style>
-    text { font-family: "Inter", "SF Pro Display", -apple-system, "Segoe UI", Arial, sans-serif; }
-    .title   { font-size: 64px; font-weight: 800; fill: #f2fbff; }
-    .subtitle{ font-size: 38px; font-weight: 600; fill: #90e0ef; }
-    .node    { font-size: 50px; font-weight: 800; fill: #ffffff; }
-    .sub     { font-size: 32px; font-weight: 600; fill: #a8e6ff; }
-    .detail  { font-size: 27px; font-weight: 500; fill: #6fd7ff; }
+    text { font-family: 'Courier New', 'Lucida Console', 'Microsoft YaHei', 'SimHei', monospace; fill: #caf0f8; }
+    .title { font-size: 30px; font-weight: 700; letter-spacing: 0.04em; }
+    .subtitle { font-size: 15px; fill: #90e0ef; }
+    .core-title { font-size: 26px; font-weight: 700; }
+    .core-sub { font-size: 15px; fill: #90e0ef; }
+    .node-title { font-size: 16px; font-weight: 700; }
+    .node-sub { font-size: 12px; fill: #90e0ef; }
+    .core { fill: #0d1f3c; stroke: #00b4d8; stroke-width: 2.8; rx: 2; ry: 2; }
+    .node { fill: #10294c; stroke: #48cae4; stroke-width: 2.2; rx: 2; ry: 2; }
+    .arrow { fill: none; stroke: #00b4d8; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+    .foot-label { font-size: 11px; fill: #48cae4; }
   </style>
+
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="900" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0a1628"/>
-      <stop offset="1" stop-color="#0d1f3c"/>
-    </linearGradient>
-    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
-      <path d="M44 0 L0 0 0 44" fill="none" stroke="#123356" stroke-width="1"/>
+    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#112240" stroke-width="0.5"/>
     </pattern>
+    <marker id="arrow-cyan" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="#00b4d8"/>
+    </marker>
   </defs>
 
-  <rect width="1600" height="900" fill="url(#bg)"/>
-  <rect width="1600" height="900" fill="url(#grid)" opacity="0.5"/>
+  <rect width="960" height="600" fill="#0a1628"/>
+  <rect width="960" height="600" fill="url(#grid)" opacity="0.6"/>
 
-  <text x="800" y="96" text-anchor="middle" class="title">State You Can Audit · Capabilities That Grow</text>
-  <text x="800" y="150" text-anchor="middle" class="subtitle">Persistence (bottom) + extension surfaces (around), permission-gated</text>
+  <text x="480" y="46" text-anchor="middle" class="title">OPENCODE · CORE AND EXTENSIONS</text>
+  <text x="480" y="74" text-anchor="middle" class="subtitle">NEW CAPABILITIES STAY OUTSIDE THE CORE ENGINE</text>
 
-  <!-- SQLite base -->
-  <rect x="420" y="700" width="760" height="150" rx="16" fill="#0f2340" stroke="#22f0a8" stroke-width="7"/>
-  <text x="800" y="770" text-anchor="middle" class="node">SQLite · Drizzle ORM</text>
-  <text x="800" y="806" text-anchor="middle" class="sub">session · message · tool</text>
-  <text x="800" y="836" text-anchor="middle" class="sub">structured persistence</text>
+  <rect x="185" y="110" width="170" height="74" class="node"/>
+  <text x="270" y="141" text-anchor="middle" class="node-title">PLUGIN</text>
+  <text x="270" y="162" text-anchor="middle" class="node-sub">hook surface</text>
 
-  <!-- Extension modules around -->
-  <rect x="100" y="220" width="420" height="132" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
-  <text x="310" y="286" text-anchor="middle" class="node">Plugin</text>
-  <text x="310" y="334" text-anchor="middle" class="sub">public hook surface</text>
+  <rect x="395" y="110" width="170" height="74" class="node"/>
+  <text x="480" y="141" text-anchor="middle" class="node-title">MCP</text>
+  <text x="480" y="162" text-anchor="middle" class="node-sub">external tools</text>
 
-  <rect x="545" y="220" width="470" height="140" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
-  <text x="780" y="286" text-anchor="middle" class="node">MCP</text>
-  <text x="780" y="318" text-anchor="middle" class="sub" style="font-size:28px">stdio · SSE</text>
-  <text x="780" y="342" text-anchor="middle" class="sub" style="font-size:28px">StreamableHTTP</text>
+  <rect x="605" y="110" width="170" height="74" class="node"/>
+  <text x="690" y="141" text-anchor="middle" class="node-title">SKILL</text>
+  <text x="690" y="162" text-anchor="middle" class="node-sub">strategy layer</text>
 
-  <rect x="1040" y="220" width="460" height="132" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
-  <text x="1270" y="286" text-anchor="middle" class="node">Skill</text>
-  <text x="1270" y="334" text-anchor="middle" class="sub">discover · inject</text>
+  <rect x="180" y="226" width="600" height="170" class="core"/>
+  <text x="480" y="274" text-anchor="middle" class="core-title">OPENCODE RUNTIME CORE</text>
+  <text x="480" y="304" text-anchor="middle" class="core-sub">SESSION LOOP · TOOL DISPATCH · MODEL CALL · STATE FLOW</text>
 
-  <rect x="200" y="400" width="560" height="132" rx="12" fill="#0f2340" stroke="#ff9f43" stroke-width="6"/>
-  <text x="480" y="466" text-anchor="middle" class="node">Snapshot</text>
-  <text x="480" y="514" text-anchor="middle" class="sub">state save · restore · replay</text>
+  <rect x="255" y="328" width="140" height="40" class="node"/>
+  <text x="325" y="353" text-anchor="middle" class="node-sub" style="font-size:13px; font-weight:700; fill:#caf0f8;">MAIN LOOP</text>
 
-  <rect x="840" y="400" width="560" height="132" rx="12" fill="#0f2340" stroke="#ff9f43" stroke-width="6"/>
-  <text x="1120" y="466" text-anchor="middle" class="node">Background Jobs</text>
-  <text x="1120" y="514" text-anchor="middle" class="sub">async tasks · job scheduler</text>
+  <rect x="410" y="328" width="140" height="40" class="node"/>
+  <text x="480" y="353" text-anchor="middle" class="node-sub" style="font-size:13px; font-weight:700; fill:#caf0f8;">TOOL BUS</text>
 
-  <!-- Permission gate banner -->
-  <rect x="360" y="600" width="880" height="70" rx="10" fill="#3b1020" stroke="#ff5c7a" stroke-width="5"/>
-  <text x="800" y="648" text-anchor="middle" class="node" font-size="38">All gated by Permission (ask / allow / deny)</text>
+  <rect x="565" y="328" width="140" height="40" class="node"/>
+  <text x="635" y="353" text-anchor="middle" class="node-sub" style="font-size:13px; font-weight:700; fill:#caf0f8;">STATE STORE</text>
+
+  <rect x="185" y="440" width="170" height="74" class="node"/>
+  <text x="270" y="471" text-anchor="middle" class="node-title">SNAPSHOT</text>
+  <text x="270" y="492" text-anchor="middle" class="node-sub">state capture</text>
+
+  <rect x="395" y="440" width="170" height="74" class="node"/>
+  <text x="480" y="471" text-anchor="middle" class="node-title">PERMISSION</text>
+  <text x="480" y="492" text-anchor="middle" class="node-sub">guard rail</text>
+
+  <rect x="605" y="440" width="170" height="74" class="node"/>
+  <text x="690" y="471" text-anchor="middle" class="node-title">BACKGROUND</text>
+  <text x="690" y="492" text-anchor="middle" class="node-sub">async work</text>
+
+  <line x1="270" y1="184" x2="270" y2="226" class="arrow" marker-end="url(#arrow-cyan)"/>
+  <line x1="480" y1="184" x2="480" y2="226" class="arrow" marker-end="url(#arrow-cyan)"/>
+  <line x1="690" y1="184" x2="690" y2="226" class="arrow" marker-end="url(#arrow-cyan)"/>
+  <line x1="270" y1="440" x2="270" y2="396" class="arrow" marker-end="url(#arrow-cyan)"/>
+  <line x1="480" y1="440" x2="480" y2="396" class="arrow" marker-end="url(#arrow-cyan)"/>
+  <line x1="690" y1="440" x2="690" y2="396" class="arrow" marker-end="url(#arrow-cyan)"/>
+
+  <rect x="708" y="548" width="212" height="34" fill="#0d1f3c" stroke="#00b4d8" stroke-width="1.6"/>
+  <text x="814" y="570" text-anchor="middle" class="foot-label">EXTENSION SURFACE · BLUEPRINT</text>
 </svg>

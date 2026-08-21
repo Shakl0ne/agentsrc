@@ -4,8 +4,6 @@ title: OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条�
 
 # OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条装配链
 
-![OpenCode 整体架构](/images/opencode/article-01-hero.png)
-
 如果一个终端里能跑的 AI 编程助手，源码拆成几十个包、上万个文件，能接 **30 多家模型厂商**，还要在同一个进程里把命令行、HTTP 接口、WebSocket、插件、快照挨个伺候好……
 
 它凭什么不乱？
@@ -49,7 +47,7 @@ title: OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条�
 
 先看 OpenCode 真正的代码骨架。它不是一个包包打天下的巨石，而是一个有边界、有依赖方向的 monorepo——核心引擎由三个包构成：`core`、`llm`、`opencode`。
 
-![三大引擎包：core 底座 / llm 模型层 / opencode 实现层](/images/opencode/article-01-packages.png)
+![OpenCode three-layer architecture](/images/opencode/article-01-layers.png)
 
 ### 2.1 `core`：契约 + 厂商接入基座，是整个系统的底座
 
@@ -86,15 +84,13 @@ title: OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条�
 
 三块放在那还只是一堆包；真正让系统活起来的，是它们被**装配成一条链**。这条链的入口只有一主。
 
-![OpenCode 装配链：入口 → 运行时 → 会话主循环 → 工具 → 持久化与扩展](/images/opencode/article-01-assembly.png)
+![OpenCode assembly chain overview](/images/opencode/article-01-chain.png)
 
 ### 3.1 单一入口：一个 `index.ts` 拉起整个运行时
 
 `packages/opencode/src/index.ts` 是唯一入口，用 yargs 装好 20+ 个子命令（run / serve / tui / acp / mcp / providers / agent / …）。真正长驻的是 `serve`：它拉起一个 **Engine runtime**（Effect 装配的运行时），同一个进程里同时把 **HTTP API** 和 **WebSocket** 两个面开出来。
 
 - 这也意味着：终端里敲 `opencode`(CLI) 和网页里连它 (Web/HTTP) 是**同一套引擎**，只是面不同入口——设计上省了一大份「双实现」。
-
-![单一入口 -> 引擎运行时 -> 同进程开 HTTP API 与 WebSocket](/images/opencode/article-01-entry.png)
 
 ### 3.2 会话主循环：一条可以被反复走的循环
 
@@ -121,7 +117,7 @@ Agent 是反复的会话，状态不能都压在内存。OpenCode 用 **SQLite +
 
 它让第三方能扩展，靠的是 `plugin`（公共包，供外部插件作者用）+ `mcp` + `skill` + `snapshot` + `background` 这些挂在运行时之上的能力。关键是：**你要叠加一个新能力，不需要碰核心引擎**——插件做成一个「机制」外挂在运行时，还受 `permission` 约束。这和后面聊 plan-execute-verify 时「插件在原生 hook 上叠加策略」的思路是一脉相承的。
 
-![持久化 + 扩展面：SQLite 为底，plugin/mcp/skill/snapshot 由 permission 门控](/images/opencode/article-01-extension.png)
+![OpenCode core and extensions](/images/opencode/article-01-extension.png)
 
 ## 五、解构这套设计背后的工程哲学
 

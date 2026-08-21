@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" role="img" aria-label="OpenCode three-layer architecture overview">
+  <style>
+    text { font-family: 'Courier New', 'Lucida Console', 'Microsoft YaHei', 'SimHei', monospace; fill: #caf0f8; }
+    .title { font-size: 30px; font-weight: 700; letter-spacing: 0.04em; }
+    .subtitle { font-size: 15px; fill: #90e0ef; }
+    .section-title { font-size: 24px; font-weight: 700; }
+    .section-sub { font-size: 15px; fill: #90e0ef; }
+    .chip-title { font-size: 14px; font-weight: 700; }
+    .chip-sub { font-size: 12px; fill: #90e0ef; }
+    .panel { fill: #0d1f3c; stroke: #00b4d8; stroke-width: 2.6; rx: 2; ry: 2; }
+    .chip { fill: #10294c; stroke: #48cae4; stroke-width: 2; rx: 2; ry: 2; }
+    .arrow { fill: none; stroke: #00b4d8; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+    .foot-label { font-size: 11px; fill: #48cae4; }
+  </style>
+
+  <defs>
+    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#112240" stroke-width="0.5"/>
+    </pattern>
+    <marker id="arrow-cyan" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="#00b4d8"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="600" fill="#0a1628"/>
+  <rect width="960" height="600" fill="url(#grid)" opacity="0.6"/>
+
+  <text x="480" y="46" text-anchor="middle" class="title">OPENCODE · THREE CORE LAYERS</text>
+  <text x="480" y="74" text-anchor="middle" class="subtitle">CONTRACT FOUNDATION, MODEL PROTOCOL, AND RUNTIME IMPLEMENTATION</text>
+
+  <rect x="170" y="104" width="620" height="166" class="panel"/>
+  <text x="480" y="142" text-anchor="middle" class="section-title">packages/opencode</text>
+  <text x="480" y="169" text-anchor="middle" class="section-sub">MAIN RUNTIME IMPLEMENTATION</text>
+
+  <rect x="220" y="192" width="150" height="44" class="chip"/>
+  <text x="295" y="211" text-anchor="middle" class="chip-title">SESSION</text>
+  <text x="295" y="226" text-anchor="middle" class="chip-sub">main loop</text>
+
+  <rect x="390" y="192" width="150" height="44" class="chip"/>
+  <text x="465" y="211" text-anchor="middle" class="chip-title">TOOLS</text>
+  <text x="465" y="226" text-anchor="middle" class="chip-sub">execution</text>
+
+  <rect x="560" y="192" width="180" height="44" class="chip"/>
+  <text x="650" y="211" text-anchor="middle" class="chip-title">SERVER · CLI</text>
+  <text x="650" y="226" text-anchor="middle" class="chip-sub">surfaces</text>
+
+  <rect x="300" y="310" width="360" height="88" class="panel"/>
+  <text x="480" y="346" text-anchor="middle" class="section-title">packages/llm</text>
+  <text x="480" y="373" text-anchor="middle" class="section-sub">PROTOCOL · ENDPOINT · AUTH · FRAMING</text>
+
+  <rect x="80" y="440" width="800" height="90" class="panel"/>
+  <text x="480" y="478" text-anchor="middle" class="section-title">packages/core</text>
+  <text x="480" y="505" text-anchor="middle" class="section-sub">CONTRACTS · TYPES · PROVIDER BASE</text>
+
+  <path d="M 480 270 L 480 310" class="arrow" marker-end="url(#arrow-cyan)"/>
+  <path d="M 480 398 L 480 440" class="arrow" marker-end="url(#arrow-cyan)"/>
+
+  <rect x="708" y="548" width="212" height="34" fill="#0d1f3c" stroke="#00b4d8" stroke-width="1.6"/>
+  <text x="814" y="570" text-anchor="middle" class="foot-label">LAYERED OVERVIEW · BLUEPRINT</text>
+</svg>

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" role="img" aria-label="OpenCode assembly chain overview">
+  <style>
+    text { font-family: 'Courier New', 'Lucida Console', 'Microsoft YaHei', 'SimHei', monospace; fill: #caf0f8; }
+    .title { font-size: 30px; font-weight: 700; letter-spacing: 0.04em; }
+    .subtitle { font-size: 15px; fill: #90e0ef; }
+    .box-title { font-size: 18px; font-weight: 700; }
+    .box-sub { font-size: 12px; fill: #90e0ef; }
+    .node { fill: #0d1f3c; stroke: #00b4d8; stroke-width: 2.6; rx: 2; ry: 2; }
+    .arrow { fill: none; stroke: #00b4d8; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+    .foot-label { font-size: 11px; fill: #48cae4; }
+  </style>
+
+  <defs>
+    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#112240" stroke-width="0.5"/>
+    </pattern>
+    <marker id="arrow-cyan" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="#00b4d8"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="600" fill="#0a1628"/>
+  <rect width="960" height="600" fill="url(#grid)" opacity="0.6"/>
+
+  <text x="480" y="46" text-anchor="middle" class="title">OPENCODE · ONE ASSEMBLY CHAIN</text>
+  <text x="480" y="74" text-anchor="middle" class="subtitle">FROM ENTRY TO STATE AND EXTENSION IN ONE RUNNING PATH</text>
+
+  <rect x="44" y="216" width="124" height="98" class="node"/>
+  <text x="106" y="253" text-anchor="middle" class="box-title">ENTRY</text>
+  <text x="106" y="276" text-anchor="middle" class="box-sub">cli · web · sdk</text>
+
+  <rect x="188" y="216" width="124" height="98" class="node"/>
+  <text x="250" y="253" text-anchor="middle" class="box-title">RUNTIME</text>
+  <text x="250" y="276" text-anchor="middle" class="box-sub">effect engine</text>
+
+  <rect x="332" y="216" width="124" height="98" class="node"/>
+  <text x="394" y="253" text-anchor="middle" class="box-title">SESSION</text>
+  <text x="394" y="276" text-anchor="middle" class="box-sub">processor loop</text>
+
+  <rect x="476" y="216" width="124" height="98" class="node"/>
+  <text x="538" y="253" text-anchor="middle" class="box-title">LLM</text>
+  <text x="538" y="276" text-anchor="middle" class="box-sub">provider bridge</text>
+
+  <rect x="620" y="216" width="124" height="98" class="node"/>
+  <text x="682" y="253" text-anchor="middle" class="box-title">TOOL</text>
+  <text x="682" y="276" text-anchor="middle" class="box-sub">tool dispatch</text>
+
+  <rect x="764" y="216" width="152" height="98" class="node"/>
+  <text x="840" y="253" text-anchor="middle" class="box-title">STATE · EXT</text>
+  <text x="840" y="276" text-anchor="middle" class="box-sub">storage · plugin</text>
+
+  <line x1="168" y1="265" x2="188" y2="265" class="arrow" marker-end="url(#arrow-cyan)"/>
+  <line x1="312" y1="265" x2="332" y2="265" class="arrow" marker-end="url(#arrow-cyan)"/>
+  <line x1="456" y1="265" x2="476" y2="265" class="arrow" marker-end="url(#arrow-cyan)"/>
+  <line x1="600" y1="265" x2="620" y2="265" class="arrow" marker-end="url(#arrow-cyan)"/>
+  <line x1="744" y1="265" x2="764" y2="265" class="arrow" marker-end="url(#arrow-cyan)"/>
+
+  <text x="480" y="382" text-anchor="middle" class="subtitle">EVERY PIECE HANDS OFF TO THE NEXT ONE IN A SINGLE EXECUTION PATH</text>
+
+  <rect x="708" y="548" width="212" height="34" fill="#0d1f3c" stroke="#00b4d8" stroke-width="1.6"/>
+  <text x="814" y="570" text-anchor="middle" class="foot-label">ASSEMBLY CHAIN · BLUEPRINT</text>
+</svg>
