@@ -18,8 +18,8 @@
       <stop offset="0" stop-color="rgba(230,193,90,0.12)"/>
       <stop offset="1" stop-color="rgba(230,193,90,0)"/>
     </radialGradient>
-    <marker id="ha" markerWidth="18" markerHeight="12" refX="15" refY="6" orient="auto">
-      <polygon points="0 0, 15 6, 0 12" fill="#e6c15a"/>
+    <marker id="ha" markerWidth="14" markerHeight="10" refX="12" refY="5" orient="auto">
+      <polygon points="0 0, 12 5, 0 10" fill="#e6c15a"/>
     </marker>
   </defs>
 
@@ -51,7 +51,7 @@
   <text x="1355" y="696" text-anchor="middle" class="stepsub">layer</text>
 
   <!-- drawn arrows -->
-  <line x1="340" y1="660" x2="466" y2="660" stroke="#e6c15a" stroke-width="6" marker-end="url(#ha)"/>
-  <line x1="720" y1="660" x2="846" y2="660" stroke="#e6c15a" stroke-width="6" marker-end="url(#ha)"/>
-  <line x1="1100" y1="660" x2="1226" y2="660" stroke="#e6c15a" stroke-width="6" marker-end="url(#ha)"/>
+  <line x1="342" y1="660" x2="464" y2="660" stroke="#e6c15a" stroke-width="3" marker-end="url(#ha)"/>
+  <line x1="722" y1="660" x2="844" y2="660" stroke="#e6c15a" stroke-width="3" marker-end="url(#ha)"/>
+  <line x1="1102" y1="660" x2="1224" y2="660" stroke="#e6c15a" stroke-width="3" marker-end="url(#ha)"/>
 </svg>
