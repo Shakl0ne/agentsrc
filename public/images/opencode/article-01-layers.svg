@@ -1,60 +1,104 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" role="img" aria-label="OpenCode three-layer architecture overview">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 820" width="1200" height="820" role="img" aria-label="Three Core Layers">
   <style>
-    text { font-family: 'Courier New', 'Lucida Console', 'Microsoft YaHei', 'SimHei', monospace; fill: #caf0f8; }
-    .title { font-size: 30px; font-weight: 700; letter-spacing: 0.04em; }
-    .subtitle { font-size: 15px; fill: #90e0ef; }
-    .section-title { font-size: 24px; font-weight: 700; }
-    .section-sub { font-size: 15px; fill: #90e0ef; }
-    .chip-title { font-size: 14px; font-weight: 700; }
-    .chip-sub { font-size: 12px; fill: #90e0ef; }
-    .panel { fill: #0d1f3c; stroke: #00b4d8; stroke-width: 2.6; rx: 2; ry: 2; }
-    .chip { fill: #10294c; stroke: #48cae4; stroke-width: 2; rx: 2; ry: 2; }
-    .arrow { fill: none; stroke: #00b4d8; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
-    .foot-label { font-size: 11px; fill: #48cae4; }
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 38px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .eyebrow { font-size: 16px; font-weight: 700; letter-spacing: 2.4px; fill: #9fb1c8; }
+    .card-title { font-size: 30px; font-weight: 700; fill: #f0f6fc; }
+    .card-meta { font-size: 18px; font-weight: 500; fill: #d2dbe5; }
+    .card { fill: rgba(255,255,255,0.07); stroke: rgba(255,255,255,0.17); stroke-width: 2; }
+    .card-line { stroke: rgba(255,255,255,0.24); stroke-width: 1.2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.62); stroke-width: 3; stroke-linecap: round; }
+    .spine-soft { fill: none; stroke: rgba(125,196,255,0.18); stroke-width: 10; stroke-linecap: round; }
+    .guide { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 1; }
+    .spine-node { fill: rgba(125,196,255,0.90); }
   </style>
 
   <defs>
-    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
-      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#112240" stroke-width="0.5"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <radialGradient id="glowBlue" cx="22%" cy="22%" r="36%">
+      <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowPurple" cx="74%" cy="40%" r="32%">
+      <stop offset="0%" stop-color="#bc8cff" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#bc8cff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowGreen" cx="48%" cy="88%" r="34%">
+      <stop offset="0%" stop-color="#3fb950" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
     </pattern>
-    <marker id="arrow-cyan" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
-      <polygon points="0 0, 9 3.5, 0 7" fill="#00b4d8"/>
-    </marker>
+    <radialGradient id="fieldBlue" cx="50%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.11"/>
+      <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="fieldPurple" cx="50%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#bc8cff" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#bc8cff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="fieldGreen" cx="50%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#3fb950" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
   </defs>
 
-  <rect width="960" height="600" fill="#0a1628"/>
-  <rect width="960" height="600" fill="url(#grid)" opacity="0.6"/>
+  <rect width="1200" height="820" fill="url(#bg)"/>
+  <rect width="1200" height="820" fill="url(#grid)"/>
+  <rect width="1200" height="820" fill="url(#glowBlue)"/>
+  <rect width="1200" height="820" fill="url(#glowPurple)"/>
+  <rect width="1200" height="820" fill="url(#glowGreen)"/>
 
-  <text x="480" y="46" text-anchor="middle" class="title">OPENCODE · THREE CORE LAYERS</text>
-  <text x="480" y="74" text-anchor="middle" class="subtitle">CONTRACT FOUNDATION, MODEL PROTOCOL, AND RUNTIME IMPLEMENTATION</text>
+  <text x="600" y="70" text-anchor="middle" class="title">Three Core Layers</text>
+  <text x="600" y="104" text-anchor="middle" class="subtitle">separation before execution</text>
 
-  <rect x="170" y="104" width="620" height="166" class="panel"/>
-  <text x="480" y="142" text-anchor="middle" class="section-title">packages/opencode</text>
-  <text x="480" y="169" text-anchor="middle" class="section-sub">MAIN RUNTIME IMPLEMENTATION</text>
+  <path d="M330 176 H870" class="guide"/>
+  <path d="M330 638 H870" class="guide"/>
 
-  <rect x="220" y="192" width="150" height="44" class="chip"/>
-  <text x="295" y="211" text-anchor="middle" class="chip-title">SESSION</text>
-  <text x="295" y="226" text-anchor="middle" class="chip-sub">main loop</text>
+  <path d="M600 316 L600 352" class="spine-soft"/>
+  <path d="M600 506 L600 542" class="spine-soft"/>
+  <path d="M600 316 L600 352" class="spine"/>
+  <path d="M600 506 L600 542" class="spine"/>
+  <circle cx="600" cy="352" r="6" class="spine-node"/>
+  <circle cx="600" cy="542" r="6" class="spine-node"/>
 
-  <rect x="390" y="192" width="150" height="44" class="chip"/>
-  <text x="465" y="211" text-anchor="middle" class="chip-title">TOOLS</text>
-  <text x="465" y="226" text-anchor="middle" class="chip-sub">execution</text>
+  <g>
+    <rect x="210" y="156" width="780" height="138" rx="28" fill="url(#fieldBlue)"/>
+    <rect x="220" y="164" width="760" height="138" rx="28" class="card"/>
+    <line x1="258" y1="194" x2="942" y2="194" class="card-line"/>
+    <rect x="268" y="214" width="14" height="52" rx="7" fill="#58a6ff"/>
+    <text x="350" y="226" class="eyebrow">APP</text>
+    <text x="350" y="259" class="card-title">opencode</text>
+    <text x="350" y="293" class="card-meta">runtime · session · tools</text>
+  </g>
 
-  <rect x="560" y="192" width="180" height="44" class="chip"/>
-  <text x="650" y="211" text-anchor="middle" class="chip-title">SERVER · CLI</text>
-  <text x="650" y="226" text-anchor="middle" class="chip-sub">surfaces</text>
+  <g>
+    <rect x="330" y="362" width="540" height="126" rx="26" fill="url(#fieldPurple)"/>
+    <rect x="340" y="370" width="520" height="126" rx="26" class="card"/>
+    <line x1="376" y1="400" x2="824" y2="400" class="card-line"/>
+    <rect x="386" y="424" width="14" height="50" rx="7" fill="#bc8cff"/>
+    <text x="470" y="432" class="eyebrow">MODEL</text>
+    <text x="470" y="465" class="card-title">llm</text>
+    <text x="470" y="489" class="card-meta">protocol · endpoint · auth</text>
+  </g>
 
-  <rect x="300" y="310" width="360" height="88" class="panel"/>
-  <text x="480" y="346" text-anchor="middle" class="section-title">packages/llm</text>
-  <text x="480" y="373" text-anchor="middle" class="section-sub">PROTOCOL · ENDPOINT · AUTH · FRAMING</text>
-
-  <rect x="80" y="440" width="800" height="90" class="panel"/>
-  <text x="480" y="478" text-anchor="middle" class="section-title">packages/core</text>
-  <text x="480" y="505" text-anchor="middle" class="section-sub">CONTRACTS · TYPES · PROVIDER BASE</text>
-
-  <path d="M 480 270 L 480 310" class="arrow" marker-end="url(#arrow-cyan)"/>
-  <path d="M 480 398 L 480 440" class="arrow" marker-end="url(#arrow-cyan)"/>
-
-  <rect x="708" y="548" width="212" height="34" fill="#0d1f3c" stroke="#00b4d8" stroke-width="1.6"/>
-  <text x="814" y="570" text-anchor="middle" class="foot-label">LAYERED OVERVIEW · BLUEPRINT</text>
+  <g>
+    <rect x="210" y="562" width="780" height="138" rx="28" fill="url(#fieldGreen)"/>
+    <rect x="220" y="570" width="760" height="138" rx="28" class="card"/>
+    <line x1="258" y1="600" x2="942" y2="600" class="card-line"/>
+    <rect x="268" y="620" width="14" height="52" rx="7" fill="#3fb950"/>
+    <text x="350" y="632" class="eyebrow">CORE</text>
+    <text x="350" y="665" class="card-title">core</text>
+    <text x="350" y="699" class="card-meta">contracts · types · provider base</text>
+  </g>
 </svg>

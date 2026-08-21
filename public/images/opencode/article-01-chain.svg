@@ -1,62 +1,134 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" role="img" aria-label="OpenCode assembly chain overview">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 720" width="1700" height="720" role="img" aria-label="One Assembly Chain">
   <style>
-    text { font-family: 'Courier New', 'Lucida Console', 'Microsoft YaHei', 'SimHei', monospace; fill: #caf0f8; }
-    .title { font-size: 30px; font-weight: 700; letter-spacing: 0.04em; }
-    .subtitle { font-size: 15px; fill: #90e0ef; }
-    .box-title { font-size: 18px; font-weight: 700; }
-    .box-sub { font-size: 12px; fill: #90e0ef; }
-    .node { fill: #0d1f3c; stroke: #00b4d8; stroke-width: 2.6; rx: 2; ry: 2; }
-    .arrow { fill: none; stroke: #00b4d8; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
-    .foot-label { font-size: 11px; fill: #48cae4; }
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 38px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .node-title { font-size: 24px; font-weight: 700; fill: #f0f6fc; }
+    .node-meta { font-size: 18px; font-weight: 500; fill: #d2dbe5; }
+    .eyebrow { font-size: 16px; font-weight: 700; letter-spacing: 2.2px; fill: #9fb1c8; }
+    .support { font-size: 16px; font-weight: 600; letter-spacing: 1.8px; fill: #8fc8ff; }
+    .card { fill: rgba(255,255,255,0.07); stroke: rgba(255,255,255,0.17); stroke-width: 2; }
+    .card-line { stroke: rgba(255,255,255,0.24); stroke-width: 1.2; }
+    .rail { fill: none; stroke: rgba(125,196,255,0.30); stroke-width: 3; stroke-linecap: round; }
+    .stem { fill: none; stroke: rgba(125,196,255,0.42); stroke-width: 2.4; stroke-linecap: round; }
+    .dot { fill: rgba(125,196,255,0.86); }
+    .link { fill: none; stroke: rgba(125,196,255,0.88); stroke-width: 3; stroke-linecap: round; }
+    .link-node { fill: rgba(125,196,255,0.90); }
   </style>
 
   <defs>
-    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
-      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#112240" stroke-width="0.5"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <radialGradient id="glowBlue" cx="18%" cy="28%" r="28%">
+      <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowPurple" cx="82%" cy="30%" r="26%">
+      <stop offset="0%" stop-color="#bc8cff" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#bc8cff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowGreen" cx="52%" cy="82%" r="30%">
+      <stop offset="0%" stop-color="#3fb950" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
     </pattern>
-    <marker id="arrow-cyan" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
-      <polygon points="0 0, 9 3.5, 0 7" fill="#00b4d8"/>
-    </marker>
   </defs>
 
-  <rect width="960" height="600" fill="#0a1628"/>
-  <rect width="960" height="600" fill="url(#grid)" opacity="0.6"/>
+  <rect width="1700" height="720" fill="url(#bg)"/>
+  <rect width="1700" height="720" fill="url(#grid)"/>
+  <rect width="1700" height="720" fill="url(#glowBlue)"/>
+  <rect width="1700" height="720" fill="url(#glowPurple)"/>
+  <rect width="1700" height="720" fill="url(#glowGreen)"/>
 
-  <text x="480" y="46" text-anchor="middle" class="title">OPENCODE · ONE ASSEMBLY CHAIN</text>
-  <text x="480" y="74" text-anchor="middle" class="subtitle">FROM ENTRY TO STATE AND EXTENSION IN ONE RUNNING PATH</text>
+  <text x="850" y="70" text-anchor="middle" class="title">One Assembly Chain</text>
+  <text x="850" y="104" text-anchor="middle" class="subtitle">a single path from entry to growth</text>
 
-  <rect x="44" y="216" width="124" height="98" class="node"/>
-  <text x="106" y="253" text-anchor="middle" class="box-title">ENTRY</text>
-  <text x="106" y="276" text-anchor="middle" class="box-sub">cli · web · sdk</text>
+  <path d="M140 494 H1560" class="rail"/>
+  <circle cx="220" cy="494" r="5" class="dot"/>
+  <circle cx="470" cy="494" r="5" class="dot"/>
+  <circle cx="720" cy="494" r="5" class="dot"/>
+  <circle cx="970" cy="494" r="5" class="dot"/>
+  <circle cx="1220" cy="494" r="5" class="dot"/>
+  <circle cx="1490" cy="494" r="5" class="dot"/>
+  <text x="140" y="530" class="support">SINGLE EXECUTION PATH</text>
 
-  <rect x="188" y="216" width="124" height="98" class="node"/>
-  <text x="250" y="253" text-anchor="middle" class="box-title">RUNTIME</text>
-  <text x="250" y="276" text-anchor="middle" class="box-sub">effect engine</text>
+  <g>
+    <rect x="90" y="262" width="260" height="130" rx="28" class="card"/>
+    <line x1="126" y1="292" x2="314" y2="292" class="card-line"/>
+    <rect x="144" y="320" width="14" height="42" rx="7" fill="#58a6ff"/>
+    <text x="190" y="318" class="eyebrow">ENTRY</text>
+    <text x="190" y="352" class="node-title">Entry</text>
+    <text x="190" y="384" class="node-meta">cli / web</text>
+    <path d="M220 392 L220 474" class="stem"/>
+  </g>
 
-  <rect x="332" y="216" width="124" height="98" class="node"/>
-  <text x="394" y="253" text-anchor="middle" class="box-title">SESSION</text>
-  <text x="394" y="276" text-anchor="middle" class="box-sub">processor loop</text>
+  <g>
+    <rect x="340" y="262" width="260" height="130" rx="28" class="card"/>
+    <line x1="376" y1="292" x2="564" y2="292" class="card-line"/>
+    <rect x="394" y="320" width="14" height="42" rx="7" fill="#58a6ff"/>
+    <text x="440" y="318" class="eyebrow">RUNTIME</text>
+    <text x="440" y="352" class="node-title">Runtime</text>
+    <text x="440" y="384" class="node-meta">effect runtime</text>
+    <path d="M470 392 L470 474" class="stem"/>
+  </g>
 
-  <rect x="476" y="216" width="124" height="98" class="node"/>
-  <text x="538" y="253" text-anchor="middle" class="box-title">LLM</text>
-  <text x="538" y="276" text-anchor="middle" class="box-sub">provider bridge</text>
+  <g>
+    <rect x="590" y="262" width="260" height="130" rx="28" class="card"/>
+    <line x1="626" y1="292" x2="814" y2="292" class="card-line"/>
+    <rect x="644" y="320" width="14" height="42" rx="7" fill="#bc8cff"/>
+    <text x="690" y="318" class="eyebrow">SESSION</text>
+    <text x="690" y="352" class="node-title">Session</text>
+    <text x="690" y="384" class="node-meta">main loop</text>
+    <path d="M720 392 L720 474" class="stem"/>
+  </g>
 
-  <rect x="620" y="216" width="124" height="98" class="node"/>
-  <text x="682" y="253" text-anchor="middle" class="box-title">TOOL</text>
-  <text x="682" y="276" text-anchor="middle" class="box-sub">tool dispatch</text>
+  <g>
+    <rect x="840" y="262" width="260" height="130" rx="28" class="card"/>
+    <line x1="876" y1="292" x2="1064" y2="292" class="card-line"/>
+    <rect x="894" y="320" width="14" height="42" rx="7" fill="#bc8cff"/>
+    <text x="940" y="318" class="eyebrow">MODEL</text>
+    <text x="940" y="352" class="node-title">LLM</text>
+    <text x="940" y="384" class="node-meta">provider bridge</text>
+    <path d="M970 392 L970 474" class="stem"/>
+  </g>
 
-  <rect x="764" y="216" width="152" height="98" class="node"/>
-  <text x="840" y="253" text-anchor="middle" class="box-title">STATE · EXT</text>
-  <text x="840" y="276" text-anchor="middle" class="box-sub">storage · plugin</text>
+  <g>
+    <rect x="1090" y="262" width="260" height="130" rx="28" class="card"/>
+    <line x1="1126" y1="292" x2="1314" y2="292" class="card-line"/>
+    <rect x="1144" y="320" width="14" height="42" rx="7" fill="#3fb950"/>
+    <text x="1190" y="318" class="eyebrow">TOOL</text>
+    <text x="1190" y="352" class="node-title">Tool</text>
+    <text x="1190" y="384" class="node-meta">execution</text>
+    <path d="M1220 392 L1220 474" class="stem"/>
+  </g>
 
-  <line x1="168" y1="265" x2="188" y2="265" class="arrow" marker-end="url(#arrow-cyan)"/>
-  <line x1="312" y1="265" x2="332" y2="265" class="arrow" marker-end="url(#arrow-cyan)"/>
-  <line x1="456" y1="265" x2="476" y2="265" class="arrow" marker-end="url(#arrow-cyan)"/>
-  <line x1="600" y1="265" x2="620" y2="265" class="arrow" marker-end="url(#arrow-cyan)"/>
-  <line x1="744" y1="265" x2="764" y2="265" class="arrow" marker-end="url(#arrow-cyan)"/>
+  <g>
+    <rect x="1320" y="262" width="340" height="130" rx="28" class="card"/>
+    <line x1="1356" y1="292" x2="1624" y2="292" class="card-line"/>
+    <rect x="1374" y="320" width="14" height="42" rx="7" fill="#f78166"/>
+    <text x="1420" y="318" class="eyebrow">GROWTH</text>
+    <text x="1420" y="352" class="node-title">Storage / Extension</text>
+    <text x="1420" y="384" class="node-meta">state + growth</text>
+    <path d="M1490 392 L1490 474" class="stem"/>
+  </g>
 
-  <text x="480" y="382" text-anchor="middle" class="subtitle">EVERY PIECE HANDS OFF TO THE NEXT ONE IN A SINGLE EXECUTION PATH</text>
-
-  <rect x="708" y="548" width="212" height="34" fill="#0d1f3c" stroke="#00b4d8" stroke-width="1.6"/>
-  <text x="814" y="570" text-anchor="middle" class="foot-label">ASSEMBLY CHAIN · BLUEPRINT</text>
+  <path d="M350 327 L340 327" class="link"/>
+  <path d="M600 327 L590 327" class="link"/>
+  <path d="M850 327 L840 327" class="link"/>
+  <path d="M1100 327 L1090 327" class="link"/>
+  <path d="M1350 327 L1320 327" class="link"/>
+  <circle cx="340" cy="327" r="5" class="link-node"/>
+  <circle cx="590" cy="327" r="5" class="link-node"/>
+  <circle cx="840" cy="327" r="5" class="link-node"/>
+  <circle cx="1090" cy="327" r="5" class="link-node"/>
+  <circle cx="1320" cy="327" r="5" class="link-node"/>
 </svg>
