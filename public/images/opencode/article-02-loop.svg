@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 940" width="1700" height="940" role="img" aria-label="One Loop, Many Work Types">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 40px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .eyebrow { font-size: 15px; font-weight: 700; letter-spacing: 2.1px; fill: #9fb1c8; }
+    .card-title { font-size: 26px; font-weight: 700; fill: #f0f6fc; }
+    .card-meta { font-size: 17px; font-weight: 500; fill: #d2dbe5; }
+    .mini-title { font-size: 17px; font-weight: 700; fill: #f0f6fc; }
+    .mini-meta { font-size: 16px; font-weight: 500; fill: #d2dbe5; }
+    .support { font-size: 16px; font-weight: 700; letter-spacing: 1.8px; fill: #8fc8ff; }
+    .card { fill: rgba(255,255,255,0.07); stroke: rgba(255,255,255,0.17); stroke-width: 2; }
+    .mini { fill: rgba(255,255,255,0.06); stroke: rgba(125,196,255,0.22); stroke-width: 1.5; }
+    .card-line { stroke: rgba(255,255,255,0.24); stroke-width: 1.1; }
+    .rail { fill: none; stroke: rgba(125,196,255,0.34); stroke-width: 4; stroke-linecap: round; }
+    .rail-soft { fill: none; stroke: rgba(125,196,255,0.13); stroke-width: 14; stroke-linecap: round; }
+    .flow { fill: none; stroke: rgba(125,196,255,0.86); stroke-width: 3.2; stroke-linecap: round; }
+    .attach { fill: none; stroke: rgba(125,196,255,0.54); stroke-width: 2.2; stroke-linecap: round; }
+    .dot { fill: rgba(125,196,255,0.92); }
+    .guide { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 1; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="52%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glowBlue" cx="20%" cy="24%" r="30%">
+      <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowPurple" cx="82%" cy="30%" r="28%">
+      <stop offset="0%" stop-color="#bc8cff" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#bc8cff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowGreen" cx="52%" cy="84%" r="30%">
+      <stop offset="0%" stop-color="#3fb950" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1700" height="940" fill="url(#bg)"/>
+  <rect width="1700" height="940" fill="url(#grid)"/>
+  <rect width="1700" height="940" fill="url(#glowBlue)"/>
+  <rect width="1700" height="940" fill="url(#glowPurple)"/>
+  <rect width="1700" height="940" fill="url(#glowGreen)"/>
+
+  <text x="850" y="72" text-anchor="middle" class="title">One Loop, Many Work Types</text>
+  <text x="850" y="106" text-anchor="middle" class="subtitle">everything returns to one decision point</text>
+
+  <path d="M850 168 V804" class="rail-soft"/>
+  <path d="M850 168 V804" class="rail"/>
+  <path d="M850 804 C850 850 850 866 780 866 H508 C430 866 410 846 410 786 V214 C410 164 438 144 488 144 H736" class="flow"/>
+  <text x="520" y="122" class="support">CONTINUE RETURNS TO THE TOP</text>
+
+  <g>
+    <rect x="640" y="158" width="420" height="92" rx="24" class="card"/>
+    <line x1="676" y1="188" x2="1024" y2="188" class="card-line"/>
+    <text x="710" y="182" class="eyebrow">STEP 01</text>
+    <text x="710" y="218" class="card-title">Rebuild State</text>
+    <text x="710" y="240" class="card-meta">read msgs, rebuild the model-visible view</text>
+  </g>
+
+  <g>
+    <rect x="640" y="276" width="420" height="110" rx="24" class="card"/>
+    <line x1="676" y1="306" x2="1024" y2="306" class="card-line"/>
+    <text x="710" y="300" class="eyebrow">STEP 02</text>
+    <text x="710" y="336" class="card-title">Check Exit</text>
+    <text x="710" y="360" class="card-meta">finished assistant, no tool calls, no pending tool work</text>
+  </g>
+
+  <g>
+    <rect x="1148" y="276" width="360" height="126" rx="24" class="mini"/>
+    <text x="1184" y="314" class="mini-title">STOP ONLY WHEN</text>
+    <text x="1184" y="344" class="mini-meta">assistant is finished</text>
+    <text x="1184" y="370" class="mini-meta">tool-calls are cleared</text>
+    <text x="1184" y="396" class="mini-meta">unfinished tool parts are gone</text>
+    <path d="M1060 332 C1090 332 1108 332 1148 332" class="attach"/>
+  </g>
+
+  <g>
+    <rect x="640" y="418" width="420" height="96" rx="24" class="card"/>
+    <line x1="676" y1="448" x2="1024" y2="448" class="card-line"/>
+    <text x="710" y="442" class="eyebrow">STEP 03</text>
+    <text x="710" y="478" class="card-title">Pick Work</text>
+    <text x="710" y="500" class="card-meta">subtask, compaction, or a normal turn</text>
+  </g>
+
+  <g>
+    <rect x="188" y="410" width="296" height="82" rx="22" class="mini"/>
+    <text x="224" y="444" class="mini-title">SUBTASK</text>
+    <text x="224" y="470" class="mini-meta">queued work goes first</text>
+    <path d="M484 451 C534 451 574 451 640 451" class="attach"/>
+  </g>
+
+  <g>
+    <rect x="1168" y="426" width="304" height="82" rx="22" class="mini"/>
+    <text x="1204" y="460" class="mini-title">COMPACTION</text>
+    <text x="1204" y="486" class="mini-meta">overflow is a normal branch</text>
+    <path d="M1060 468 C1098 468 1120 468 1168 468" class="attach"/>
+  </g>
+
+  <g>
+    <rect x="640" y="548" width="420" height="104" rx="24" class="card"/>
+    <line x1="676" y1="578" x2="1024" y2="578" class="card-line"/>
+    <text x="710" y="572" class="eyebrow">STEP 04</text>
+    <text x="710" y="608" class="card-title">Process Events</text>
+    <text x="710" y="632" class="card-meta">run one turn and consume a single LLMEvent stream</text>
+  </g>
+
+  <g>
+    <rect x="166" y="560" width="318" height="118" rx="22" class="mini"/>
+    <text x="202" y="598" class="mini-title">UNIFIED INPUT</text>
+    <text x="202" y="628" class="mini-meta">native runtime or AI SDK</text>
+    <text x="202" y="654" class="mini-meta">both become one LLMEvent stream</text>
+    <path d="M484 618 C544 618 580 618 640 618" class="attach"/>
+  </g>
+
+  <g>
+    <rect x="640" y="686" width="420" height="92" rx="24" class="card"/>
+    <line x1="676" y1="716" x2="1024" y2="716" class="card-line"/>
+    <text x="710" y="710" class="eyebrow">STEP 05</text>
+    <text x="710" y="746" class="card-title">Write Back</text>
+    <text x="710" y="768" class="card-meta">tool parts, finish reason, usage, summary, compaction signal</text>
+  </g>
+
+  <g>
+    <rect x="1158" y="682" width="314" height="110" rx="22" class="mini"/>
+    <text x="1194" y="718" class="mini-title">STATE OUTPUT</text>
+    <text x="1194" y="746" class="mini-meta">tool-call becomes session state</text>
+    <text x="1194" y="772" class="mini-meta">step-finish updates usage and may compact</text>
+    <path d="M1060 736 C1100 736 1122 736 1158 736" class="attach"/>
+  </g>
+
+  <g>
+    <rect x="692" y="810" width="316" height="76" rx="22" class="mini"/>
+    <text x="850" y="842" text-anchor="middle" class="mini-title">LOOP OR STOP</text>
+    <text x="850" y="868" text-anchor="middle" class="mini-meta">continue, compact, or end here</text>
+  </g>
+
+  <circle cx="850" cy="250" r="5" class="dot"/>
+  <circle cx="850" cy="396" r="5" class="dot"/>
+  <circle cx="850" cy="524" r="5" class="dot"/>
+  <circle cx="850" cy="662" r="5" class="dot"/>
+  <circle cx="850" cy="792" r="5" class="dot"/>
+</svg>
