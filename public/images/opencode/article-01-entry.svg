@@ -1,83 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" width="960" height="580" role="img" aria-label="OpenCode Single Entry Point">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-label="OpenCode Single Entry Point">
   <style>
-    text { font-family: 'Courier New', 'Lucida Console', monospace; }
-    .title { font-size: 34px; font-weight: 700; fill: #caf0f8; }
-    .subtitle { font-size: 18px; fill: #90e0ef; }
-    .node-name { font-size: 22px; font-weight: 700; fill: #caf0f8; }
-    .node-sub { font-size: 15px; fill: #90e0ef; }
-    .node-detail { font-size: 13px; fill: #48cae4; opacity: 0.8; }
-    .arrow-label { font-size: 14px; fill: #48cae4; }
-    .muted { font-size: 13px; fill: #48cae4; opacity: 0.6; }
-    .insight { font-size: 16px; fill: #caf0f8; font-weight: 600; }
+    text { font-family: "Inter", "SF Pro Display", -apple-system, "Segoe UI", Arial, sans-serif; }
+    .title   { font-size: 66px; font-weight: 800; fill: #f2fbff; }
+    .subtitle{ font-size: 40px; font-weight: 600; fill: #90e0ef; }
+    .node    { font-size: 54px; font-weight: 800; fill: #ffffff; }
+    .sub     { font-size: 34px; font-weight: 600; fill: #a8e6ff; }
+    .detail  { font-size: 28px; font-weight: 500; fill: #6fd7ff; }
+    .label   { font-size: 32px; font-weight: 700; fill: #8ef7c9; }
   </style>
-
   <defs>
-    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
-      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#112240" stroke-width="0.5"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0a1628"/>
+      <stop offset="1" stop-color="#0d1f3c"/>
+    </linearGradient>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M44 0 L0 0 0 44" fill="none" stroke="#123356" stroke-width="1"/>
     </pattern>
-    <marker id="arrow-cyan" markerWidth="14" markerHeight="10" refX="12" refY="5" orient="auto">
-      <polygon points="0 0, 14 5, 0 10" fill="#00b4d8"/>
+    <marker id="ah" markerWidth="20" markerHeight="14" refX="17" refY="7" orient="auto">
+      <polygon points="0 0, 16 7, 0 14" fill="#22b8ff"/>
     </marker>
   </defs>
 
-  <!-- Background -->
-  <rect width="960" height="580" fill="#0a1628"/>
-  <rect width="960" height="580" fill="url(#grid)" opacity="0.6"/>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#grid)" opacity="0.5"/>
 
-  <!-- Title -->
-  <text x="480" y="48" text-anchor="middle" class="title">Single Entry Point</text>
-  <text x="480" y="74" text-anchor="middle" class="subtitle">One CLI entry → one long-running chain</text>
+  <text x="800" y="96" text-anchor="middle" class="title">One Entry · One Long-Running Chain</text>
+  <text x="800" y="152" text-anchor="middle" class="subtitle">CLI and Web share the same engine</text>
 
-  <!-- ==================== LEFT: CLI Entry ==================== -->
-  <rect x="40" y="150" width="280" height="170" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2.5"/>
-  <text x="180" y="190" text-anchor="middle" class="node-name">CLI Entry</text>
-  <text x="180" y="218" text-anchor="middle" class="node-sub">index.ts · yargs</text>
-  <text x="180" y="244" text-anchor="middle" class="node-detail">20+ subcommands</text>
-  <text x="180" y="268" text-anchor="middle" class="node-detail">serve · init · config</text>
-  <text x="180" y="292" text-anchor="middle" class="node-detail">session · list · ...</text>
+  <!-- CLI ENTRY (left) -->
+  <rect x="120" y="300" width="460" height="300" rx="18" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
+  <text x="350" y="400" text-anchor="middle" class="node">CLI ENTRY</text>
+  <text x="350" y="468" text-anchor="middle" class="sub">index.ts · yargs</text>
+  <text x="350" y="522" text-anchor="middle" class="detail">20+ subcommands</text>
+  <text x="350" y="568" text-anchor="middle" class="detail">serve · run · tui · acp · mcp</text>
 
-  <!-- Arrow: CLI → Engine -->
-  <polyline points="320,235 385,235" stroke="#00b4d8" stroke-width="3" fill="none" marker-end="url(#arrow-cyan)"/>
-  <text x="352" y="222" text-anchor="middle" class="arrow-label">serve</text>
+  <!-- arrows CLI -> engine -->
+  <line x1="580" y1="450" x2="760" y2="450" stroke="#22b8ff" stroke-width="7" marker-end="url(#ah)"/>
+  <text x="672" y="434" text-anchor="middle" class="label">launches</text>
 
-  <!-- ==================== MIDDLE: Engine Runtime ==================== -->
-  <rect x="385" y="100" width="320" height="270" rx="6" fill="none" stroke="#00b4d8" stroke-width="1.5" stroke-dasharray="8,5"/>
-  <text x="400" y="122" class="muted">EFFECT RUNTIME (same process)</text>
+  <!-- Engine Runtime (center) -->
+  <rect x="800" y="300" width="520" height="300" rx="18" fill="#0f2340" stroke="#22f0a8" stroke-width="7"/>
+  <text x="1060" y="380" text-anchor="middle" class="node">serve</text>
+  <text x="1060" y="448" text-anchor="middle" class="sub">Engine runtime</text>
+  <text x="1060" y="506" text-anchor="middle" class="detail">Effect runtime · ~40 services</text>
+  <text x="1060" y="556" text-anchor="middle" class="detail">InstanceState singleton</text>
 
-  <rect x="405" y="135" width="280" height="130" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2"/>
-  <text x="545" y="172" text-anchor="middle" class="node-name">Engine Runtime</text>
-  <text x="545" y="200" text-anchor="middle" class="node-sub">Effect-TS · ~40 Services</text>
-  <text x="545" y="228" text-anchor="middle" class="node-detail">session / processor / runLoop</text>
-  <text x="545" y="254" text-anchor="middle" class="node-detail">long-running process</text>
+  <!-- HTTP (top right) + WS (bottom right) -->
+  <rect x="1400" y="316" width="180" height="130" rx="12" fill="#0f2340" stroke="#22f0a8" stroke-width="6"/>
+  <text x="1490" y="378" text-anchor="middle" class="node">HTTP</text>
+  <text x="1490" y="420" text-anchor="middle" class="sub">REST</text>
+  <line x1="1400" y1="380" x2="1325" y2="455" stroke="#22f0a8" stroke-width="6" marker-end="url(#ah)"/>
 
-  <!-- Two faces: HTTP + WS -->
-  <rect x="405" y="285" width="135" height="60" rx="4" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2"/>
-  <text x="472" y="312" text-anchor="middle" class="node-name" font-size="16">HTTP API</text>
-  <text x="472" y="334" text-anchor="middle" class="node-detail">REST endpoints</text>
+  <rect x="1400" y="460" width="180" height="130" rx="12" fill="#0f2340" stroke="#22f0a8" stroke-width="6"/>
+  <text x="1490" y="520" text-anchor="middle" class="node">WS</text>
+  <text x="1490" y="562" text-anchor="middle" class="sub">stream</text>
+  <line x1="1400" y1="525" x2="1320" y2="470" stroke="#22f0a8" stroke-width="6" marker-end="url(#ah)"/>
 
-  <rect x="555" y="285" width="135" height="60" rx="4" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2"/>
-  <text x="622" y="312" text-anchor="middle" class="node-name" font-size="16">WebSocket</text>
-  <text x="622" y="334" text-anchor="middle" class="node-detail">real-time stream</text>
-
-  <!-- ==================== RIGHT: Output / Meaning ==================== -->
-  <rect x="720" y="150" width="220" height="170" rx="4" fill="#0d1f3c" stroke="#f77f00" stroke-width="2"/>
-  <text x="830" y="190" text-anchor="middle" class="node-name">Long Chain</text>
-  <text x="830" y="218" text-anchor="middle" class="node-sub">user → message → tool</text>
-  <text x="830" y="244" text-anchor="middle" class="node-detail">LLM → response</text>
-  <text x="830" y="268" text-anchor="middle" class="node-detail">background tasks</text>
-  <text x="830" y="292" text-anchor="middle" class="node-detail">persistence</text>
-
-  <!-- Arrow: Runtime → Right -->
-  <polyline points="705,235 720,235" stroke="#00b4d8" stroke-width="3" fill="none" marker-end="url(#arrow-cyan)"/>
-  <text x="712" y="222" text-anchor="middle" class="arrow-label">exposes</text>
-
-  <!-- ==================== Bottom: Key Insight ==================== -->
-  <rect x="160" y="440" width="640" height="56" rx="6" fill="none" stroke="#00b4d8" stroke-width="1.2" stroke-dasharray="6,4"/>
-  <text x="480" y="474" text-anchor="middle" class="insight">One entry · One process · HTTP + WebSocket coexist</text>
-
-  <!-- Title block -->
-  <rect x="620" y="505" width="280" height="50" fill="#0d1f3c" stroke="#00b4d8" stroke-width="1.5"/>
-  <line x1="620" y1="525" x2="900" y2="525" stroke="#00b4d8" stroke-width="0.8"/>
-  <text x="760" y="520" text-anchor="middle" fill="#caf0f8" font-size="11">ENTRY DESIGN</text>
-  <text x="760" y="547" text-anchor="middle" fill="#00b4d8" font-size="16" font-weight="700">SINGLE ENTRY POINT</text>
+  <text x="1060" y="690" text-anchor="middle" class="subtitle">One process opens HTTP API + WebSocket simultaneously</text>
 </svg>

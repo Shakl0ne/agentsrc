@@ -1,174 +1,103 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1050" width="1200" height="1050" role="img" aria-label="OpenCode Assembly Chain — Core Architecture">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-label="OpenCode Assembly Chain — Core Architecture">
   <style>
-    text { font-family: 'Courier New', 'Lucida Console', monospace; }
-    .title { font-size: 38px; font-weight: 700; fill: #caf0f8; }
-    .subtitle { font-size: 18px; fill: #90e0ef; }
-    .node-name { font-size: 20px; font-weight: 700; fill: #caf0f8; }
-    .node-sub { font-size: 15px; fill: #90e0ef; }
-    .node-detail { font-size: 13px; fill: #48cae4; opacity: 0.8; }
-    .arrow-label { font-size: 14px; fill: #48cae4; }
-    .section-label { font-size: 16px; font-weight: 700; fill: #67e8f9; letter-spacing: 1.4px; text-transform: uppercase; }
-    .muted { font-size: 13px; fill: #48cae4; opacity: 0.6; }
-    .corner-text { font-size: 12px; fill: #48cae4; opacity: 0.5; }
+    text { font-family: "Inter", "SF Pro Display", -apple-system, "Segoe UI", Arial, sans-serif; }
+    .title   { font-size: 60px; font-weight: 800; fill: #f2fbff; }
+    .subtitle{ font-size: 34px; font-weight: 600; fill: #90e0ef; }
+    .layer   { font-size: 28px; font-weight: 800; fill: #67e8f9; letter-spacing: 2px; }
+    .node    { font-size: 40px; font-weight: 800; fill: #ffffff; }
+    .sub     { font-size: 28px; font-weight: 600; fill: #a8e6ff; }
+    .detail  { font-size: 24px; font-weight: 500; fill: #6fd7ff; }
   </style>
-
   <defs>
-    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#112240" stroke-width="0.5"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0a1628"/>
+      <stop offset="1" stop-color="#0d1f3c"/>
+    </linearGradient>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M44 0 L0 0 0 44" fill="none" stroke="#123356" stroke-width="1"/>
     </pattern>
-    <marker id="arrow-cyan" markerWidth="14" markerHeight="10" refX="12" refY="5" orient="auto">
-      <polygon points="0 0, 14 5, 0 10" fill="#00b4d8"/>
+    <marker id="ah" markerWidth="18" markerHeight="12" refX="15" refY="6" orient="auto">
+      <polygon points="0 0, 15 6, 0 12" fill="#22b8ff"/>
     </marker>
-    <marker id="arrow-green" markerWidth="14" markerHeight="10" refX="12" refY="5" orient="auto">
-      <polygon points="0 0, 14 5, 0 10" fill="#06d6a0"/>
+    <marker id="ag" markerWidth="18" markerHeight="12" refX="15" refY="6" orient="auto">
+      <polygon points="0 0, 15 6, 0 12" fill="#22f0a8"/>
     </marker>
-    <marker id="arrow-orange" markerWidth="14" markerHeight="10" refX="12" refY="5" orient="auto">
-      <polygon points="0 0, 14 5, 0 10" fill="#f77f00"/>
+    <marker id="ao" markerWidth="18" markerHeight="12" refX="15" refY="6" orient="auto">
+      <polygon points="0 0, 15 6, 0 12" fill="#ff9f43"/>
     </marker>
   </defs>
 
-  <!-- Background -->
-  <rect width="1200" height="1050" fill="#0a1628"/>
-  <rect width="1200" height="1050" fill="url(#grid)" opacity="0.6"/>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#grid)" opacity="0.5"/>
 
-  <!-- Title -->
-  <text x="600" y="50" text-anchor="middle" class="title">OpenCode Assembly Chain</text>
-  <text x="600" y="78" text-anchor="middle" class="subtitle">From CLI entry to model execution — full architecture overview</text>
+  <text x="800" y="70" text-anchor="middle" class="title">OpenCode Assembly Chain</text>
+  <text x="800" y="116" text-anchor="middle" class="subtitle">CLI entry to runtime to session loop to model and tools to persistence</text>
 
-  <!-- ==================== LAYER 1: ENTRY ==================== -->
-  <text x="30" y="125" class="section-label">LAYER 1 — CLI ENTRY</text>
+  <!-- LAYER 1 ENTRY -->
+  <text x="40" y="160" class="layer">LAYER 1 · CLI ENTRY</text>
+  <rect x="40" y="174" width="1520" height="104" rx="10" fill="#0f2340" stroke="#22b8ff" stroke-width="5"/>
+  <text x="800" y="216" text-anchor="middle" class="node">packages/opencode/src/index.ts</text>
+  <text x="800" y="256" text-anchor="middle" class="sub">yargs assembly · 20+ subcommands · serve / config / session</text>
+  <path d="M800 278 L800 316" stroke="#22b8ff" stroke-width="6" marker-end="url(#ah)"/>
 
-  <rect x="40" y="135" width="380" height="100" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2.5"/>
-  <text x="230" y="170" text-anchor="middle" class="node-name">packages/opencode/src/index.ts</text>
-  <text x="230" y="195" text-anchor="middle" class="node-sub">yargs assembly · 20+ subcommands</text>
-  <text x="230" y="218" text-anchor="middle" class="node-detail">serve · config · session · init · ...</text>
+  <!-- LAYER 2 ENGINE RUNTIME -->
+  <text x="40" y="344" class="layer">LAYER 2 · ENGINE RUNTIME (same process)</text>
+  <g>
+    <rect x="40" y="358" width="470" height="140" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="5"/>
+    <text x="275" y="410" text-anchor="middle" class="node">serve</text>
+    <text x="275" y="452" text-anchor="middle" class="sub">Effect runtime · ~40 services DI</text>
+    <text x="275" y="486" text-anchor="middle" class="detail">InstanceState singleton</text>
+    <rect x="560" y="358" width="460" height="140" rx="12" fill="#0f2340" stroke="#22f0a8" stroke-width="5"/>
+    <text x="790" y="410" text-anchor="middle" class="node">HTTP API</text>
+    <text x="790" y="452" text-anchor="middle" class="sub">REST endpoints</text>
+    <text x="790" y="486" text-anchor="middle" class="detail">/session · /message · /tool · /config</text>
+    <rect x="1070" y="358" width="490" height="140" rx="12" fill="#0f2340" stroke="#22f0a8" stroke-width="5"/>
+    <text x="1315" y="410" text-anchor="middle" class="node">WebSocket</text>
+    <text x="1315" y="452" text-anchor="middle" class="sub">tracker · stream</text>
+    <text x="1315" y="486" text-anchor="middle" class="detail">real-time events · tool output</text>
+  </g>
 
-  <!-- ==================== LAYER 2: RUNTIME ==================== -->
-  <text x="30" y="278" class="section-label">LAYER 2 — ENGINE RUNTIME</text>
+  <!-- LAYER 3 SESSION -->
+  <text x="40" y="528" class="layer">LAYER 3 · SESSION RUNTIME (main loop)</text>
+  <g>
+    <rect x="40" y="542" width="350" height="110" rx="12" fill="#0f2340" stroke="#ff9f43" stroke-width="5"/>
+    <text x="215" y="592" text-anchor="middle" class="node">session/processor</text>
+    <text x="215" y="632" text-anchor="middle" class="sub">runLoop · step cycle</text>
+    <rect x="425" y="542" width="320" height="110" rx="12" fill="#0f2340" stroke="#ff9f43" stroke-width="5"/>
+    <text x="585" y="592" text-anchor="middle" class="node">LLM Call</text>
+    <text x="585" y="632" text-anchor="middle" class="sub">AI SDK / Native</text>
+    <rect x="780" y="542" width="360" height="110" rx="12" fill="#0f2340" stroke="#ff9f43" stroke-width="5"/>
+    <text x="960" y="592" text-anchor="middle" class="node">Tool Registry</text>
+    <text x="960" y="632" text-anchor="middle" class="sub">Edit · Grep · Glob · Read · Write</text>
+    <rect x="1175" y="542" width="385" height="110" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="5"/>
+    <text x="1367" y="592" text-anchor="middle" class="node">Permission</text>
+    <text x="1367" y="632" text-anchor="middle" class="sub">ask / allow / deny</text>
+    <line x1="390" y1="597" x2="423" y2="597" stroke="#ff9f43" stroke-width="6" marker-end="url(#ao)"/>
+    <line x1="745" y1="597" x2="778" y2="597" stroke="#ff9f43" stroke-width="6" marker-end="url(#ao)"/>
+    <line x1="1140" y1="597" x2="1173" y2="597" stroke="#22b8ff" stroke-width="6" marker-end="url(#ah)"/>
+  </g>
 
-  <rect x="40" y="290" width="700" height="170" rx="4" fill="none" stroke="#00b4d8" stroke-width="1.5" stroke-dasharray="8,5"/>
-  <text x="55" y="312" class="muted">EFFECT RUNTIME (same process)</text>
+  <!-- LAYER 5 PERSISTENCE + EXTENSION -->
+  <text x="40" y="688" class="layer">LAYER 5 · PERSISTENCE + EXTENSION</text>
+  <g>
+    <rect x="40" y="700" width="250" height="84" rx="10" fill="#0f2340" stroke="#22f0a8" stroke-width="5"/>
+    <text x="165" y="745" text-anchor="middle" class="node">SQLite</text>
+    <text x="165" y="774" text-anchor="middle" class="sub" style="font-size:22px">Drizzle ORM</text>
+    <rect x="320" y="700" width="250" height="84" rx="10" fill="#0f2340" stroke="#22f0a8" stroke-width="5"/>
+    <text x="445" y="745" text-anchor="middle" class="node">Plugin</text>
+    <rect x="600" y="700" width="250" height="84" rx="10" fill="#0f2340" stroke="#22f0a8" stroke-width="5"/>
+    <text x="725" y="745" text-anchor="middle" class="node">MCP</text>
+    <rect x="880" y="700" width="250" height="84" rx="10" fill="#0f2340" stroke="#22f0a8" stroke-width="5"/>
+    <text x="1005" y="745" text-anchor="middle" class="node">Skill</text>
+    <rect x="1160" y="700" width="250" height="84" rx="10" fill="#0f2340" stroke="#22f0a8" stroke-width="5"/>
+    <text x="1285" y="745" text-anchor="middle" class="node">Snapshot</text>
+    <rect x="1440" y="700" width="140" height="84" rx="10" fill="#0f2340" stroke="#22f0a8" stroke-width="5"/>
+    <text x="1510" y="735" text-anchor="middle" class="sub" style="font-size:22px;fill:#a8e6ff">Support</text>
+  </g>
 
-  <rect x="60" y="320" width="230" height="120" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2"/>
-  <text x="175" y="352" text-anchor="middle" class="node-name">serve</text>
-  <text x="175" y="376" text-anchor="middle" class="node-sub">Effect runtime init</text>
-  <text x="175" y="398" text-anchor="middle" class="node-detail">~40 Services DI</text>
-  <text x="175" y="418" text-anchor="middle" class="node-detail">InstanceState singleton</text>
-
-  <rect x="320" y="320" width="200" height="120" rx="4" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2"/>
-  <text x="420" y="352" text-anchor="middle" class="node-name">HTTP API</text>
-  <text x="420" y="376" text-anchor="middle" class="node-sub">REST endpoints</text>
-  <text x="420" y="398" text-anchor="middle" class="node-detail">/session /message</text>
-  <text x="420" y="418" text-anchor="middle" class="node-detail">/config /tool</text>
-
-  <rect x="550" y="320" width="180" height="120" rx="4" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2"/>
-  <text x="640" y="352" text-anchor="middle" class="node-name">WebSocket</text>
-  <text x="640" y="376" text-anchor="middle" class="node-sub">tracker / stream</text>
-  <text x="640" y="398" text-anchor="middle" class="node-detail">real-time events</text>
-  <text x="640" y="418" text-anchor="middle" class="node-detail">tool output</text>
-
-  <!-- Arrow: Entry → serve -->
-  <polyline points="230,235 230,320" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-
-  <!-- ==================== LAYER 3: SESSION / MAIN LOOP ==================== -->
-  <text x="30" y="502" class="section-label">LAYER 3 — SESSION RUNTIME</text>
-
-  <rect x="40" y="515" width="900" height="150" rx="4" fill="none" stroke="#00b4d8" stroke-width="1.5" stroke-dasharray="8,5"/>
-  <text x="55" y="536" class="muted">session/processor — main loop (runLoop)</text>
-
-  <rect x="60" y="550" width="210" height="100" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2"/>
-  <text x="165" y="582" text-anchor="middle" class="node-name">session/processor</text>
-  <text x="165" y="606" text-anchor="middle" class="node-sub">runLoop · 7-step cycle</text>
-  <text x="165" y="626" text-anchor="middle" class="node-detail">while(true) { ... }</text>
-
-  <rect x="300" y="550" width="180" height="100" rx="4" fill="#0d1f3c" stroke="#f77f00" stroke-width="2"/>
-  <text x="390" y="582" text-anchor="middle" class="node-name">LLM Call</text>
-  <text x="390" y="606" text-anchor="middle" class="node-sub">handle.process</text>
-  <text x="390" y="626" text-anchor="middle" class="node-detail">AI SDK / Native RT</text>
-
-  <rect x="510" y="550" width="200" height="100" rx="4" fill="#0d1f3c" stroke="#f77f00" stroke-width="2"/>
-  <text x="610" y="582" text-anchor="middle" class="node-name">Tool Registry</text>
-  <text x="610" y="606" text-anchor="middle" class="node-sub">18 built-in tools</text>
-  <text x="610" y="626" text-anchor="middle" class="node-detail">Edit/Grep/Glob/Read/Write</text>
-
-  <rect x="740" y="550" width="200" height="100" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2"/>
-  <text x="840" y="582" text-anchor="middle" class="node-name">Permission</text>
-  <text x="840" y="606" text-anchor="middle" class="node-sub">ask / allow / deny</text>
-  <text x="840" y="626" text-anchor="middle" class="node-detail">Doom Loop detection</text>
-
-  <!-- Arrow: Runtime → Processor -->
-  <polyline points="175,460 175,550" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-
-  <!-- Internal arrows between loop elements -->
-  <polyline points="270,600 300,600" stroke="#f77f00" stroke-width="2.5" fill="none" marker-end="url(#arrow-orange)"/>
-  <polyline points="480,600 510,600" stroke="#f77f00" stroke-width="2.5" fill="none" marker-end="url(#arrow-orange)"/>
-  <polyline points="710,600 740,600" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-
-  <!-- ==================== LAYER 4: SUPPORT PACKAGES ==================== -->
-  <text x="30" y="704" class="section-label">LAYER 4 — SUPPORT PACKAGES</text>
-
-  <rect x="40" y="718" width="310" height="100" rx="4" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2"/>
-  <text x="195" y="750" text-anchor="middle" class="node-name">@opencode-ai/core</text>
-  <text x="195" y="776" text-anchor="middle" class="node-sub">contracts + provider base</text>
-  <text x="195" y="800" text-anchor="middle" class="node-detail">~12K lines · no internal deps</text>
-
-  <rect x="390" y="718" width="310" height="100" rx="4" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2"/>
-  <text x="545" y="750" text-anchor="middle" class="node-name">@opencode-ai/llm</text>
-  <text x="545" y="776" text-anchor="middle" class="node-sub">model protocol layer</text>
-  <text x="545" y="800" text-anchor="middle" class="node-detail">~8.7K lines · independent</text>
-
-  <!-- Arrow: processor → core/llm -->
-  <polyline points="165,650 165,718" stroke="#06d6a0" stroke-width="2.5" fill="none" marker-end="url(#arrow-green)"/>
-  <polyline points="390,650 390,718" stroke="#06d6a0" stroke-width="2.5" fill="none" marker-end="url(#arrow-green)"/>
-
-  <!-- ==================== LAYER 5: PERSISTENCE + EXTENSION ==================== -->
-  <text x="30" y="860" class="section-label">LAYER 5 — PERSISTENCE + EXTENSION</text>
-
-  <rect x="40" y="872" width="250" height="100" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2"/>
-  <text x="165" y="904" text-anchor="middle" class="node-name">SQLite (Drizzle ORM)</text>
-  <text x="165" y="930" text-anchor="middle" class="node-sub">session / message / tool</text>
-  <text x="165" y="954" text-anchor="middle" class="node-detail">structured persistence</text>
-
-  <rect x="315" y="872" width="160" height="100" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2"/>
-  <text x="395" y="904" text-anchor="middle" class="node-name">Plugin</text>
-  <text x="395" y="930" text-anchor="middle" class="node-sub">public hook surface</text>
-  <text x="395" y="954" text-anchor="middle" class="node-detail">7 hook types</text>
-
-  <rect x="495" y="872" width="140" height="100" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2"/>
-  <text x="565" y="904" text-anchor="middle" class="node-name">MCP</text>
-  <text x="565" y="930" text-anchor="middle" class="node-sub">stdio / SSE</text>
-  <text x="565" y="954" text-anchor="middle" class="node-detail">StreamableHTTP</text>
-
-  <rect x="655" y="872" width="140" height="100" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2"/>
-  <text x="725" y="904" text-anchor="middle" class="node-name">Skill</text>
-  <text x="725" y="930" text-anchor="middle" class="node-sub">discover + inject</text>
-  <text x="725" y="954" text-anchor="middle" class="node-detail">auto-detect</text>
-
-  <rect x="815" y="872" width="140" height="100" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2"/>
-  <text x="885" y="904" text-anchor="middle" class="node-name">Snapshot</text>
-  <text x="885" y="930" text-anchor="middle" class="node-sub">state save</text>
-  <text x="885" y="954" text-anchor="middle" class="node-detail">restore</text>
-
-  <rect x="975" y="872" width="140" height="100" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2"/>
-  <text x="1045" y="904" text-anchor="middle" class="node-name">Background</text>
-  <text x="1045" y="930" text-anchor="middle" class="node-sub">job scheduler</text>
-  <text x="1045" y="954" text-anchor="middle" class="node-detail">async tasks</text>
-
-  <!-- Arrow: runtime → persistence -->
-  <polyline points="400,665 165,872" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-  <polyline points="500,665 395,872" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-  <polyline points="560,665 565,872" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-  <polyline points="620,665 725,872" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-  <polyline points="680,665 885,872" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-  <polyline points="750,665 1045,872" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-
-  <!-- Title block -->
-  <rect x="880" y="1000" width="300" height="40" fill="#0d1f3c" stroke="#00b4d8" stroke-width="1.5"/>
-  <line x1="880" y1="1014" x2="1180" y2="1014" stroke="#00b4d8" stroke-width="0.8"/>
-  <text x="1030" y="1010" text-anchor="middle" fill="#caf0f8" font-size="11">SYSTEM ARCHITECTURE</text>
-  <text x="1030" y="1032" text-anchor="middle" fill="#00b4d8" font-size="16" font-weight="700">ASSEMBLY CHAIN</text>
-
-  <!-- Corner annotations -->
-  <text x="1160" y="50" text-anchor="end" class="corner-text">DWG: OPN-001 · REV 1.0</text>
-  <text x="1160" y="68" text-anchor="end" class="corner-text">OPencode Architecture</text>
+  <!-- vertical flow arrow through layers -->
+  <path d="M275 314 L275 358" stroke="#22b8ff" stroke-width="6" marker-end="url(#ah)"/>
+  <path d="M275 498 L275 542" stroke="#ff9f43" stroke-width="6" marker-end="url(#ah)"/>
+  <path d="M285 652 L165 700" stroke="#22f0a8" stroke-width="6" marker-end="url(#ag)"/>
+  <text x="800" y="846" text-anchor="middle" class="detail">one entry, one long-running chain, each layer hands off to the next</text>
 </svg>

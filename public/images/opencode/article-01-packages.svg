@@ -1,81 +1,58 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 660" width="960" height="660" role="img" aria-label="OpenCode Three Engine Packages">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-label="OpenCode Three Engine Packages">
   <style>
-    text { font-family: 'Courier New', 'Lucida Console', monospace; }
-    .title { font-size: 34px; font-weight: 700; fill: #caf0f8; }
-    .subtitle { font-size: 18px; fill: #90e0ef; }
-    .node-name { font-size: 22px; font-weight: 700; fill: #caf0f8; }
-    .node-sub { font-size: 15px; fill: #90e0ef; }
-    .node-detail { font-size: 13px; fill: #48cae4; opacity: 0.8; }
-    .arrow-label { font-size: 14px; fill: #48cae4; }
-    .muted { font-size: 13px; fill: #48cae4; opacity: 0.6; }
-    .tag-pill { font-size: 14px; fill: #06d6a0; font-weight: 600; }
-    .legend-text { font-size: 13px; fill: #90e0ef; }
+    text { font-family: "Inter", "SF Pro Display", -apple-system, "Segoe UI", Arial, sans-serif; }
+    .title   { font-size: 64px; font-weight: 800; fill: #f2fbff; }
+    .subtitle{ font-size: 40px; font-weight: 600; fill: #90e0ef; }
+    .node    { font-size: 54px; font-weight: 800; fill: #ffffff; }
+    .sub     { font-size: 36px; font-weight: 600; fill: #a8e6ff; }
+    .detail  { font-size: 28px; font-weight: 500; fill: #6fd7ff; }
+    .muted   { font-size: 30px; font-weight: 700; fill: #8ef7c9; }
+    .tag     { font-size: 30px; font-weight: 700; fill: #ffe6a8; }
   </style>
-
   <defs>
-    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
-      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#112240" stroke-width="0.5"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0a1628"/>
+      <stop offset="1" stop-color="#0d1f3c"/>
+    </linearGradient>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M44 0 L0 0 0 44" fill="none" stroke="#123356" stroke-width="1"/>
     </pattern>
-    <marker id="arrow-cyan" markerWidth="14" markerHeight="10" refX="12" refY="5" orient="auto">
-      <polygon points="0 0, 14 5, 0 10" fill="#00b4d8"/>
+    <marker id="ah" markerWidth="20" markerHeight="14" refX="17" refY="7" orient="auto">
+      <polygon points="0 0, 16 7, 0 14" fill="#22b8ff"/>
     </marker>
   </defs>
 
-  <!-- Background -->
-  <rect width="960" height="660" fill="#0a1628"/>
-  <rect width="960" height="660" fill="url(#grid)" opacity="0.6"/>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#grid)" opacity="0.5"/>
 
-  <!-- Title -->
-  <text x="480" y="48" text-anchor="middle" class="title">Three Engine Packages</text>
-  <text x="480" y="74" text-anchor="middle" class="subtitle">Dependency hierarchy and responsibility split</text>
+  <text x="800" y="92" text-anchor="middle" class="title">Three Engine Packages</text>
+  <text x="800" y="150" text-anchor="middle" class="subtitle">Dependency hierarchy · responsibility split</text>
 
-  <!-- ==================== packages/opencode (top) ==================== -->
-  <rect x="240" y="105" width="480" height="155" rx="6" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2.5"/>
-  <text x="480" y="142" text-anchor="middle" class="node-name">packages/opencode</text>
-  <text x="480" y="170" text-anchor="middle" class="node-sub">Runtime implementation · ~82K lines</text>
-  <text x="480" y="196" text-anchor="middle" class="node-detail">runLoop · tools · agents · context · providers</text>
-  <text x="480" y="220" text-anchor="middle" class="node-detail">session · mcp · plugin · skill · background</text>
-  <text x="480" y="246" text-anchor="middle" class="muted">depends on core + llm + sdk + plugin + ui</text>
+  <!-- opencode hub -->
+  <rect x="420" y="210" width="760" height="230" rx="18" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
+  <text x="800" y="278" text-anchor="middle" class="node">packages/opencode</text>
+  <text x="800" y="336" text-anchor="middle" class="sub">Runtime implementation · ~82K lines</text>
+  <text x="800" y="388" text-anchor="middle" class="detail">runLoop · tools · agents · context · providers · session</text>
 
-  <!-- ==================== packages/core (bottom left) ==================== -->
-  <rect x="70" y="370" width="370" height="130" rx="6" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2.5"/>
-  <text x="255" y="406" text-anchor="middle" class="node-name">packages/core</text>
-  <text x="255" y="436" text-anchor="middle" class="node-sub">Base · Contracts · ~12K lines</text>
-  <text x="255" y="462" text-anchor="middle" class="node-detail">Schema · Provider adapter · AgentV2 type</text>
-  <text x="255" y="486" text-anchor="middle" class="node-detail">Session · Permission · Plugin hook</text>
+  <!-- core -->
+  <rect x="160" y="540" width="600" height="210" rx="18" fill="#0f2340" stroke="#22f0a8" stroke-width="6"/>
+  <text x="460" y="610" text-anchor="middle" class="node">packages/core</text>
+  <text x="460" y="664" text-anchor="middle" class="sub">Base · Contracts · ~12K lines</text>
+  <text x="460" y="712" text-anchor="middle" class="detail">Schema · Provider adapters · types</text>
+  <text x="460" y="740" text-anchor="middle" class="muted">NO internal package deps</text>
 
-  <!-- ==================== packages/llm (bottom right) ==================== -->
-  <rect x="520" y="370" width="370" height="130" rx="6" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2.5"/>
-  <text x="705" y="406" text-anchor="middle" class="node-name">packages/llm</text>
-  <text x="705" y="436" text-anchor="middle" class="node-sub">Model Protocol Layer · ~8.7K lines</text>
-  <text x="705" y="462" text-anchor="middle" class="node-detail">LLM abstraction · provider protocol</text>
-  <text x="705" y="486" text-anchor="middle" class="node-detail">independent · no internal deps</text>
+  <!-- llm -->
+  <rect x="900" y="540" width="380" height="300" rx="18" fill="#0f2340" stroke="#08ef0a" stroke-width="6"/>
+  <text x="1090" y="610" text-anchor="middle" class="node">packages/llm</text>
+  <text x="1090" y="664" text-anchor="middle" class="sub">Model Protocol · ~8.7K lines</text>
+  <text x="1090" y="720" text-anchor="middle" class="detail">Protocol · Endpoint · Auth</text>
+  <text x="1090" y="768" text-anchor="middle" class="tag">INDEPENDENT</text>
 
-  <!-- Dependency arrows: opencode → core -->
-  <polyline points="380,260 255,370" stroke="#00b4d8" stroke-width="3" fill="none" marker-end="url(#arrow-cyan)"/>
-  <text x="290" y="305" class="arrow-label" transform="rotate(-35,290,305)">depends</text>
+  <!-- dependency arrows -->
+  <line x1="640" y1="410" x2="460" y2="540" stroke="#22b8ff" stroke-width="6" marker-end="url(#ah)"/>
+  <text x="495" y="500" text-anchor="middle" class="muted">depends</text>
+  <line x1="960" y1="410" x2="1090" y2="540" stroke="#22b8ff" stroke-width="6" marker-end="url(#ah)"/>
+  <text x="1060" y="500" text-anchor="middle" class="muted">depends</text>
 
-  <!-- Dependency arrows: opencode → llm -->
-  <polyline points="580,260 705,370" stroke="#00b4d8" stroke-width="3" fill="none" marker-end="url(#arrow-cyan)"/>
-  <text x="660" y="305" class="arrow-label" transform="rotate(35,660,305)">depends</text>
-
-  <!-- Indicator: base (no outgoing) -->
-  <rect x="140" y="520" width="230" height="44" rx="22" fill="none" stroke="#06d6a0" stroke-width="1.5" stroke-dasharray="6,3"/>
-  <text x="255" y="548" text-anchor="middle" class="tag-pill">BASE — no outgoing deps</text>
-
-  <rect x="580" y="520" width="230" height="44" rx="22" fill="none" stroke="#06d6a0" stroke-width="1.5" stroke-dasharray="6,3"/>
-  <text x="705" y="548" text-anchor="middle" class="tag-pill">INDEPENDENT — standalone</text>
-
-  <!-- Legend -->
-  <rect x="60" y="600" width="16" height="16" rx="3" fill="none" stroke="#00b4d8" stroke-width="2"/>
-  <text x="84" y="613" class="legend-text">runtime impl</text>
-
-  <rect x="200" y="600" width="16" height="16" rx="3" fill="none" stroke="#06d6a0" stroke-width="2"/>
-  <text x="224" y="613" class="legend-text">base / protocol</text>
-
-  <!-- Title block -->
-  <rect x="640" y="590" width="280" height="50" fill="#0d1f3c" stroke="#00b4d8" stroke-width="1.5"/>
-  <line x1="640" y1="610" x2="920" y2="610" stroke="#00b4d8" stroke-width="0.8"/>
-  <text x="780" y="605" text-anchor="middle" fill="#caf0f8" font-size="11">PACKAGE HIERARCHY</text>
-  <text x="780" y="632" text-anchor="middle" fill="#00b4d8" font-size="16" font-weight="700">THREE ENGINE PACKAGES</text>
+  <text x="800" y="870" text-anchor="middle" class="detail">opencode also depends on sdk · plugin · ui</text>
 </svg>

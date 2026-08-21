@@ -1,107 +1,55 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 680" width="960" height="680" role="img" aria-label="OpenCode Persistence and Extension Surface">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-label="OpenCode Persistence and Extension">
   <style>
-    text { font-family: 'Courier New', 'Lucida Console', monospace; }
-    .title { font-size: 34px; font-weight: 700; fill: #caf0f8; }
-    .subtitle { font-size: 18px; fill: #90e0ef; }
-    .node-name { font-size: 20px; font-weight: 700; fill: #caf0f8; }
-    .node-sub { font-size: 14px; fill: #90e0ef; }
-    .node-detail { font-size: 12px; fill: #48cae4; opacity: 0.8; }
-    .arrow-label { font-size: 14px; fill: #48cae4; }
-    .muted { font-size: 13px; fill: #48cae4; opacity: 0.6; }
-    .perm-label { font-size: 14px; fill: #f77f00; font-weight: 700; letter-spacing: 0.08em; }
-    .insight { font-size: 15px; fill: #caf0f8; font-weight: 600; }
+    text { font-family: "Inter", "SF Pro Display", -apple-system, "Segoe UI", Arial, sans-serif; }
+    .title   { font-size: 64px; font-weight: 800; fill: #f2fbff; }
+    .subtitle{ font-size: 38px; font-weight: 600; fill: #90e0ef; }
+    .node    { font-size: 50px; font-weight: 800; fill: #ffffff; }
+    .sub     { font-size: 32px; font-weight: 600; fill: #a8e6ff; }
+    .detail  { font-size: 27px; font-weight: 500; fill: #6fd7ff; }
   </style>
-
   <defs>
-    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
-      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#112240" stroke-width="0.5"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0a1628"/>
+      <stop offset="1" stop-color="#0d1f3c"/>
+    </linearGradient>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M44 0 L0 0 0 44" fill="none" stroke="#123356" stroke-width="1"/>
     </pattern>
-    <marker id="arrow-cyan" markerWidth="14" markerHeight="10" refX="12" refY="5" orient="auto">
-      <polygon points="0 0, 14 5, 0 10" fill="#00b4d8"/>
-    </marker>
-    <marker id="arrow-orange" markerWidth="14" markerHeight="10" refX="12" refY="5" orient="auto">
-      <polygon points="0 0, 14 5, 0 10" fill="#f77f00"/>
-    </marker>
   </defs>
 
-  <!-- Background -->
-  <rect width="960" height="680" fill="#0a1628"/>
-  <rect width="960" height="680" fill="url(#grid)" opacity="0.6"/>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#grid)" opacity="0.5"/>
 
-  <!-- Title -->
-  <text x="480" y="48" text-anchor="middle" class="title">Persistence + Extension Surface</text>
-  <text x="480" y="74" text-anchor="middle" class="subtitle">State is queryable — capabilities can grow</text>
+  <text x="800" y="96" text-anchor="middle" class="title">State You Can Audit · Capabilities That Grow</text>
+  <text x="800" y="150" text-anchor="middle" class="subtitle">Persistence (bottom) + extension surfaces (around), permission-gated</text>
 
-  <!-- ==================== CENTER: Runtime ==================== -->
-  <rect x="310" y="105" width="340" height="120" rx="6" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2.5"/>
-  <text x="480" y="142" text-anchor="middle" class="node-name" font-size="24">Engine Runtime</text>
-  <text x="480" y="172" text-anchor="middle" class="node-sub">Effect-TS · session / processor</text>
-  <text x="480" y="198" text-anchor="middle" class="node-detail">HTTP API + WebSocket</text>
+  <!-- SQLite base -->
+  <rect x="460" y="700" width="680" height="150" rx="16" fill="#0f2340" stroke="#22f0a8" stroke-width="7"/>
+  <text x="800" y="770" text-anchor="middle" class="node">SQLite · Drizzle ORM</text>
+  <text x="800" y="824" text-anchor="middle" class="sub">session · message · tool · structured persistence</text>
 
-  <!-- ==================== BOTTOM: Persistence ==================== -->
-  <rect x="100" y="480" width="320" height="110" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2.5"/>
-  <text x="260" y="516" text-anchor="middle" class="node-name">SQLite (Drizzle ORM)</text>
-  <text x="260" y="544" text-anchor="middle" class="node-sub">session / message / tool data</text>
-  <text x="260" y="570" text-anchor="middle" class="node-detail">structured persistence</text>
+  <!-- Extension modules around -->
+  <rect x="100" y="220" width="420" height="120" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
+  <text x="310" y="286" text-anchor="middle" class="node">Plugin</text>
+  <text x="310" y="328" text-anchor="middle" class="sub">public hook surface</text>
 
-  <rect x="460" y="480" width="320" height="110" rx="4" fill="#0d1f3c" stroke="#00b4d8" stroke-width="2"/>
-  <text x="620" y="516" text-anchor="middle" class="node-name">JSON Data Migration</text>
-  <text x="620" y="544" text-anchor="middle" class="node-sub">upgradeable state format</text>
-  <text x="620" y="570" text-anchor="middle" class="node-detail">version-aware · auto-migrate</text>
+  <rect x="560" y="220" width="440" height="120" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
+  <text x="780" y="286" text-anchor="middle" class="node">MCP</text>
+  <text x="780" y="328" text-anchor="middle" class="sub">stdio · SSE · StreamableHTTP</text>
 
-  <!-- ==================== EXTENSIONS (orbiting around runtime) ==================== -->
+  <rect x="1040" y="220" width="460" height="120" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
+  <text x="1270" y="286" text-anchor="middle" class="node">Skill</text>
+  <text x="1270" y="328" text-anchor="middle" class="sub">discover · inject</text>
 
-  <!-- Plugin -->
-  <rect x="30" y="280" width="180" height="100" rx="4" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2"/>
-  <text x="120" y="314" text-anchor="middle" class="node-name">Plugin</text>
-  <text x="120" y="340" text-anchor="middle" class="node-sub">public hook surface</text>
-  <text x="120" y="362" text-anchor="middle" class="node-detail">7 hook types</text>
+  <rect x="200" y="400" width="560" height="120" rx="12" fill="#0f2340" stroke="#ff9f43" stroke-width="6"/>
+  <text x="480" y="466" text-anchor="middle" class="node">Snapshot</text>
+  <text x="480" y="508" text-anchor="middle" class="sub">state save · restore · replay</text>
 
-  <!-- MCP -->
-  <rect x="230" y="280" width="160" height="100" rx="4" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2"/>
-  <text x="310" y="314" text-anchor="middle" class="node-name">MCP</text>
-  <text x="310" y="340" text-anchor="middle" class="node-sub">stdio / SSE / HTTP</text>
-  <text x="310" y="362" text-anchor="middle" class="node-detail">external tools</text>
+  <rect x="840" y="400" width="560" height="120" rx="12" fill="#0f2340" stroke="#ff9f43" stroke-width="6"/>
+  <text x="1120" y="466" text-anchor="middle" class="node">Background Jobs</text>
+  <text x="1120" y="508" text-anchor="middle" class="sub">async tasks · job scheduler</text>
 
-  <!-- Skill -->
-  <rect x="410" y="280" width="150" height="100" rx="4" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2"/>
-  <text x="485" y="314" text-anchor="middle" class="node-name">Skill</text>
-  <text x="485" y="340" text-anchor="middle" class="node-sub">discover + inject</text>
-  <text x="485" y="362" text-anchor="middle" class="node-detail">auto-detect</text>
-
-  <!-- Snapshot -->
-  <rect x="580" y="280" width="150" height="100" rx="4" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2"/>
-  <text x="655" y="314" text-anchor="middle" class="node-name">Snapshot</text>
-  <text x="655" y="340" text-anchor="middle" class="node-sub">state save</text>
-  <text x="655" y="362" text-anchor="middle" class="node-detail">restore</text>
-
-  <!-- Background -->
-  <rect x="750" y="280" width="160" height="100" rx="4" fill="#0d1f3c" stroke="#06d6a0" stroke-width="2"/>
-  <text x="830" y="314" text-anchor="middle" class="node-name">Background</text>
-  <text x="830" y="340" text-anchor="middle" class="node-sub">job scheduler</text>
-  <text x="830" y="362" text-anchor="middle" class="node-detail">async tasks</text>
-
-  <!-- ==================== Arrows: Runtime → Extensions ==================== -->
-  <polyline points="310,200 120,280" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-  <polyline points="380,200 310,280" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-  <polyline points="480,200 485,280" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-  <polyline points="580,200 655,280" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-  <polyline points="650,200 830,280" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-
-  <!-- Arrow: Runtime → Persistence -->
-  <polyline points="480,225 480,480" stroke="#00b4d8" stroke-width="2.5" fill="none" marker-end="url(#arrow-cyan)"/>
-  <text x="460" y="430" class="arrow-label" text-anchor="end">persist</text>
-
-  <!-- ==================== PERMISSION constraint ==================== -->
-  <rect x="20" y="260" width="920" height="130" rx="6" fill="none" stroke="#f77f00" stroke-width="1.5" stroke-dasharray="10,6" opacity="0.6"/>
-  <text x="40" y="278" class="perm-label">CONSTRAINED BY — PERMISSION</text>
-  <text x="40" y="388" class="muted">ask / allow / deny · Doom Loop detection</text>
-
-  <!-- ==================== Key insight ==================== -->
-  <rect x="160" y="615" width="520" height="44" rx="6" fill="none" stroke="#00b4d8" stroke-width="1" stroke-dasharray="6,4"/>
-  <text x="420" y="643" text-anchor="middle" class="insight">State is queryable — capabilities can grow</text>
-
-  <!-- Title block -->
-  <rect x="700" y="615" width="230" height="44" fill="#0d1f3c" stroke="#00b4d8" stroke-width="1.5"/>
-  <text x="815" y="643" text-anchor="middle" fill="#00b4d8" font-size="14" font-weight="700">PERSISTENCE + EXTENSION</text>
+  <!-- Permission gate banner -->
+  <rect x="360" y="600" width="880" height="70" rx="10" fill="#3b1020" stroke="#ff5c7a" stroke-width="5"/>
+  <text x="800" y="648" text-anchor="middle" class="node" font-size="38">All gated by Permission (ask / allow / deny)</text>
 </svg>
