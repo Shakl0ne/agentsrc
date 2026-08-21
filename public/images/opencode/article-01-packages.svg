@@ -39,14 +39,15 @@
   <text x="460" y="610" text-anchor="middle" class="node">packages/core</text>
   <text x="460" y="664" text-anchor="middle" class="sub">Base · Contracts · ~12K lines</text>
   <text x="460" y="712" text-anchor="middle" class="detail">Schema · Provider adapters · types</text>
-  <text x="460" y="740" text-anchor="middle" class="muted">NO internal package deps</text>
+  <text x="460" y="734" text-anchor="middle" class="muted">NO internal package deps</text>
 
   <!-- llm -->
-  <rect x="900" y="540" width="380" height="300" rx="18" fill="#0f2340" stroke="#08ef0a" stroke-width="6"/>
+  <rect x="860" y="540" width="460" height="300" rx="18" fill="#0f2340" stroke="#08ef0a" stroke-width="6"/>
   <text x="1090" y="610" text-anchor="middle" class="node">packages/llm</text>
-  <text x="1090" y="664" text-anchor="middle" class="sub">Model Protocol · ~8.7K lines</text>
-  <text x="1090" y="720" text-anchor="middle" class="detail">Protocol · Endpoint · Auth</text>
-  <text x="1090" y="768" text-anchor="middle" class="tag">INDEPENDENT</text>
+  <text x="1090" y="664" text-anchor="middle" class="sub">Model Protocol</text>
+  <text x="1090" y="708" text-anchor="middle" class="sub">~8.7K lines</text>
+  <text x="1090" y="758" text-anchor="middle" class="detail">Protocol · Endpoint · Auth</text>
+  <text x="1090" y="804" text-anchor="middle" class="tag">INDEPENDENT</text>
 
   <!-- dependency arrows -->
   <line x1="650" y1="412" x2="470" y2="522" stroke="#22b8ff" stroke-width="3" marker-end="url(#ah)"/>

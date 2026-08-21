@@ -46,15 +46,15 @@
   <text x="1060" y="556" text-anchor="middle" class="detail">InstanceState singleton</text>
 
   <!-- HTTP (top right) + WS (bottom right) -->
-  <rect x="1400" y="316" width="180" height="130" rx="12" fill="#0f2340" stroke="#22f0a8" stroke-width="6"/>
-  <text x="1490" y="378" text-anchor="middle" class="node">HTTP</text>
-  <text x="1490" y="420" text-anchor="middle" class="sub">REST</text>
-  <line x1="1330" y1="380" x2="1392" y2="380" stroke="#22f0a8" stroke-width="3" marker-end="url(#ah)"/>
+  <rect x="1370" y="316" width="210" height="130" rx="12" fill="#0f2340" stroke="#22f0a8" stroke-width="6"/>
+  <text x="1475" y="378" text-anchor="middle" class="node" style="font-size:48px">HTTP</text>
+  <text x="1475" y="420" text-anchor="middle" class="sub">REST</text>
+  <line x1="1330" y1="380" x2="1362" y2="380" stroke="#22f0a8" stroke-width="3" marker-end="url(#ah)"/>
 
-  <rect x="1400" y="460" width="180" height="130" rx="12" fill="#0f2340" stroke="#22f0a8" stroke-width="6"/>
-  <text x="1490" y="520" text-anchor="middle" class="node">WS</text>
-  <text x="1490" y="562" text-anchor="middle" class="sub">stream</text>
-  <line x1="1330" y1="525" x2="1392" y2="525" stroke="#22f0a8" stroke-width="3" marker-end="url(#ah)"/>
+  <rect x="1370" y="460" width="210" height="130" rx="12" fill="#0f2340" stroke="#22f0a8" stroke-width="6"/>
+  <text x="1475" y="520" text-anchor="middle" class="node" style="font-size:48px">WS</text>
+  <text x="1475" y="562" text-anchor="middle" class="sub">stream</text>
+  <line x1="1330" y1="525" x2="1362" y2="525" stroke="#22f0a8" stroke-width="3" marker-end="url(#ah)"/>
 
-  <text x="1060" y="690" text-anchor="middle" class="subtitle">One process opens HTTP API + WebSocket simultaneously</text>
+  <text x="800" y="690" text-anchor="middle" class="subtitle">One process opens HTTP API + WebSocket simultaneously</text>
 </svg>

@@ -24,30 +24,32 @@
   <text x="800" y="150" text-anchor="middle" class="subtitle">Persistence (bottom) + extension surfaces (around), permission-gated</text>
 
   <!-- SQLite base -->
-  <rect x="460" y="700" width="680" height="150" rx="16" fill="#0f2340" stroke="#22f0a8" stroke-width="7"/>
+  <rect x="420" y="700" width="760" height="150" rx="16" fill="#0f2340" stroke="#22f0a8" stroke-width="7"/>
   <text x="800" y="770" text-anchor="middle" class="node">SQLite · Drizzle ORM</text>
-  <text x="800" y="824" text-anchor="middle" class="sub">session · message · tool · structured persistence</text>
+  <text x="800" y="806" text-anchor="middle" class="sub">session · message · tool</text>
+  <text x="800" y="836" text-anchor="middle" class="sub">structured persistence</text>
 
   <!-- Extension modules around -->
-  <rect x="100" y="220" width="420" height="120" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
+  <rect x="100" y="220" width="420" height="132" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
   <text x="310" y="286" text-anchor="middle" class="node">Plugin</text>
-  <text x="310" y="328" text-anchor="middle" class="sub">public hook surface</text>
+  <text x="310" y="334" text-anchor="middle" class="sub">public hook surface</text>
 
-  <rect x="560" y="220" width="440" height="120" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
+  <rect x="545" y="220" width="470" height="140" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
   <text x="780" y="286" text-anchor="middle" class="node">MCP</text>
-  <text x="780" y="328" text-anchor="middle" class="sub">stdio · SSE · StreamableHTTP</text>
+  <text x="780" y="318" text-anchor="middle" class="sub" style="font-size:28px">stdio · SSE</text>
+  <text x="780" y="342" text-anchor="middle" class="sub" style="font-size:28px">StreamableHTTP</text>
 
-  <rect x="1040" y="220" width="460" height="120" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
+  <rect x="1040" y="220" width="460" height="132" rx="12" fill="#0f2340" stroke="#22b8ff" stroke-width="6"/>
   <text x="1270" y="286" text-anchor="middle" class="node">Skill</text>
-  <text x="1270" y="328" text-anchor="middle" class="sub">discover · inject</text>
+  <text x="1270" y="334" text-anchor="middle" class="sub">discover · inject</text>
 
-  <rect x="200" y="400" width="560" height="120" rx="12" fill="#0f2340" stroke="#ff9f43" stroke-width="6"/>
+  <rect x="200" y="400" width="560" height="132" rx="12" fill="#0f2340" stroke="#ff9f43" stroke-width="6"/>
   <text x="480" y="466" text-anchor="middle" class="node">Snapshot</text>
-  <text x="480" y="508" text-anchor="middle" class="sub">state save · restore · replay</text>
+  <text x="480" y="514" text-anchor="middle" class="sub">state save · restore · replay</text>
 
-  <rect x="840" y="400" width="560" height="120" rx="12" fill="#0f2340" stroke="#ff9f43" stroke-width="6"/>
+  <rect x="840" y="400" width="560" height="132" rx="12" fill="#0f2340" stroke="#ff9f43" stroke-width="6"/>
   <text x="1120" y="466" text-anchor="middle" class="node">Background Jobs</text>
-  <text x="1120" y="508" text-anchor="middle" class="sub">async tasks · job scheduler</text>
+  <text x="1120" y="514" text-anchor="middle" class="sub">async tasks · job scheduler</text>
 
   <!-- Permission gate banner -->
   <rect x="360" y="600" width="880" height="70" rx="10" fill="#3b1020" stroke="#ff5c7a" stroke-width="5"/>
