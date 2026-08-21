@@ -139,7 +139,7 @@ const runner = Effect.fn("SessionRunState.runner")(function* (sessionID, onInter
 
 OpenCode 在这里拆得很开：编排逻辑交给 `runLoop()`，并发控制单独抽成门闸。不要把两件事揉在一起。也正因为这样，输入、并发、编排三种复杂度才没有被塞进同一个入口函数里。
 
-![Three Entry Boundaries](/images/opencode/article-02-layers.png)
+![Three Entry Boundaries](/images/opencode/article-02-layers.svg)
 
 ## 三、统一主循环：OpenCode 怎么把所有“待处理工作”收进一条线
 
@@ -356,7 +356,7 @@ OpenCode 的做法是先把不同运行时收敛成统一事件流，再往上�
 
 `runLoop()` 不必知道底下是 OpenAI、Anthropic，还是 AI SDK 自带的工具 dispatch。它只认 `LLMEvent`。
 
-![One Loop, Many Work Types](/images/opencode/article-02-loop.png)
+![One Loop, Many Work Types](/images/opencode/article-02-loop.svg)
 
 ## 五、保护机制：一条工业级主循环，必须会自救
 
@@ -484,7 +484,7 @@ yield* permission.ask({ permission: "doom_loop", patterns: [value.name], session
 
 > **模型在重复调用，却没有表现出新的推进。**
 
-![Doom Loop Needs a Permission Gate](/images/opencode/article-02-doom.png)
+![Doom Loop Needs a Permission Gate](/images/opencode/article-02-doom.svg)
 
 OpenCode 把这个判断交还给权限系统，避免框架替用户过早做决定。框架没有假装自己一定比用户更懂现场。
 
