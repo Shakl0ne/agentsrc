@@ -16,7 +16,7 @@ title: OpenCode 上下文压缩：Compact 2 级机制
 
 后面我会按由浅入深的顺序，一个个讲清楚。最后还会和 Claude Code 的 5 级压缩做一次硬核对比，让你看清两种设计哲学的取舍。
 
-![200K 上下文塞满](/images/opencode/article-04-hero.png)
+![200K 上下文塞满](/images/opencode/article-04-hero.svg)
 
 ## 一、为什么需要压缩？—— 上下文溢出是 Agent 的头号天敌
 
@@ -309,7 +309,7 @@ return yield* lastAssistant(sessionID)
 
 OpenCode 用 `select()` 来切分历史为 `head`（送 LLM 摘要）和 `tail`（原样保留）两部分。
 
-![Compact 流水线：create → process → select → prune](/images/opencode/article-04-flow.png)
+![Compact 流水线：create → process → select → prune](/images/opencode/article-04-flow.svg)
 
 ### 4.1 默认保留 2 轮，可配置
 
@@ -487,7 +487,7 @@ if (pruned > PRUNE_MINIMUM) {                                     // 只有超�
 
 如果可剪的部分不到 20K，prune 直接放弃。**避免为了省一点 token 而引入数据库写入的开销**。
 
-![Prune 三层保护：最近 2 轮 + 40K + skill](/images/opencode/article-04-protect.png)
+![Prune 三层保护：最近 2 轮 + 40K + skill](/images/opencode/article-04-protect.svg)
 
 ## 六、LLM 摘要生成：9 段摘要模板 + compaction Agent
 
@@ -650,7 +650,7 @@ const modelMessages = yield* MessageV2.toModelMessagesEffect(msgs, model, {
 
 **`toolOutputMaxChars: 2_000`** — 工具输出截断到 2K 字符。因为摘要只关心「这个工具干了什么」，不关心工具的完整输出。**这是个常量，不可配置**。
 
-![CC 5 级 vs OpenCode 2 级压缩阶梯](/images/opencode/article-04-stairs.png)
+![CC 5 级 vs OpenCode 2 级压缩阶梯](/images/opencode/article-04-stairs.svg)
 
 ## 七、filterCompacted：消息重排的艺术
 

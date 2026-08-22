@@ -50,7 +50,7 @@ codex/
 
 工作区有约 **100+ 个 crate**（全部以 `codex-` 前缀命名），核心 crate 的分组如下：
 
-![Codex 三个二进制入口：codex / codex-tui / codex-app-server](/images/opencode/codex-01-triple.png)
+![Codex 三个二进制入口：codex / codex-tui / codex-app-server](/images/opencode/codex-01-triple.svg)
 
 | 分组 | 关键 crate | 作用 |
 |------|-----------|------|
@@ -80,7 +80,7 @@ codex-rs/
 - **`codex-tui`**（TUI 二进制）：被主 CLI fork 的子进程，运行 `ratatui` 框架的终端 UI。
 - **`codex-app-server`**（守护进程）：后台持续运行的 JSON-RPC 服务，通过 stdio / Unix socket / WebSocket 与 IDE 通信。支持 V2 协议（`app-server-protocol/src/protocol/v2.rs`）。
 
-![Codex 全景架构：核心引擎 + 工具 + 沙箱 + TUI + 多 Agent](/images/opencode/codex-01-hero.png)
+![Codex 全景架构：核心引擎 + 工具 + 沙箱 + TUI + 多 Agent](/images/opencode/codex-01-hero.svg)
 
 ## 二、核心引擎架构（codex-core）
 
@@ -112,7 +112,7 @@ codex-rs/
    └─────────────┘
 ```
 
-![Codex 核心引擎拓扑：submission_loop → run_turn → Context + Compact + Tools](/images/opencode/codex-01-engine.png)
+![Codex 核心引擎拓扑：submission_loop → run_turn → Context + Compact + Tools](/images/opencode/codex-01-engine.svg)
 
 ### 2.1 主循环不是轮询循环
 
@@ -270,7 +270,7 @@ Codex 使用 Provider 模式抽象模型后端：
 
 ## 七、Codex vs Claude Code：宏观对比
 
-![Codex vs Claude Code 宏观对比](/images/opencode/codex-01-vs.png)
+![Codex vs Claude Code 宏观对比](/images/opencode/codex-01-vs.svg)
 
 ### 7.1 工程语言：Rust vs TypeScript
 

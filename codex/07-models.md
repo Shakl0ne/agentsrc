@@ -16,7 +16,7 @@
 6. 实时语音对话（WebRTC）怎么集成？
 
 
-![Codex 4 Provider 架构：OpenAI / Bedrock / Ollama / LM Studio](/images/opencode/codex-07-hero.png)
+![Codex 4 Provider 架构：OpenAI / Bedrock / Ollama / LM Studio](/images/opencode/codex-07-hero.svg)
 
 ## 一、ModelProviderInfo：核心抽象
 
@@ -243,7 +243,7 @@ struct WebsocketSession {
 
 这是个很微妙的优化——**客户端通过显式标记让服务端知道"我还在这个 turn 里"**，从而获得更稳定的延迟和命中率。
 
-![ModelClientSession 生命周期：Turn-scoped + Sticky Routing + Warm Pool](/images/opencode/codex-07-session.png)
+![ModelClientSession 生命周期：Turn-scoped + Sticky Routing + Warm Pool](/images/opencode/codex-07-session.svg)
 
 
 ## 四、Model Switch → Auto Compact
@@ -319,7 +319,7 @@ run_auto_compact(sess, &previous_model_turn_context, ...)
 
 如果 model downshift 触发了，普通 auto-compact 大概率就不用了——因为压缩后 token 已经低于阈值。
 
-![Model Downshift Compact 3 条件触发](/images/opencode/codex-07-downshift.png)
+![Model Downshift Compact 3 条件触发](/images/opencode/codex-07-downshift.svg)
 
 
 ## 五、ChatGPT OAuth 认证
@@ -407,7 +407,7 @@ POST 到 `https://auth.openai.com/oauth/token`，使用 `refresh_token` grant ty
 
 这是经典的 device code flow——TV / CLI 应用的标准 OAuth 模式。
 
-![Auth 加载优先级栈：API_KEY > Ephemeral > ACCESS_TOKEN > Persistent](/images/opencode/codex-07-auth.png)
+![Auth 加载优先级栈：API_KEY > Ephemeral > ACCESS_TOKEN > Persistent](/images/opencode/codex-07-auth.svg)
 
 
 ## 六、Realtime WebRTC：实时语音对话

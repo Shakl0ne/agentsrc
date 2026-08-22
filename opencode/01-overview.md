@@ -78,7 +78,7 @@ title: OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条�
 
 顺着这条装配链，我们先把「层怎么分、链怎么接」看清楚。
 
-![Three Core Layers](/images/opencode/article-01-layers.png)
+![Three Core Layers](/images/opencode/article-01-layers.svg)
 
 ## 三、一条装配链：从你敲命令到它跑起来
 
@@ -103,7 +103,7 @@ title: OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条�
 
 每一步都清楚自己「从谁手里接、往谁手里送」。换句话说，节点各守一段，接口清楚，单点替换也不至于把整套系统一起带歪。
 
-![One Assembly Chain](/images/opencode/article-01-chain.png)
+![One Assembly Chain](/images/opencode/article-01-chain.svg)
 
 ## 四、持久化与扩展：状态怎么落地，能力怎么外挂
 
@@ -117,7 +117,7 @@ Agent 是反复的会话，状态不能都压在内存。OpenCode 用 **SQLite +
 
 它让第三方能扩展，靠的是 `plugin`（公共包，供外部插件作者用）+ `mcp` + `skill` + `snapshot` + `background` 这些挂在运行时之上的能力。关键是：**你要叠加一个新能力，不需要碰核心引擎**——插件做成一个「机制」外挂在运行时，还受 `permission` 约束。这和后面聊 plan-execute-verify 时「插件在原生 hook 上叠加策略」的思路是一脉相承的。
 
-![Core and Extensions](/images/opencode/article-01-extensions.png)
+![Core and Extensions](/images/opencode/article-01-extensions.svg)
 
 ## 五、这套分层最后留下了什么
 

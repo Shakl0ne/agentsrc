@@ -36,7 +36,7 @@ title: Codex 源码精读
 
 以下是 Codex 核心引擎 `codex-core` 的反应器 + turn 流程：
 
-![Codex 反应器架构：submission_loop 分发 Ops，run_turn 驱动采样与工具](/images/codex/article-index-architecture.png)
+![Codex 反应器架构：submission_loop 分发 Ops，run_turn 驱动采样与工具](/images/codex/article-index-architecture.svg)
 
 ## 三个终端 Agent 对比
 

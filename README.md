@@ -1,7 +1,7 @@
 # Agent Src — AI Agent 源码精读
 
 <p align="center">
-  <img src="public/og-banner.png" alt="Agent Src — AI Agent 源码精读" width="800"/>
+  <img src="public/og-banner.svg" alt="Agent Src — AI Agent 源码精读" width="800"/>
 </p>
 
 > 不教你"怎么用"，而是拆开源码，讲清 **Claude Code × OpenCode × Codex × DeepSeek Harness** 这些终端编程 Agent 为什么这么设计。

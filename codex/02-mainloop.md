@@ -10,7 +10,7 @@
 2. **一次 Turn 的生命周期是什么？**——从 User Input 到模型回复，经过了哪些阶段
 3. **和 CC 的主循环比有什么区别？**——两种工程哲学的碰撞
 
-![Codex 事件驱动 Reactor：submission_loop + 4 个 Op 生产者](/images/opencode/codex-02-hero.png)
+![Codex 事件驱动 Reactor：submission_loop + 4 个 Op 生产者](/images/opencode/codex-02-hero.svg)
 
 ## 一、Codex 没有「主循环」
 
@@ -109,7 +109,7 @@ pub(crate) async fn run_turn(
 
 一次 Turn 的生命周期可以概括为 8 个阶段：
 
-![Turn 生命周期 8 阶段瀑布图](/images/opencode/codex-02-lifecycle.png)
+![Turn 生命周期 8 阶段瀑布图](/images/opencode/codex-02-lifecycle.svg)
 
 ```
 pre-sampling compact
@@ -204,7 +204,7 @@ if token_limit_reached && needs_follow_up {
 
 前一篇说过 Compact 的细节，这里不展开——第四篇会单独讲。
 
-![Mid-Turn Token Check 决策树](/images/opencode/codex-02-token.png)
+![Mid-Turn Token Check 决策树](/images/opencode/codex-02-token.svg)
 
 ### 2.5 Loop + Stop Hooks
 
@@ -259,7 +259,7 @@ pub(crate) trait SessionTask: Send + Sync + 'static {
 
 `Session::spawn_task`（`tasks/mod.rs:305`）会先 abort 所有之前的任务，再 spawn 新任务。任何时候只有一个活跃的 `SessionTask`。
 
-![SessionTask trait 层次：4 种实现](/images/opencode/codex-02-tasks.png)
+![SessionTask trait 层次：4 种实现](/images/opencode/codex-02-tasks.svg)
 
 ## 四、Session 状态的并发访问
 

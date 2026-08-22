@@ -10,7 +10,7 @@
 
 我的核心观点是：**这些差异不是随机的，它们源于两个团队对"AI Agent 是什么"的不同假设**。一旦你理解了这些假设，所有差异都有了统一的解释。
 
-![两种架构支柱：CC queryLoop vs Codex submission_loop](/images/opencode/codex-08-hero.png)
+![两种架构支柱：CC queryLoop vs Codex submission_loop](/images/opencode/codex-08-hero.svg)
 
 
 ## 一、哲学的差异：3 个核心假设
@@ -92,7 +92,7 @@ Codex 的策略是"分解任务"，通过：
 
 如果任务复杂，spawn 专门的子 agent 处理子任务，父 agent 协调。
 
-![3 个核心假设：Tool Loop vs Orchestration / Trusted vs Default Security / Single vs Multi Agent](/images/opencode/codex-08-assumptions.png)
+![3 个核心假设：Tool Loop vs Orchestration / Trusted vs Default Security / Single vs Multi Agent](/images/opencode/codex-08-assumptions.svg)
 
 
 ## 二、哲学差异的工程体现
@@ -204,7 +204,7 @@ Codex 假设需要支持多后端 → 必须有 Provider 抽象 → 必须有 Mo
 
 CC 没有这个假设，所以这些都不需要。只支持 Anthropic。
 
-![连锁反应：Default Security → Sandbox → ExecPolicy → Starlark → Process Hardening](/images/opencode/codex-08-chain.png)
+![连锁反应：Default Security → Sandbox → ExecPolicy → Starlark → Process Hardening](/images/opencode/codex-08-chain.svg)
 
 
 ## 四、哲学没有绝对优劣
@@ -327,7 +327,7 @@ SessionTask (4 种实现)
 哲学：多进程、多协程、多后端、默认安全、多 Agent
 ```
 
-![CC vs Codex 两套全景系统对比](/images/opencode/codex-08-panorama.png)
+![CC vs Codex 两套全景系统对比](/images/opencode/codex-08-panorama.svg)
 
 
 ## 七、致谢与告别

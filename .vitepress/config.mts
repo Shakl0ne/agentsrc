@@ -7,7 +7,7 @@ export default withMermaid(defineConfig({
   base: '/agentsrc/',
   lang: 'zh-CN',
   title: 'Agent Src',
-  description: 'AI Agent 源码精读 — 逐行拆解 Claude Code、OpenCode 与 Codex 的架构设计、实现原理与工程哲学',
+  description: 'AI Agent 源码精读 — 逐行拆解 Claude Code、OpenCode、Codex 与 DeepSeek Harness 的架构设计、实现原理与工程哲学',
 
   vite: {
     plugins: [
@@ -34,7 +34,7 @@ export default withMermaid(defineConfig({
     ['meta', { property: 'og:locale', content: 'zh-CN' }],
     ['meta', { property: 'og:url', content: 'https://shakl0ne.github.io/agentsrc/' }],
     ['meta', { property: 'og:title', content: 'Agent Src — AI Agent 源码精读' }],
-    ['meta', { property: 'og:description', content: 'AI Agent 源码精读 — 逐行拆解 Claude Code、OpenCode 与 Codex 的架构设计、实现原理与工程哲学' }],
+    ['meta', { property: 'og:description', content: 'AI Agent 源码精读 — 逐行拆解 Claude Code、OpenCode、Codex 与 DeepSeek Harness 的架构设计、实现原理与工程哲学' }],
     ['meta', { property: 'og:image', content: 'https://shakl0ne.github.io/agentsrc/og-banner.png' }],
     ['meta', { property: 'og:image:width', content: '1200' }],
     ['meta', { property: 'og:image:height', content: '630' }],
@@ -42,7 +42,7 @@ export default withMermaid(defineConfig({
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['meta', { name: 'twitter:site', content: '@shakl0ne' }],
     ['meta', { name: 'twitter:title', content: 'Agent Src — AI Agent 源码精读' }],
-    ['meta', { name: 'twitter:description', content: '逐行拆解 Claude Code、OpenCode 与 Codex 的架构设计、源码实现与工程哲学' }],
+    ['meta', { name: 'twitter:description', content: '逐行拆解 Claude Code、OpenCode、Codex 与 DeepSeek Harness 的架构设计、源码实现与工程哲学' }],
     ['meta', { name: 'twitter:image', content: 'https://shakl0ne.github.io/agentsrc/og-banner.png' }],
     ['style', {}, `
       /* Fix mermaid foreignObject bottom text clipping */
@@ -188,7 +188,8 @@ export default withMermaid(defineConfig({
           text: 'Reading · 论文解读与随笔',
           items: [
             { text: '专栏介绍', link: '/reading/' },
-            { text: '1. Skill 到底为什么有效，又在哪失效', link: '/reading/01-skill-paper' },
+{ text: '1. Skill 到底为什么有效，又在哪失效', link: '/reading/01-skill-paper' },
+            { text: '2. LLM 验证的「自动驾驶等级」', link: '/reading/02-verification-autonomy' },
           ],
         },
       ],

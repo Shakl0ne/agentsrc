@@ -62,8 +62,8 @@
   <path d="M360 440 H460" class="link"/>
   <path d="M360 620 H460" class="link"/>
 
-  <path d="M1160 620 H1260 V180 H1160" class="return"/>
-  <text x="1260" y="166" text-anchor="middle" class="support">RETURN TO TOP</text>
+  <path d="M1160 620 H1260 V260 H1160" class="return"/>
+  <text x="1260" y="246" text-anchor="middle" class="support">RETURN TO TOP</text>
 
   <g>
     <rect x="460" y="200" width="700" height="120" rx="28" class="card"/>

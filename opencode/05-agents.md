@@ -16,7 +16,7 @@ title: OpenCode Agent 系统：SubAgent 与 Claude Code 对比
 
 后面我会按由浅入深的顺序，一个个讲清楚。这次不藏着掖着——**标题里直接放对比**，整篇文章就是围绕「差在哪」展开的。
 
-![8 个内置 Agent 角色](/images/opencode/article-05-hero.png)
+![8 个内置 Agent 角色](/images/opencode/article-05-hero.svg)
 
 ## 一、AgentV2 类型体系：Schema 定义的 Agent
 
@@ -396,7 +396,7 @@ function backgroundMessage(input) {
 
 这种 XML 格式有个**重要细节**——`state="completed"` / `state="running"` / `state="failed"` 让 LLM 能解析任务状态，决定下一步怎么处理。
 
-![TaskTool 执行流程：6 步装配线](/images/opencode/article-05-tasktool.png)
+![TaskTool 执行流程：6 步装配线](/images/opencode/article-05-tasktool.svg)
 
 ## 四、handleSubtask：runLoop 中的子任务分发
 
@@ -506,7 +506,7 @@ ask: (req: any) =>
 
 ## 五、隔离四件套：permission / model / prompt / steps
 
-![隔离四件套：四层防护](/images/opencode/article-05-isolation.png)
+![隔离四件套：四层防护](/images/opencode/article-05-isolation.svg)
 
 OpenCode 的子 agent 隔离不是单点的，而是**四层防护**：
 

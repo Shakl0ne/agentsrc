@@ -20,3 +20,4 @@ title: Reading · 论文解读与随笔
 | # | 文章 | 类型 | 字数（约） |
 |---|---|---|---|
 | 1 | [Skill 到底为什么有效，又在哪失效](/reading/01-skill-paper) | 论文解读 | ~4,000 |
+| 2 | [LLM 验证的「自动驾驶等级」](/reading/02-verification-autonomy) | 论文解读 | ~4,000 |

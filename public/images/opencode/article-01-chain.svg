@@ -52,83 +52,77 @@
   <text x="850" y="70" text-anchor="middle" class="title">One Assembly Chain</text>
   <text x="850" y="104" text-anchor="middle" class="subtitle">a single path from entry to growth</text>
 
-  <path d="M140 494 H1560" class="rail"/>
-  <circle cx="220" cy="494" r="5" class="dot"/>
-  <circle cx="470" cy="494" r="5" class="dot"/>
-  <circle cx="720" cy="494" r="5" class="dot"/>
-  <circle cx="970" cy="494" r="5" class="dot"/>
-  <circle cx="1220" cy="494" r="5" class="dot"/>
-  <circle cx="1490" cy="494" r="5" class="dot"/>
-  <text x="140" y="530" class="support">SINGLE EXECUTION PATH</text>
+  <path d="M80 494 H1620" class="rail"/>
+  <circle cx="160" cy="494" r="5" class="dot"/>
+  <circle cx="420" cy="494" r="5" class="dot"/>
+  <circle cx="680" cy="494" r="5" class="dot"/>
+  <circle cx="940" cy="494" r="5" class="dot"/>
+  <circle cx="1200" cy="494" r="5" class="dot"/>
+  <circle cx="1500" cy="494" r="5" class="dot"/>
+  <text x="80" y="530" class="support">SINGLE EXECUTION PATH</text>
 
   <g>
-    <rect x="90" y="262" width="260" height="130" rx="28" class="card"/>
-    <line x1="126" y1="292" x2="314" y2="292" class="card-line"/>
-    <rect x="144" y="320" width="14" height="42" rx="7" fill="#58a6ff"/>
-    <text x="190" y="318" class="eyebrow">ENTRY</text>
-    <text x="190" y="352" class="node-title">Entry</text>
-    <text x="190" y="384" class="node-meta">cli / web</text>
-    <path d="M220 392 L220 474" class="stem"/>
+    <rect x="40" y="262" width="240" height="130" rx="28" class="card"/>
+    <rect x="94" y="306" width="14" height="42" rx="7" fill="#58a6ff"/>
+    <text x="140" y="304" class="eyebrow">ENTRY</text>
+    <text x="140" y="338" class="node-title">Entry</text>
+    <text x="140" y="370" class="node-meta">cli / web</text>
+    <path d="M160 392 L160 494" class="stem"/>
   </g>
 
   <g>
-    <rect x="340" y="262" width="260" height="130" rx="28" class="card"/>
-    <line x1="376" y1="292" x2="564" y2="292" class="card-line"/>
-    <rect x="394" y="320" width="14" height="42" rx="7" fill="#58a6ff"/>
-    <text x="440" y="318" class="eyebrow">RUNTIME</text>
-    <text x="440" y="352" class="node-title">Runtime</text>
-    <text x="440" y="384" class="node-meta">effect runtime</text>
-    <path d="M470 392 L470 474" class="stem"/>
+    <rect x="300" y="262" width="240" height="130" rx="28" class="card"/>
+    <rect x="354" y="306" width="14" height="42" rx="7" fill="#58a6ff"/>
+    <text x="400" y="304" class="eyebrow">RUNTIME</text>
+    <text x="400" y="338" class="node-title">Runtime</text>
+    <text x="400" y="370" class="node-meta">effect runtime</text>
+    <path d="M420 392 L420 494" class="stem"/>
   </g>
 
   <g>
-    <rect x="590" y="262" width="260" height="130" rx="28" class="card"/>
-    <line x1="626" y1="292" x2="814" y2="292" class="card-line"/>
-    <rect x="644" y="320" width="14" height="42" rx="7" fill="#bc8cff"/>
-    <text x="690" y="318" class="eyebrow">SESSION</text>
-    <text x="690" y="352" class="node-title">Session</text>
-    <text x="690" y="384" class="node-meta">main loop</text>
-    <path d="M720 392 L720 474" class="stem"/>
+    <rect x="560" y="262" width="240" height="130" rx="28" class="card"/>
+    <rect x="614" y="306" width="14" height="42" rx="7" fill="#bc8cff"/>
+    <text x="660" y="304" class="eyebrow">SESSION</text>
+    <text x="660" y="338" class="node-title">Session</text>
+    <text x="660" y="370" class="node-meta">main loop</text>
+    <path d="M680 392 L680 494" class="stem"/>
   </g>
 
   <g>
-    <rect x="840" y="262" width="260" height="130" rx="28" class="card"/>
-    <line x1="876" y1="292" x2="1064" y2="292" class="card-line"/>
-    <rect x="894" y="320" width="14" height="42" rx="7" fill="#bc8cff"/>
-    <text x="940" y="318" class="eyebrow">MODEL</text>
-    <text x="940" y="352" class="node-title">LLM</text>
-    <text x="940" y="384" class="node-meta">provider bridge</text>
-    <path d="M970 392 L970 474" class="stem"/>
+    <rect x="820" y="262" width="240" height="130" rx="28" class="card"/>
+    <rect x="874" y="306" width="14" height="42" rx="7" fill="#bc8cff"/>
+    <text x="920" y="304" class="eyebrow">MODEL</text>
+    <text x="920" y="338" class="node-title">LLM</text>
+    <text x="920" y="370" class="node-meta">provider bridge</text>
+    <path d="M940 392 L940 494" class="stem"/>
   </g>
 
   <g>
-    <rect x="1090" y="262" width="260" height="130" rx="28" class="card"/>
-    <line x1="1126" y1="292" x2="1314" y2="292" class="card-line"/>
-    <rect x="1144" y="320" width="14" height="42" rx="7" fill="#3fb950"/>
-    <text x="1190" y="318" class="eyebrow">TOOL</text>
-    <text x="1190" y="352" class="node-title">Tool</text>
-    <text x="1190" y="384" class="node-meta">execution</text>
-    <path d="M1220 392 L1220 474" class="stem"/>
+    <rect x="1080" y="262" width="240" height="130" rx="28" class="card"/>
+    <rect x="1134" y="306" width="14" height="42" rx="7" fill="#3fb950"/>
+    <text x="1180" y="304" class="eyebrow">TOOL</text>
+    <text x="1180" y="338" class="node-title">Tool</text>
+    <text x="1180" y="370" class="node-meta">execution</text>
+    <path d="M1200 392 L1200 494" class="stem"/>
   </g>
 
   <g>
-    <rect x="1320" y="262" width="340" height="130" rx="28" class="card"/>
-    <line x1="1356" y1="292" x2="1624" y2="292" class="card-line"/>
-    <rect x="1374" y="320" width="14" height="42" rx="7" fill="#f78166"/>
-    <text x="1420" y="318" class="eyebrow">GROWTH</text>
-    <text x="1420" y="352" class="node-title">Storage / Extension</text>
-    <text x="1420" y="384" class="node-meta">state + growth</text>
-    <path d="M1490 392 L1490 474" class="stem"/>
+    <rect x="1340" y="262" width="320" height="130" rx="28" class="card"/>
+    <rect x="1394" y="306" width="14" height="42" rx="7" fill="#f78166"/>
+    <text x="1440" y="304" class="eyebrow">GROWTH</text>
+    <text x="1440" y="338" class="node-title">Storage / Extension</text>
+    <text x="1440" y="370" class="node-meta">state + growth</text>
+    <path d="M1500 392 L1500 494" class="stem"/>
   </g>
 
-  <path d="M350 327 L340 327" class="link"/>
-  <path d="M600 327 L590 327" class="link"/>
-  <path d="M850 327 L840 327" class="link"/>
-  <path d="M1100 327 L1090 327" class="link"/>
-  <path d="M1350 327 L1320 327" class="link"/>
-  <circle cx="340" cy="327" r="5" class="link-node"/>
-  <circle cx="590" cy="327" r="5" class="link-node"/>
-  <circle cx="840" cy="327" r="5" class="link-node"/>
-  <circle cx="1090" cy="327" r="5" class="link-node"/>
-  <circle cx="1320" cy="327" r="5" class="link-node"/>
+  <path d="M280 327 L300 327" class="link"/>
+  <path d="M540 327 L560 327" class="link"/>
+  <path d="M800 327 L820 327" class="link"/>
+  <path d="M1060 327 L1080 327" class="link"/>
+  <path d="M1320 327 L1340 327" class="link"/>
+  <circle cx="300" cy="327" r="5" class="link-node"/>
+  <circle cx="560" cy="327" r="5" class="link-node"/>
+  <circle cx="820" cy="327" r="5" class="link-node"/>
+  <circle cx="1080" cy="327" r="5" class="link-node"/>
+  <circle cx="1340" cy="327" r="5" class="link-node"/>
 </svg>

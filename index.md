@@ -3,7 +3,7 @@ layout: home
 
 hero:
   text: AI Agent 源码精读
-  tagline: 逐行拆解最先进的终端编程 Agent — Claude Code × OpenCode × Codex 架构设计、实现原理与工程哲学
+  tagline: 逐行拆解 AI Agent 源码 — Claude Code × OpenCode × Codex × DeepSeek Harness 架构设计、实现原理与工程哲学
 ---
 
 ## 导读目录
@@ -88,6 +88,7 @@ hero:
 | # | 文章 | 主题 | 字数 |
 |---|------|------|------|
 | 01 | [Skill 到底为什么有效，又在哪失效](/reading/01-skill-paper) | Demystifying Agent Skills 论文解读：12 种 skill-use 模式、何时该用 / 何时有害 | ~4K |
+| 02 | [LLM 验证的「自动驾驶等级」](/reading/02-verification-autonomy) | Grading the Graders 论文解读：验证自主性等级 VAL L0-L5、完备性盲区 | ~4K |
 
 <p class="catalog-cta"><a href="reading/" class="VPButton medium brand">进入 Reading 专栏 →</a></p>
 

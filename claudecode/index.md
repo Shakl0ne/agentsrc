@@ -55,4 +55,4 @@ Claude Code 是 Anthropic 官方出品的终端 AI 编程助手，用 TypeScript
 
 ## 架构速览
 
-![Claude Code 主循环：QueryEngine 流式调用，分流渲染 / 工具执行 / 完成](/images/claudecode/article-index-architecture.png)
+![Claude Code 主循环：QueryEngine 流式调用，分流渲染 / 工具执行 / 完成](/images/claudecode/article-index-architecture.svg)

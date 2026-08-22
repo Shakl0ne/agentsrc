@@ -21,7 +21,7 @@ title: OpenCode 上下文架构：5 层上下文注入
 
 后面我会按由浅入深的顺序，一个个讲清楚。这是系列的最后一篇，会综合引用前面几篇的结论，最后和 Claude Code 做一次完整对比。
 
-![5 层上下文注入栈](/images/opencode/article-06-hero.png)
+![5 层上下文注入栈](/images/opencode/article-06-hero.svg)
 
 ## 一、5 层上下文全景：从持久到临时
 
@@ -313,7 +313,7 @@ LLM 通过调用 `skill` 工具，加载某个 skill 的完整内容到对话上
 
 **额外保护**：在上下文裁剪（pruning）时，skill 工具的调用结果被 `PRUNE_PROTECTED_TOOLS = ["skill"]` 明确列入保护名单——不会被 prune 阶段标记为 `compacted`，因此 skill 的完整内容会一直在上下文中保留，不会被 `"[Old tool result content cleared]"` 替代。
 
-![Skill 两阶段加载](/images/opencode/article-06-skill.png)
+![Skill 两阶段加载](/images/opencode/article-06-skill.svg)
 
 ## 五、第 4 层：Reference 引用 + Reminders
 
@@ -420,7 +420,7 @@ export function filterCompacted(msgs: Iterable<WithParts>) {
 
 **关键洞察**：消息过滤不是「**删除旧消息**」，而是「**按 compacted 标记重排**」——数据库里的消息都还在，只调整了 LLM 看到的顺序。
 
-![SQLite 持久化 + filterCompacted 重排](/images/opencode/article-06-filter.png)
+![SQLite 持久化 + filterCompacted 重排](/images/opencode/article-06-filter.svg)
 
 ### 6.5 上下文压缩：Compact 2 级机制
 
@@ -627,7 +627,7 @@ LLM 是个强大的推理引擎，它能理解代码、能规划搜索策略、�
 
 基础设施应该尽量轻量——只提供基础工具，让 LLM 自己决定怎么用。**这是 Agent 工程的核心信条**。
 
-![RAG vs LLM 自主搜索](/images/opencode/article-06-rag.png)
+![RAG vs LLM 自主搜索](/images/opencode/article-06-rag.svg)
 
 ## 十、OpenCode vs Claude Code：上下文架构对比
 

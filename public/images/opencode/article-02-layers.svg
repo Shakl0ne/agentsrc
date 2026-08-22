@@ -50,8 +50,8 @@
   <text x="800" y="68" text-anchor="middle" class="title">Three Entry Boundaries</text>
   <text x="800" y="100" text-anchor="middle" class="subtitle">input, concurrency, orchestration</text>
 
-  <path d="M360 220 V640" class="spine-soft"/>
-  <path d="M360 220 V640" class="spine"/>
+  <path d="M360 220 V680" class="spine-soft"/>
+  <path d="M360 220 V680" class="spine"/>
   <circle cx="360" cy="240" r="6" class="dot"/>
   <circle cx="360" cy="450" r="6" class="dot"/>
   <circle cx="360" cy="660" r="6" class="dot"/>
