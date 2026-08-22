@@ -54,7 +54,7 @@ pub enum ToolExposure {
 
 这个设计很有意思——**不是所有工具一开始就暴露给模型**。`Deferred` 让工具通过 `tool_search` 动态发现，避免初始 tool 列表过长污染 prompt。
 
-![ToolExposure 4 种可见性级别：Direct / Deferred / DirectModelOnly / Hidden](/images/opencode/codex-06-exposure.svg)
+![ToolExposure 4 种可见性级别：Direct / Deferred / DirectModelOnly / Hidden](/images/opencode/codex-06-exposure.png)
 
 ### 1.3 CoreToolRuntime：core 的扩展接口
 
@@ -213,7 +213,7 @@ pub fn build_tool_call(item: ResponseItem) -> Result<Option<ToolCall>, FunctionC
 
 这是个标准的 pipeline——pre hook → execute → post hook。pre hook 可以阻止工具执行，post hook 可以修改输出。
 
-![Tool Dispatch Pipeline 5 阶段：ToolCall → Registry → PreHooks → Execute → PostHooks](/images/opencode/codex-06-hero.svg)
+![Tool Dispatch Pipeline 5 阶段：ToolCall → Registry → PreHooks → Execute → PostHooks](/images/opencode/codex-06-hero.png)
 
 
 ## 四、MCP 集成
@@ -425,7 +425,7 @@ pub enum ReviewDecision {
 
 `ApprovedExecpolicyAmendment` 很有意思——用户不仅批准这一次，还可以选择"以后类似命令自动批准"。这是 Codex 把用户决策沉淀成规则的方式。
 
-![ExecPolicy 决策流：Command → PrefixRule → Allow/Prompt/Forbidden](/images/opencode/codex-06-execpolicy.svg)
+![ExecPolicy 决策流：Command → PrefixRule → Allow/Prompt/Forbidden](/images/opencode/codex-06-execpolicy.png)
 
 
 ## 六、Sandboxing：跨平台沙箱
@@ -547,7 +547,7 @@ pub fn pre_main_hardening() {
 - 拒绝 ptrace attach（防止调试器注入）
 - 清理危险的 `LD_*` / `DYLD_*` 环境变量
 
-![跨平台沙箱架构：macOS Seatbelt / Linux Landlock+seccomp / Windows RestrictedToken](/images/opencode/codex-06-sandbox.svg)
+![跨平台沙箱架构：macOS Seatbelt / Linux Landlock+seccomp / Windows RestrictedToken](/images/opencode/codex-06-sandbox.png)
 
 
 ## 七、Codex vs Claude Code：工具与安全对比

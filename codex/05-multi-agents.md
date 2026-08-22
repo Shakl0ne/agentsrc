@@ -25,7 +25,7 @@ CC 有两套多 Agent 机制：
 4. CSV 批处理并行模式怎么实现？
 
 
-![Codex Agent Tree 拓扑：Root → 子 Agent → Worker](/images/opencode/codex-05-hero.svg)
+![Codex Agent Tree 拓扑：Root → 子 Agent → Worker](/images/opencode/codex-05-hero.png)
 
 ## 一、AgentControl：多 Agent 的核心入口
 
@@ -121,7 +121,7 @@ pub(crate) fn is_final(status: &AgentStatus) -> bool {
 
 注意 `Interrupted` 不算 final——中断的 agent 可以恢复。
 
-![AgentStatus 7 状态机：PendingInit → Running → Completed/Errored/Shutdown](/images/opencode/codex-05-states.svg)
+![AgentStatus 7 状态机：PendingInit → Running → Completed/Errored/Shutdown](/images/opencode/codex-05-states.png)
 
 
 ## 二、AgentPath：树状寻址
@@ -268,7 +268,7 @@ fn collab_tools_enabled(turn_context: &TurnContext) -> bool {
 
 这是个有趣的设计选择——V2 移除深度限制，依赖 `agent_max_threads`（并发数限制）和 agent 自己的判断来防止递归失控。
 
-![V1 vs V2 协作工具矩阵对比](/images/opencode/codex-05-tools.svg)
+![V1 vs V2 协作工具矩阵对比](/images/opencode/codex-05-tools.png)
 
 `exceeds_thread_spawn_depth_limit` 函数本身很简单（`agent/registry.rs:63-77`）：
 
@@ -544,7 +544,7 @@ async fn run_agent_job_loop(session, turn, db, job_id, options) -> anyhow::Resul
 
 并发槽位控制让大量 CSV 行可以分批 spawn——避免一次性 spawn 上千个 agent 把系统搞挂。
 
-![CSV 批处理 Map-Reduce：CSV → Slot Pool → Workers → Output](/images/opencode/codex-05-csv.svg)
+![CSV 批处理 Map-Reduce：CSV → Slot Pool → Workers → Output](/images/opencode/codex-05-csv.png)
 
 
 ## 七、AgentGraphStore：持久化父子拓扑

@@ -21,7 +21,7 @@ title: OpenCode 工具系统：18+ 内置工具设计
 
 后面我会按由浅入深的顺序，一个个讲清楚。最后还会和 Claude Code 的工具系统做一次对比，让你看清两种设计哲学的取舍。
 
-![18 个内置工具与 Tool.Def 接口](/images/opencode/article-03-hero.svg)
+![18 个内置工具与 Tool.Def 接口](/images/opencode/article-03-hero.png)
 
 ## 一、Tool.Def 接口设计：工具的「身份证」
 
@@ -624,7 +624,7 @@ export const Action = Schema.Literals(["allow", "deny", "ask"])
 
 因为「**ask**」是个非常重要的中间状态——有些操作不能直接放行（有风险），但也不能一概拒绝（用户可能确实需要）。**让用户决定**是最稳妥的。
 
-![Permission 三态模型：ask / allow / deny](/images/opencode/article-03-permission.svg)
+![Permission 三态模型：ask / allow / deny](/images/opencode/article-03-permission.png)
 
 ### 6.2 规则评估：最后匹配胜出
 
@@ -884,7 +884,7 @@ const output = Effect.fn("Truncate.output")(function* (text, options = {}, agent
 
 这个设计让 LLM 知道「**输出太长了被截断**」，并明确告知它怎么获取完整内容——而不是把 LLM 留在黑暗中猜。
 
-![输出截断：50KB / 2000 行双限制](/images/opencode/article-03-truncate.svg)
+![输出截断：50KB / 2000 行双限制](/images/opencode/article-03-truncate.png)
 
 ## 八、OpenCode vs Claude Code：工具系统对比
 
