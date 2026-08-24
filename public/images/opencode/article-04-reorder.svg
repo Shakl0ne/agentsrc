@@ -81,6 +81,6 @@
   <rect x="680" y="320" width="220" height="60" rx="8" class="block-green"/>
   <text x="790" y="355" class="inner-text" fill="#3fb950">Recent Tails</text>
 
-  <text x="560" y="430" class="inner-text" fill="#d2dbe5">LLM sees a continuous context: Summary ’ Recent Tails ’ Next Question</text>
+  <text x="560" y="430" class="inner-text" fill="#d2dbe5">LLM sees a continuous context: Summary ? Recent Tails ? Next Question</text>
 
 </svg>

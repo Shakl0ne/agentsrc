@@ -46,7 +46,7 @@
   <rect width="1000" height="500" fill="url(#grid)"/>
 
   <text x="500" y="60" text-anchor="middle" class="title">Compact Pipeline</text>
-  <text x="500" y="90" text-anchor="middle" class="subtitle">create ’ process ’ prune</text>
+  <text x="500" y="90" text-anchor="middle" class="subtitle">create ? process ? prune</text>
 
   <!-- Main Timeline -->
   <path d="M 100 250 L 900 250" class="spine" marker-end="url(#arrow)"/>
