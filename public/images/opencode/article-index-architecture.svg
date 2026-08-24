@@ -1,26 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 960" width="960" height="960" role="img" aria-label="OpenCode Monorepo Package Topology">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1100" width="1600" height="1100" role="img" aria-label="OpenCode Monorepo Package Topology">
   <style>
-    text { font-family: "Inter", "SF Pro Display", -apple-system, "Segoe UI", Arial, sans-serif; }
-    .title { fill: url(#titleGrad); }
-    .text-1 { fill: #f3f7fc; }
-    .text-2 { fill: #d5dde8; }
-    .text-3 { fill: #c0cbda; }
-    .card { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.18); stroke-width: 1.9; }
-    .hub { fill: rgba(88,166,255,0.09); stroke: rgba(88,166,255,0.42); stroke-width: 2.2; }
-    .core { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.40); stroke-width: 2.1; }
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 44px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 22px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 28px; font-weight: 700; fill: #f0f6fc; }
+    .card-meta { font-size: 18px; font-weight: 500; fill: #d2dbe5; }
+    .card { fill: rgba(255,255,255,0.07); stroke: rgba(255,255,255,0.17); stroke-width: 2; }
+    .card-hub { fill: rgba(88,166,255,0.09); stroke: rgba(88,166,255,0.42); stroke-width: 2.5; }
+    .card-core { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.40); stroke-width: 2.5; }
     .capsule { fill: rgba(63,185,80,0.14); stroke: rgba(63,185,80,0.34); stroke-width: 1.6; }
-    .arrow { fill: none; stroke: #66b3ff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .arrow { fill: none; stroke: rgba(125,196,255,0.7); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
   </style>
 
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0a0f18"/>
-      <stop offset="52%" stop-color="#101828"/>
-      <stop offset="100%" stop-color="#0a0f18"/>
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="52%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
     </linearGradient>
     <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#69b8ff"/>
-      <stop offset="100%" stop-color="#c294ff"/>
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
     </linearGradient>
     <radialGradient id="glowBlue" cx="22%" cy="24%" r="42%">
       <stop offset="0%" stop-color="rgba(88,166,255,0.14)"/>
@@ -34,72 +34,100 @@
       <stop offset="0%" stop-color="rgba(63,185,80,0.10)"/>
       <stop offset="100%" stop-color="rgba(63,185,80,0)"/>
     </radialGradient>
-    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
-      <path d="M36 0 L0 0 0 36" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.7"/>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
     </pattern>
-    <marker id="arrowHead" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M0 0 L12 6 L0 12 Z" fill="#66b3ff"/>
+    <marker id="arrowHead" markerWidth="14" markerHeight="14" refX="14" refY="7" orient="auto">
+      <path d="M0 0 L14 7 L0 14 Z" fill="rgba(125,196,255,0.8)"/>
     </marker>
   </defs>
 
-  <rect width="960" height="960" fill="url(#bg)"/>
-  <rect width="960" height="960" fill="url(#grid)"/>
-  <rect width="960" height="960" fill="url(#glowBlue)"/>
-  <rect width="960" height="960" fill="url(#glowPurple)"/>
-  <rect width="960" height="960" fill="url(#glowGreen)"/>
+  <rect width="1600" height="1100" fill="url(#bg)"/>
+  <rect width="1600" height="1100" fill="url(#grid)"/>
+  <rect width="1600" height="1100" fill="url(#glowBlue)"/>
+  <rect width="1600" height="1100" fill="url(#glowPurple)"/>
+  <rect width="1600" height="1100" fill="url(#glowGreen)"/>
 
-  <text x="480" y="48" text-anchor="middle" font-size="34" font-weight="700" class="title">OpenCode Monorepo · Package Topology</text>
-  <text x="480" y="80" text-anchor="middle" font-size="15" class="text-2">CLI entry on top, opencode as the hub, core as the contract foundation</text>
+  <text x="800" y="70" text-anchor="middle" class="title">OpenCode Monorepo · Package Topology</text>
+  <text x="800" y="110" text-anchor="middle" class="subtitle">CLI entry on top, opencode as the hub, core as the contract foundation</text>
 
-  <rect x="360" y="102" width="240" height="58" rx="16" class="card"/>
-  <text x="480" y="131" text-anchor="middle" font-size="22" font-weight="700" class="text-1">CLI ENTRY</text>
-  <text x="480" y="150" text-anchor="middle" font-size="13" class="text-3">terminal interface</text>
+  <!-- CLI ENTRY -->
+  <g>
+    <rect x="640" y="160" width="320" height="80" rx="20" class="card"/>
+    <text x="800" y="202" text-anchor="middle" class="card-title">CLI ENTRY</text>
+    <text x="800" y="226" text-anchor="middle" class="card-meta">terminal interface</text>
+  </g>
 
-  <line x1="480" y1="160" x2="480" y2="214" class="arrow" marker-end="url(#arrowHead)"/>
+  <!-- packages/opencode -->
+  <g>
+    <rect x="480" y="300" width="640" height="160" rx="28" class="card-hub"/>
+    <text x="800" y="366" text-anchor="middle" class="card-title" style="font-size: 34px;">packages/opencode</text>
+    <text x="800" y="404" text-anchor="middle" class="card-meta">main implementation package</text>
+    <text x="800" y="434" text-anchor="middle" class="card-meta" style="fill: #9fb1c8;">runLoop · tools · agents · context · providers</text>
+  </g>
 
-  <rect x="255" y="214" width="450" height="172" rx="22" class="hub"/>
-  <text x="480" y="258" text-anchor="middle" font-size="27" font-weight="700" class="text-1">packages/opencode</text>
-  <text x="480" y="290" text-anchor="middle" font-size="15" class="text-2">main implementation package</text>
-  <text x="480" y="322" text-anchor="middle" font-size="14" class="text-3">runLoop · tools · agents · context · providers</text>
+  <!-- packages/plugin -->
+  <g>
+    <rect x="120" y="520" width="320" height="120" rx="24" class="card"/>
+    <text x="280" y="576" text-anchor="middle" class="card-title">packages/plugin</text>
+    <text x="280" y="608" text-anchor="middle" class="card-meta">hook surface</text>
+  </g>
 
-  <rect x="70" y="410" width="220" height="98" rx="16" class="card"/>
-  <text x="180" y="448" text-anchor="middle" font-size="20" font-weight="700" class="text-1">packages/plugin</text>
-  <text x="180" y="478" text-anchor="middle" font-size="14" class="text-2">hook surface</text>
+  <!-- packages/sdk -->
+  <g>
+    <rect x="1160" y="520" width="320" height="120" rx="24" class="card"/>
+    <text x="1320" y="576" text-anchor="middle" class="card-title">packages/sdk</text>
+    <text x="1320" y="608" text-anchor="middle" class="card-meta">client sdk</text>
+  </g>
 
-  <rect x="670" y="410" width="220" height="98" rx="16" class="card"/>
-  <text x="780" y="448" text-anchor="middle" font-size="20" font-weight="700" class="text-1">packages/sdk</text>
-  <text x="780" y="478" text-anchor="middle" font-size="14" class="text-2">client sdk</text>
+  <!-- packages/ui -->
+  <g>
+    <rect x="120" y="680" width="320" height="120" rx="24" class="card"/>
+    <text x="280" y="736" text-anchor="middle" class="card-title">packages/ui</text>
+    <text x="280" y="768" text-anchor="middle" class="card-meta">shared ui</text>
+  </g>
 
-  <rect x="70" y="575" width="220" height="98" rx="16" class="card"/>
-  <text x="180" y="613" text-anchor="middle" font-size="20" font-weight="700" class="text-1">packages/ui</text>
-  <text x="180" y="643" text-anchor="middle" font-size="14" class="text-2">shared ui</text>
+  <!-- web / console -->
+  <g>
+    <rect x="1160" y="680" width="320" height="120" rx="24" class="card"/>
+    <text x="1320" y="736" text-anchor="middle" class="card-title">web / console</text>
+    <text x="1320" y="768" text-anchor="middle" class="card-meta">frontend surfaces</text>
+  </g>
 
-  <rect x="670" y="575" width="220" height="98" rx="16" class="card"/>
-  <text x="780" y="613" text-anchor="middle" font-size="20" font-weight="700" class="text-1">web / console</text>
-  <text x="780" y="643" text-anchor="middle" font-size="14" class="text-2">frontend surfaces</text>
+  <!-- packages/core -->
+  <g>
+    <rect x="120" y="860" width="1360" height="120" rx="28" class="card-core"/>
+    <text x="800" y="916" text-anchor="middle" class="card-title" style="font-size: 32px;">packages/core</text>
+    <text x="800" y="952" text-anchor="middle" class="card-meta">contracts · types · interfaces</text>
+  </g>
 
-  <rect x="50" y="720" width="860" height="110" rx="22" class="core"/>
-  <text x="480" y="768" text-anchor="middle" font-size="24" font-weight="700" class="text-1">packages/core</text>
-  <text x="480" y="798" text-anchor="middle" font-size="15" class="text-2">contracts · types · interfaces</text>
+  <!-- deps -->
+  <text x="800" y="1020" text-anchor="middle" class="card-meta" style="fill: #9fb1c8;">supporting implementation deps</text>
+  
+  <g>
+    <rect x="600" y="1036" width="100" height="44" rx="22" class="capsule"/>
+    <text x="650" y="1064" text-anchor="middle" class="card-meta" style="font-weight: 700; fill: #f0f6fc;">llm</text>
+  </g>
 
-  <text x="480" y="854" text-anchor="middle" font-size="13" class="text-3">supporting implementation deps</text>
-  <rect x="310" y="870" width="96" height="40" rx="20" class="capsule"/>
-  <text x="358" y="895" text-anchor="middle" font-size="14" font-weight="700" class="text-1">llm</text>
+  <g>
+    <rect x="720" y="1036" width="160" height="44" rx="22" class="capsule"/>
+    <text x="800" y="1064" text-anchor="middle" class="card-meta" style="font-weight: 700; fill: #f0f6fc;">http-recorder</text>
+  </g>
 
-  <rect x="430" y="870" width="142" height="40" rx="20" class="capsule"/>
-  <text x="501" y="895" text-anchor="middle" font-size="13" font-weight="700" class="text-1">http-recorder</text>
+  <g>
+    <rect x="900" y="1036" width="100" height="44" rx="22" class="capsule"/>
+    <text x="950" y="1064" text-anchor="middle" class="card-meta" style="font-weight: 700; fill: #f0f6fc;">script</text>
+  </g>
 
-  <rect x="596" y="870" width="96" height="40" rx="20" class="capsule"/>
-  <text x="644" y="895" text-anchor="middle" font-size="14" font-weight="700" class="text-1">script</text>
-
-  <path d="M255 260 H28 V459 H70" class="arrow" marker-end="url(#arrowHead)"/>
-  <path d="M318 386 H28 V624 H70" class="arrow" marker-end="url(#arrowHead)"/>
-  <path d="M705 260 H932 V459 H890" class="arrow" marker-end="url(#arrowHead)"/>
-  <path d="M642 386 H932 V775 H910" class="arrow" marker-end="url(#arrowHead)"/>
-
-  <line x1="290" y1="459" x2="670" y2="459" class="arrow" marker-end="url(#arrowHead)"/>
-  <line x1="290" y1="624" x2="670" y2="624" class="arrow" marker-end="url(#arrowHead)"/>
-  <line x1="670" y1="594" x2="290" y2="594" class="arrow" marker-end="url(#arrowHead)"/>
-  <line x1="780" y1="575" x2="780" y2="508" class="arrow" marker-end="url(#arrowHead)"/>
-  <line x1="180" y1="673" x2="180" y2="720" class="arrow" marker-end="url(#arrowHead)"/>
+  <!-- Arrows -->
+  <line x1="800" y1="240" x2="800" y2="300" class="arrow" marker-end="url(#arrowHead)"/>
+  <path d="M480 380 H280 V520" class="arrow" marker-end="url(#arrowHead)"/>
+  <path d="M1120 380 H1320 V520" class="arrow" marker-end="url(#arrowHead)"/>
+  <path d="M480 420 H60 V740 H120" class="arrow" marker-end="url(#arrowHead)"/>
+  <path d="M1120 420 H1540 V920 H1480" class="arrow" marker-end="url(#arrowHead)"/>
+  <line x1="440" y1="580" x2="1160" y2="580" class="arrow" marker-end="url(#arrowHead)"/>
+  <line x1="1160" y1="720" x2="440" y2="720" class="arrow" marker-end="url(#arrowHead)"/>
+  <line x1="440" y1="760" x2="1160" y2="760" class="arrow" marker-end="url(#arrowHead)"/>
+  <line x1="1320" y1="680" x2="1320" y2="640" class="arrow" marker-end="url(#arrowHead)"/>
+  <line x1="280" y1="800" x2="280" y2="860" class="arrow" marker-end="url(#arrowHead)"/>
 </svg>
