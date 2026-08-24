@@ -130,7 +130,7 @@ if (result === "compact") {
 
 compress 的整体骨架大分为两步，拆开看是"占位 + 派发"的动作，加上一组"执行"的动作。create 不调 LLM，process 才调。
 
-![Compact 流水线：create → process → prune](/images/opencode/article-04-flow.svg)
+![Compact 流水线：create → process → prune](/images/opencode/04-flow.svg)
 
 ### 3.1 create：插一条占位消息，不调 LLM
 
@@ -394,7 +394,7 @@ return [
 
 于是 LLM 看到的上下文是：compaction-user 空请求 → summary 9 段 → 最近的 tails → 正常后续。这看起来好像"上下文根本没断"——旧的已压成摘要，新的原样保留，中间档由 `tail_start_id` 无缝衔接。
 
-![Context Reordering 数组重排](/images/opencode/article-04-reorder.svg)
+![Context Reordering 数组重排](/images/opencode/04-reorder.svg)
 
 ### 7.2 reactive 重放原消息，其余合成 continue
 

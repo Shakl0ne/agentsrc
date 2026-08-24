@@ -77,7 +77,7 @@ Please rewrite the input so it satisfies the expected schema.
 
 两道保险都落在包装层统一做好，意味着想给全部工具加一条校验或换一种截断策略，只需改 `wrap()` 一处就能同时生效——这是把横切能力收进一层的关键收益。截断的判定与落盘细节，见下面这张双限制的示意。
 
-![包装层的两道保险：校验与截断](/images/opencode/article-03-wrapper.svg)
+![包装层的两道保险：校验与截断](/images/opencode/03-wrapper.svg)
 
 
 ## 四、执行层（重点）：Edit 引擎的渐进式匹配
@@ -187,7 +187,7 @@ LSP errors detected in this file, please fix: ...
 
 多维护一个中间态，就需要额外的申诉机制。落上去的补丁是 evaluate 与 ask 之间那套规则。
 
-![Permission 的三态异步模型](/images/opencode/article-03-permission-states.svg)
+![Permission 的三态异步模型](/images/opencode/03-permission-states.svg)
 
 ### 6.2 evaluate()：最后匹配胜出
 

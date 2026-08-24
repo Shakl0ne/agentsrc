@@ -36,4 +36,4 @@ title: DeepSeek Harness 源码精读
 
 以下是 dsh 的装配链全景：空 root → bundle 层 → patch 覆盖 → 装配成的插件树，再到 CLI / Web 两个产品壳。
 
-![dsh 装配链架构：profile / bundle 分层组装一棵插件树](/images/deepseek/article-01-architecture.svg)
+![dsh 装配链架构：profile / bundle 分层组装一棵插件树](/images/deepseek/01-architecture.svg)

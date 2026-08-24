@@ -33,4 +33,4 @@ title: OpenCode 源码精读
 
 ## 整体架构速览
 
-![OpenCode Monorepo 包拓扑：CLI 入口 → packages/opencode 实现枢纽 → packages/core 契约底座](/images/opencode/article-index-architecture.svg)
+![OpenCode Monorepo 包拓扑：CLI 入口 → packages/opencode 实现枢纽 → packages/core 契约底座](/images/opencode/index-architecture.svg)
