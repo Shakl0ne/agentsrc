@@ -8,7 +8,6 @@ title: OpenCode 工具系统：定义、执行与权限三道设计关口
 
 OpenCode 用 18 个内置工具把答案收敛成了一条抽象链。链上立着一道核心设计命题：**一个工具要同时被两个对象理解**——LLM 靠 `description` 和 jsonSchema 判断该不该调、怎么调，引擎靠运行时解码和权限检查决定能不能放行。下文顺着"怎么定义、怎么统一校验与截断、怎么防越权防死循环"这条主线往下拆，最后用 Edit 引擎和 Permission 系统两个最重的机制展开。
 
-![Tool Execution Pipeline](/images/opencode/article-03-architecture.svg)
 
 ## 一、工具是 LLM 的"手"，也是引擎的"门"
 
@@ -78,6 +77,8 @@ Please rewrite the input so it satisfies the expected schema.
 
 两道保险都落在包装层统一做好，意味着想给全部工具加一条校验或换一种截断策略，只需改 `wrap()` 一处就能同时生效——这是把横切能力收进一层的关键收益。截断的判定与落盘细节，见下面这张双限制的示意。
 
+![包装层的两道保险：校验与截断](/images/opencode/article-03-wrapper.svg)
+
 
 ## 四、执行层（重点）：Edit 引擎的渐进式匹配
 
@@ -129,6 +130,8 @@ for (const replacer of replacers) {
 ```
 
 外层按精度遍历，内层对每个候选定位。若 `index !== lastIndex`，说明该候选匹配多处，此刻继续替换会有歧义，于是 `continue` 交给下一个更宽松的 Replacer 去尝试。这保住了一个确定性前提：只要某个策略给出唯一命中，立刻返回；多匹配意味着 `oldString` 太短，是直觉上该让下一个策略接力去碰的信号。全部失败时，抛一个对 LLM 友好的提示："找到多个匹配，请提供更多上下文"。
+
+![Edit 引擎的渐进式匹配决策树](/images/opencode/article-03-edit-replacers.svg)
 
 ### 4.4 BlockAnchorReplacer：首尾锚点 + Levenshtein
 
@@ -184,6 +187,8 @@ LSP errors detected in this file, please fix: ...
 - `ask`：弹窗询问用户。
 
 多维护一个中间态，就需要额外的申诉机制。落上去的补丁是 evaluate 与 ask 之间那套规则。
+
+![Permission 的三态异步模型](/images/opencode/article-03-permission-states.svg)
 
 ### 6.2 evaluate()：最后匹配胜出
 

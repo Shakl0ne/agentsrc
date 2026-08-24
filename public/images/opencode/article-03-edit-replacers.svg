@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700" role="img" aria-label="Edit Replacers Decision Tree">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 32px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 18px; font-weight: 500; fill: #b7c3d2; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .arrow-text { font-size: 14px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+    
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-green { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.3); stroke-width: 1.5; }
+    .card-red { fill: rgba(248,81,73,0.08); stroke: rgba(248,81,73,0.3); stroke-width: 1.5; }
+    
+    .spine { fill: none; stroke: rgba(139,158,179,0.5); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-green { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-yellow { fill: none; stroke: rgba(210,153,34,0.6); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 6; }
+    .spine-red { fill: none; stroke: rgba(248,81,73,0.6); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    
+    .diamond { fill: #0d1117; stroke: rgba(210,153,34,0.8); stroke-width: 2; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(139,158,179,0.8)"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(63,185,80,0.8)"/>
+    </marker>
+    <marker id="arrow-yellow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(210,153,34,0.8)"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(248,81,73,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="700" fill="url(#bg)"/>
+  <rect width="1000" height="700" fill="url(#grid)"/>
+
+  <text x="500" y="60" text-anchor="middle" class="title">Progressive Matching Strategy</text>
+  <text x="500" y="90" text-anchor="middle" class="subtitle">9 Replacers Decision Tree</text>
+
+  <!-- Input -->
+  <rect x="400" y="120" width="200" height="50" rx="8" class="inner-card"/>
+  <text x="500" y="150" class="inner-text">oldString &amp; newString</text>
+  <path d="M 500 170 L 500 200" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- Node 1 -->
+  <rect x="350" y="200" width="300" height="50" rx="8" class="inner-card"/>
+  <text x="500" y="230" class="inner-text">1. SimpleReplacer (Exact)</text>
+  <path d="M 500 250 L 500 270" class="spine" marker-end="url(#arrow)"/>
+  
+  <polygon points="500,270 560,300 500,330 440,300" class="diamond"/>
+  <text x="500" y="305" class="inner-text" fill="#d29922">Matches?</text>
+  
+  <path d="M 560 300 L 750 300 L 750 600" class="spine-green" marker-end="url(#arrow-green)"/>
+  <text x="655" y="290" class="arrow-text" fill="#3fb950">== 1 (Success)</text>
+  
+  <path d="M 500 330 L 500 370" class="spine-yellow" marker-end="url(#arrow-yellow)"/>
+  <text x="510" y="355" class="arrow-text" fill="#d29922" text-anchor="start">!= 1 (Continue)</text>
+
+  <!-- Node 2 -->
+  <rect x="350" y="370" width="300" height="50" rx="8" class="inner-card"/>
+  <text x="500" y="400" class="inner-text">3. BlockAnchorReplacer</text>
+  <path d="M 500 420 L 500 440" class="spine" marker-end="url(#arrow)"/>
+  
+  <polygon points="500,440 560,470 500,500 440,470" class="diamond"/>
+  <text x="500" y="475" class="inner-text" fill="#d29922">Matches?</text>
+  
+  <path d="M 560 470 L 750 470" class="spine-green"/>
+  <text x="655" y="460" class="arrow-text" fill="#3fb950">== 1</text>
+  
+  <path d="M 500 500 L 500 540" class="spine-yellow" marker-end="url(#arrow-yellow)"/>
+  <text x="510" y="525" class="arrow-text" fill="#d29922" text-anchor="start">!= 1</text>
+
+  <!-- Node 3 (Ellipsis) -->
+  <rect x="350" y="540" width="300" height="50" rx="8" class="inner-card" stroke-dasharray="4 4"/>
+  <text x="500" y="570" class="inner-text" fill="#8b9eb3">... Other Replacers ...</text>
+  <path d="M 500 590 L 500 620" class="spine-red" marker-end="url(#arrow-red)"/>
+  <text x="510" y="610" class="arrow-text" fill="#f85149" text-anchor="start">All Failed</text>
+
+  <!-- End Nodes -->
+  <rect x="650" y="600" width="200" height="60" rx="10" class="card-green"/>
+  <text x="750" y="635" class="inner-text" fill="#3fb950">Replace &amp; LSP Check</text>
+
+  <rect x="400" y="620" width="200" height="60" rx="10" class="card-red"/>
+  <text x="500" y="655" class="inner-text" fill="#f85149">Error: Multiple Matches</text>
+</svg>
