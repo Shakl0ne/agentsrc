@@ -47,8 +47,8 @@
   <text x="500" y="90" text-anchor="middle" class="subtitle">Validation and Truncation</text>
 
   <!-- LLM Box -->
-  <rect x="50" y="240" width="120" height="80" rx="12" class="inner-card"/>
-  <text x="110" y="285" class="card-title" text-anchor="middle">LLM</text>
+  <rect x="50" y="210" width="120" height="80" rx="12" class="inner-card"/>
+  <text x="110" y="255" class="card-title" text-anchor="middle">LLM</text>
 
   <!-- Wrapper Box -->
   <rect x="300" y="140" width="400" height="360" rx="20" class="card" stroke-dasharray="8 8"/>
@@ -84,7 +84,7 @@
   <text x="510" y="385" class="arrow-text" text-anchor="start">Raw Output</text>
 
   <!-- Truncate -> LLM -->
-  <path d="M 350 430 L 110 430 L 110 320" class="spine" marker-end="url(#arrow)"/>
+  <path d="M 350 430 L 110 430 L 110 290" class="spine" marker-end="url(#arrow)"/>
   <text x="230" y="420" class="arrow-text">Truncated Output</text>
 
   <!-- Truncate -> Disk -->
