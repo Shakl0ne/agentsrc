@@ -49,34 +49,36 @@
   <text x="500" y="90" text-anchor="middle" class="subtitle">create ? process ? prune</text>
 
   <!-- Main Timeline -->
-  <path d="M 100 250 L 900 250" class="spine" marker-end="url(#arrow)"/>
-  <text x="100" y="235" class="arrow-text" text-anchor="start">runLoop (Main Thread)</text>
+  <path d="M 100 150 L 900 150" class="spine" marker-end="url(#arrow)"/>
+  <text x="100" y="135" class="arrow-text" text-anchor="start">runLoop (Main Thread)</text>
 
   <!-- Step 1: Create -->
+  <path d="M 250 150 L 250 210" class="spine-gray" marker-end="url(#arrow-gray)"/>
   <rect x="180" y="210" width="140" height="80" rx="10" class="inner-card"/>
   <text x="250" y="245" class="inner-text">1. create()</text>
   <text x="250" y="265" class="inner-sub">Insert Placeholder</text>
   <text x="250" y="315" class="inner-sub" fill="#8b9eb3">No LLM Call</text>
 
   <!-- Step 2: Process (Big Block) -->
-  <rect x="420" y="130" width="240" height="240" rx="16" class="card-highlight"/>
-  <text x="540" y="165" class="card-title" text-anchor="middle">2. process()</text>
-  <text x="540" y="185" class="inner-sub" fill="#58a6ff">Calls Compaction Agent</text>
-
-  <rect x="440" y="210" width="200" height="40" rx="6" class="inner-card"/>
-  <text x="540" y="235" class="inner-text" font-size="14">select (head/tail)</text>
+  <path d="M 540 150 L 540 180" class="spine-gray" marker-end="url(#arrow-gray)"/>
+  <rect x="420" y="180" width="240" height="240" rx="16" class="card-highlight"/>
+  <text x="540" y="215" class="card-title" text-anchor="middle">2. process()</text>
+  <text x="540" y="235" class="inner-sub" fill="#58a6ff">Calls Compaction Agent</text>
 
   <rect x="440" y="260" width="200" height="40" rx="6" class="inner-card"/>
-  <text x="540" y="285" class="inner-text" font-size="14">LLM 9-Section Summary</text>
+  <text x="540" y="285" class="inner-text" font-size="14">select (head/tail)</text>
 
   <rect x="440" y="310" width="200" height="40" rx="6" class="inner-card"/>
-  <text x="540" y="335" class="inner-text" font-size="14">filterCompacted (reorder)</text>
+  <text x="540" y="335" class="inner-text" font-size="14">LLM 9-Section Summary</text>
+
+  <rect x="440" y="360" width="200" height="40" rx="6" class="inner-card"/>
+  <text x="540" y="385" class="inner-text" font-size="14">filterCompacted (reorder)</text>
 
   <!-- Step 3: Prune (Async) -->
-  <path d="M 750 250 L 750 350 L 820 350" class="spine-async" marker-end="url(#arrow-async)"/>
-  <rect x="820" y="310" width="140" height="80" rx="10" class="card-async"/>
-  <text x="890" y="345" class="inner-text" fill="#3fb950">3. prune()</text>
-  <text x="890" y="365" class="inner-sub" fill="#3fb950">Async Fork</text>
-  <text x="890" y="415" class="inner-sub" fill="#8b9eb3">Timestamp Mark Only</text>
+  <path d="M 750 150 L 750 250 L 820 250" class="spine-async" marker-end="url(#arrow-async)"/>
+  <rect x="820" y="210" width="140" height="80" rx="10" class="card-async"/>
+  <text x="890" y="245" class="inner-text" fill="#3fb950">3. prune()</text>
+  <text x="890" y="265" class="inner-sub" fill="#3fb950">Async Fork</text>
+  <text x="890" y="315" class="inner-sub" fill="#8b9eb3">Timestamp Mark Only</text>
 
 </svg>
