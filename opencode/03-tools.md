@@ -131,7 +131,6 @@ for (const replacer of replacers) {
 
 外层按精度遍历，内层对每个候选定位。若 `index !== lastIndex`，说明该候选匹配多处，此刻继续替换会有歧义，于是 `continue` 交给下一个更宽松的 Replacer 去尝试。这保住了一个确定性前提：只要某个策略给出唯一命中，立刻返回；多匹配意味着 `oldString` 太短，是直觉上该让下一个策略接力去碰的信号。全部失败时，抛一个对 LLM 友好的提示："找到多个匹配，请提供更多上下文"。
 
-![Edit 引擎的渐进式匹配决策树](/images/opencode/article-03-edit-replacers.svg)
 
 ### 4.4 BlockAnchorReplacer：首尾锚点 + Levenshtein
 
