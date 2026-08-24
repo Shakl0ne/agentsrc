@@ -29,7 +29,6 @@ title: OpenCode 魔法开关：plan-execute-verify 编排机制解剖
 
 我们会逐个拆，这次照旧不藏着掖着。
 
-![plan-execute-verify 三阶段编排总览](/images/opencode/07-hero.png)
 
 ## 零、先认识一下这支队伍的成员
 
