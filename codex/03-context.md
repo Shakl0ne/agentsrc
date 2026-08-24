@@ -19,7 +19,7 @@ Codex 的上下文管理有两个核心机制：
 - 和 CC 的 system prompt 构造对比？
 
 
-![Codex 上下文组装流水线：13+ 段 → 3 个 PromptSlot → ResponseItems](/images/opencode/codex-03-hero.png)
+![Codex 上下文组装流水线：13+ 段 → 3 个 PromptSlot → ResponseItems](/images/codex/03-hero.png)
 
 ## 一、build_initial_context：10+ 个段的组装
 
@@ -191,7 +191,7 @@ pub(crate) fn build_settings_update_items(
 
 注意：**skills 和 plugins 不在 diff 列表里**。它们一旦在 turn 开始时注入就保持不变，只能通过重新发起 turn 改变。这是个权衡——减少 diff 计算的复杂度，代价是 skills/plugins 列表变化需要新 turn。
 
-![6 个 Diff 字段：Environment / Model / Permissions / Collaboration / Realtime / Personality](/images/opencode/codex-03-fields.png)
+![6 个 Diff 字段：Environment / Model / Permissions / Collaboration / Realtime / Personality](/images/codex/03-fields.png)
 
 ### 2.4 Reference context 何时重置
 
@@ -202,7 +202,7 @@ pub(crate) fn build_settings_update_items(
 
 这意味着：**Compact 之后第一次 turn 总是发完整上下文**——这是合理的，因为压缩后历史已经重建，需要新的 baseline。
 
-![Full vs Incremental Diff：8K vs 500 tokens](/images/opencode/codex-03-diffing.png)
+![Full vs Incremental Diff：8K vs 500 tokens](/images/codex/03-diffing.png)
 
 
 ## 三、Prompt Caching 的收益
@@ -276,7 +276,7 @@ Codex 的策略是**显式 diff**——只发送变更段，让 API 自然命中
 | **代码复杂度** | 高 | 低 |
 | **回滚确定性** | 部分（有 TODO） | N/A |
 
-![Codex vs Claude Code：上下文策略对比](/images/opencode/codex-03-vs.png)
+![Codex vs Claude Code：上下文策略对比](/images/codex/03-vs.png)
 
 
 ## 五、为什么这个设计有意思

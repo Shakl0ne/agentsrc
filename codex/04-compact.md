@@ -18,7 +18,7 @@ Codex 的 Compact 系统有 3 个核心维度：
 - 和 CC 的 5 级压缩对比，谁的策略更聪明？
 
 
-![Codex 3 种 Compact 实现选择树](/images/opencode/codex-04-hero.png)
+![Codex 3 种 Compact 实现选择树](/images/codex/04-hero.png)
 
 ## 一、Compact 实现选择
 
@@ -177,7 +177,7 @@ async fn run_compact_task_inner_impl(...) -> CodexResult<String> {
 }
 ```
 
-![Local Compact 内循环：ContextWindowExceeded → remove_first_item](/images/opencode/codex-04-loop.png)
+![Local Compact 内循环：ContextWindowExceeded → remove_first_item](/images/codex/04-loop.png)
 
 ### 2.3 摘要的构造
 
@@ -335,7 +335,7 @@ Mid-turn 场景下，模型正在调用工具循环中，压缩完还要继续 s
 
 Pre-turn 场景下，压缩完整个 turn 就结束了，下一个 turn 会重新走 `record_context_updates_and_set_reference_context_item` 的逻辑，自然全量注入。
 
-![BeforeLastUserMessage vs DoNotInject 注入策略](/images/opencode/codex-04-inject.png)
+![BeforeLastUserMessage vs DoNotInject 注入策略](/images/codex/04-inject.png)
 
 ### 4.3 注入实现
 
@@ -475,7 +475,7 @@ Codex 用 diffing 优化（见第三篇），所以 compact 后必须显式决�
 
 这是一个二阶复杂度——**优化（diffing）带来了新的约束（compact 后必须重注入）**。CC 用不优化换来了简单性。
 
-![Codex vs Claude Code：压缩哲学对比](/images/opencode/codex-04-vs.png)
+![Codex vs Claude Code：压缩哲学对比](/images/codex/04-vs.png)
 
 
 ## 八、小结
