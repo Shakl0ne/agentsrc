@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500" width="1000" height="500" role="img" aria-label="Context Reordering">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 32px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 18px; font-weight: 500; fill: #b7c3d2; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 13px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .label { font-size: 14px; font-weight: 700; letter-spacing: 1px; fill: #8b9eb3; }
+    
+    .block-gray { fill: rgba(139,158,179,0.1); stroke: rgba(139,158,179,0.3); stroke-width: 1.5; }
+    .block-blue { fill: rgba(88,166,255,0.15); stroke: rgba(88,166,255,0.4); stroke-width: 1.5; }
+    .block-purple { fill: rgba(188,140,255,0.15); stroke: rgba(188,140,255,0.4); stroke-width: 1.5; }
+    .block-green { fill: rgba(63,185,80,0.15); stroke: rgba(63,185,80,0.4); stroke-width: 1.5; }
+    
+    .spine { fill: none; stroke: rgba(125,196,255,0.4); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 4 4; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="500" fill="url(#bg)"/>
+  <rect width="1000" height="500" fill="url(#grid)"/>
+
+  <text x="500" y="60" text-anchor="middle" class="title">Context Reordering (filterCompacted)</text>
+  <text x="500" y="90" text-anchor="middle" class="subtitle">Moving the Tail after the Summary</text>
+
+  <!-- BEFORE (DB Physical Order) -->
+  <text x="100" y="160" class="label">BEFORE (DB Physical Order)</text>
+  
+  <rect x="100" y="180" width="200" height="60" rx="8" class="block-gray"/>
+  <text x="200" y="215" class="inner-text" fill="#8b9eb3">Old History</text>
+  <text x="200" y="230" class="inner-sub">(Compacted)</text>
+
+  <rect x="320" y="180" width="160" height="60" rx="8" class="block-blue"/>
+  <text x="400" y="215" class="inner-text" fill="#58a6ff">Compaction User</text>
+  <text x="400" y="230" class="inner-sub">(Placeholder)</text>
+
+  <rect x="500" y="180" width="160" height="60" rx="8" class="block-purple"/>
+  <text x="580" y="215" class="inner-text" fill="#bc8cff">Summary</text>
+  <text x="580" y="230" class="inner-sub">(9 Sections)</text>
+
+  <rect x="680" y="180" width="220" height="60" rx="8" class="block-green"/>
+  <text x="790" y="215" class="inner-text" fill="#3fb950">Recent Tails</text>
+  <text x="790" y="230" class="inner-sub">(Preserved Context)</text>
+
+  <!-- ARROWS -->
+  <path d="M 200 250 L 200 310" class="spine" stroke="rgba(248,81,73,0.4)"/>
+  <text x="200" y="285" class="inner-sub" fill="#f85149">Dropped</text>
+
+  <path d="M 400 250 L 400 310" class="spine" marker-end="url(#arrow)"/>
+  <path d="M 580 250 L 580 310" class="spine" marker-end="url(#arrow)"/>
+  
+  <!-- The Magic Move Arrow -->
+  <path d="M 790 250 L 790 280 L 790 310" class="spine" marker-end="url(#arrow)" stroke="rgba(63,185,80,0.6)"/>
+  <text x="790" y="275" class="inner-sub" fill="#3fb950">Appended After Summary</text>
+
+  <!-- AFTER (LLM Logical Order) -->
+  <text x="100" y="360" class="label">AFTER (LLM Logical Order)</text>
+
+  <rect x="320" y="320" width="160" height="60" rx="8" class="block-blue"/>
+  <text x="400" y="355" class="inner-text" fill="#58a6ff">Compaction User</text>
+
+  <rect x="500" y="320" width="160" height="60" rx="8" class="block-purple"/>
+  <text x="580" y="355" class="inner-text" fill="#bc8cff">Summary</text>
+
+  <rect x="680" y="320" width="220" height="60" rx="8" class="block-green"/>
+  <text x="790" y="355" class="inner-text" fill="#3fb950">Recent Tails</text>
+
+  <text x="560" y="430" class="inner-text" fill="#d2dbe5">LLM sees a continuous context: Summary ’ Recent Tails ’ Next Question</text>
+
+</svg>

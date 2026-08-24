@@ -4,63 +4,22 @@ title: OpenCode 上下文压缩：Compact 2 级机制
 
 # OpenCode 上下文压缩：Compact 2 级机制
 
-最近不少朋友跟我聊 AI Agent，发现一个共同现象：**只要上下文一长，Agent 就开始变笨**。问它前面定过的设计，它说不记得；让它接着改某个文件，它把上一次的修改给覆盖了；更有甚者，跑着跑着直接报 `context overflow` 崩了。
+上下文一旦被塞满，agent 会退回最原始的状态：前面定过的设计想不起来，上一次的改动被覆盖，甚至直接抛 `context overflow` 中断。这个问题每个长会话都逃不掉，压缩就成了 agent 框架里绕不开的一环。
 
-面试官最爱问的就是这个：「**你的 Agent 怎么扛 200K token 的上下文？**」
+OpenCode 把"什么时候触发、怎么腾空间、压完怎么续"这三件事摊成了一条抽象链，两端各有一种数据回收方式：一端是不调 LLM 的 Prune，只回收旧的工具输出；另一端是调 LLM 生成锚定摘要的 Compact，回收的是对话历史。两条路径共用同一套溢出判定、同一段续接管道。下文顺着判定 → 触发 → 流程 → 两级回收 → 续接这条线往下拆，最后和 Claude Code 的 5 级压缩做一次取舍对比。
 
-答案很简单 —— **压缩**。但怎么压、什么时候压、压完怎么续，每个 Agent 框架的解法都不一样。今天这篇就想带你从源码视角，把 OpenCode 的上下文压缩机制彻底讲明白。目标是让你看完能同时 get 三个问题：
 
-- 第一，**什么时候触发压缩**？proactive 和 reactive 两条路径分别在哪儿
-- 第二，**2 级压缩（Prune + Compact）**是怎么分工的？为什么只有 2 级？
-- 第三，**压缩完怎么续**？锚定摘要、尾巴保留、消息重排是怎么协同的
+## 一、溢出判定：usable() 与 isOverflow()
 
-后面我会按由浅入深的顺序，一个个讲清楚。最后还会和 Claude Code 的 5 级压缩做一次硬核对比，让你看清两种设计哲学的取舍。
+压缩的第一道门槛是"什么时候算塞满"。OpenCode 不拿模型的原始窗口当满额，而是先算出"敢用的额度"，再和已经占用的 token 比较。
 
-![200K 上下文塞满](/images/opencode/article-04-hero.png)
+### 1.1 模型声称的上限，不等于敢用的上限
 
-## 一、为什么需要压缩？—— 上下文溢出是 Agent 的头号天敌
+一个模型的 context 窗口看起来是 200K，但真实历史不能一路堆到这个数。原因很直接：每一轮 LLM 调用都需要预留输出空间，如果上下文被占满，模型连一句话都念不完，写到一半就被掐断，整个会话就卡死在"想回应却写不下"的状态。所以可用额度要先从上下文里扣掉一段输出预留。
 
-### 1.1 一个让你「先别翻答案」的小问题
-
-我先抛两个问题，**建议你先停个 10 秒估算下**，再往下翻：
-
-**问题 1**：一个 200K context 的模型，能用多少 token 来装历史对话？
-
-- A. 200,000
-- B. 192,000
-- C. 180,000
-
-**问题 2**：如果历史对话已经吃掉了 180K token，但用户又问了个新问题，Agent 应该怎么办？
-
-公布答案：
-
-- 问题 1：**C**。200K 上下文要扣掉输出预留（默认 `min(20_000, maxOutputTokens)`），扣完只剩 180K
-- 问题 2：不能直接报错，得**主动压缩**——把旧的工具输出剪掉、把历史对话摘要化，腾出空间继续跑
-
-这两个问题背后的机制，就是 OpenCode 的 `compaction.ts` 在干的事。
-
-### 1.2 溢出长什么样
+这段逻辑落在 `usable()`（`src/session/overflow.ts:8`）：
 
 ```ts
-// src/session/overflow.ts
-export function isOverflow(input) {
-  if (input.cfg.compaction?.auto === false) return false     // 用户关掉自动压缩
-  if (input.model.limit.context === 0) return false           // 模型不报告 limit
-  
-  const count =
-    input.tokens.total ||                                     // 优先用 total
-    input.tokens.input + input.tokens.output +
-    input.tokens.cache.read + input.tokens.cache.write         // 没有就分项累加
-  return count >= usable(input)                               // 达到可用上限即溢出
-}
-```
-
-你看，溢出判断其实就一行：**累计 token 数 ≥ 可用 token 数**。真正的工程含量在 `usable()` 怎么算可用额度上。
-
-### 1.3 可用额度怎么算
-
-```ts
-// src/session/overflow.ts
 const COMPACTION_BUFFER = 20_000
 
 export function usable(input) {
@@ -68,80 +27,72 @@ export function usable(input) {
   if (context === 0) return 0
 
   const reserved =
-    input.cfg.compaction?.reserved ??                         // 用户配置优先
+    input.cfg.compaction?.reserved ??
     Math.min(COMPACTION_BUFFER, ProviderTransform.maxOutputTokens(input.model, input.outputTokenMax))
-  
   return input.model.limit.input
-    ? Math.max(0, input.model.limit.input - reserved)          // 模型有 input limit 走这条
+    ? Math.max(0, input.model.limit.input - reserved)
     : Math.max(0, context - ProviderTransform.maxOutputTokens(input.model, input.outputTokenMax))
 }
 ```
 
-翻译成人话：
+`reserved` 这段预留有两种取值来源。用户可以在 `cfg.compaction.reserved` 自己定；没配就用 `COMPACTION_BUFFER`（20_000）和模型最大输出 token 数之间较小的那个。
 
-- 如果模型显式报了 `limit.input`，可用额度 = `input_limit - reserved`
-- 否则，可用额度 = `context - max_output_tokens`
-- `reserved` 默认是 20K，但**不超过**模型的最大输出 token 数
+围绕"扣多少"有两个分叉。模型如果显式上报了 `limit.input`，走 `input - reserved`；只报 `context` 的话，就走 `context - maxOutputTokens`。这两条路对应模型 API 声明方式的不同，但落点一致——都是"留着给下一轮吐字"。
 
-为什么要扣这 20K？因为**下一轮 LLM 调用要留输出空间**。如果你把上下文塞到 200K 满，模型连一句话都吐不出来，等它写完一半就被截断了——这就是后面要讲的 reactive 路径。
+### 1.2 isOverflow：比较的是占用，而不是剩余
 
-
-
-## 二、两条触发路径：proactive vs reactive
-
-OpenCode 的压缩触发，**不是单一时机**，而是两条互补的路径。
-
-```mermaid
-flowchart TD
-    A[LLM 完成 step] --> B{检查 isOverflow}
-    B -->|否| C[继续正常流程]
-    B -->|是, proactive| D[插入 compaction 占位]
-    D --> E[下一轮循环处理]
-    E --> F[compaction.process 生成摘要]
-    F --> C
-    
-    G[LLM 调用] --> H{返回 ContextOverflowError?}
-    H -->|否| I[正常流处理]
-    H -->|是, reactive| J[needsCompaction=true]
-    J --> K[流停止, 返回 compact]
-    K --> D
-```
-
-### 2.1 Proactive：上一轮结束后提前触发
-
-**位置**：`src/session/prompt.ts` 第 1322-1328 行
+有了"敢用的额度"，溢出判定就压缩成一个比较（`isOverflow`，`src/session/overflow.ts:20`）：
 
 ```ts
-// runLoop 中每一轮开头
-if (
-  lastFinished &&
-  lastFinished.summary !== true &&                              // 摘要消息本身不参与溢出判断
-  (yield* compaction.isOverflow({ tokens: lastFinished.tokens, model }))
-) {
-  yield* compaction.create({ 
-    sessionID, 
-    agent: lastUser.agent, 
-    model: lastUser.model, 
-    auto: true 
-  })
-  continue                                                      // 跳过这一轮，下一轮处理 compaction
+export function isOverflow(input) {
+  if (input.cfg.compaction?.auto === false) return false
+  if (input.model.limit.context === 0) return false
+
+  const count =
+    input.tokens.total || input.tokens.input + input.tokens.output
+      + input.tokens.cache.read + input.tokens.cache.write
+  return count >= usable(input)
 }
 ```
 
-**这段代码的精妙之处**在于三个细节：
+三处前提要一并看，它们定义了这套判定的边界：
 
-1. **`lastFinished` 而不是 `lastAssistant`** — 只检查「已完成」的 assistant，避免对正在生成中的消息误判
-2. **`summary !== true`** — 摘要 assistant 本身不算溢出，否则会无限触发压缩（压缩的输出又触发下一轮压缩）
-3. **`create` 后立刻 `continue`** — 不在同一轮里处理，而是把 compaction 推到下一轮的 `tasks` 队列里
+- `auto === false` 直接短路——用户在设置里关掉自动压缩后，OpenCode 不再自动触发，只留手动入口。
+- `limit.context === 0` 直接放行——模型根本没上报窗口大小，无从度量，就不做溢出判断。这兜住了那些报告不全的模型。
+- 占用数 `count` 优先读 `tokens.total`，拿不到再退而求其次，把 input、output、cache 读、cache 写分项累加。cache 命中的历史也被计入，因为它同样占着上下文预算。
 
-为什么不直接调用 `compaction.process`？因为 OpenCode 把 compaction **设计成一个 task**，走统一的任务队列（`tasks.pop()`），保持 runLoop 主循环的简洁。
+结果在 `count >= usable(input)` 这一处收敛。同一边界既用在上一轮 assistant 结束后的主动检查，也用于后面要讲的触发路径，它是整条压缩链的公共开关。
 
-### 2.2 Reactive：LLM 调用过程中被截断
+## 二、触发时机：proactive 与 reactive 两条路径
 
-**位置**：`src/session/processor.ts` 第 754-756 行
+溢出判定就绪后，接下来是"什么时候去查它"。OpenCode 不在用户每句话进来时都查，而是把它挂到两个自然节点上：前一轮 assistant 结束时主动查一次，LLM 调用被截断时被动接一次。两条路径共用同一个 `create()`，差别只在参数。
+
+### 2.1 proactive：上一轮结束后提前一轮
+
+主路径在 runLoop 里每轮协程少只完成的 assistant 之后（`src/session/prompt.ts:1322`）：
 
 ```ts
-// 在 LLM 流式响应过程中
+if (
+  lastFinished &&
+  lastFinished.summary !== true &&
+  (yield* compaction.isOverflow({ tokens: lastFinished.tokens, model }))
+) {
+  yield* compaction.create({ sessionID, agent: lastUser.agent, model: lastUser.model, auto: true })
+  continue
+}
+```
+
+三个细节决定了这条路径的稳健性：
+
+- **查的是 `lastFinished`**，不是正在生成的 assistant。只对"已经完整跑完一轮"的消息做溢出判断，避免把正在流式输出的半截消息误判进压缩里。
+- **`summary !== true`** 把摘要消息本身排除出判定。摘要时 LLM 输出的一段文本也占用上下文，若它也参与计数，压缩完的输出又可触发下一次压缩，形成无限套娃。把它排除后，压缩的输出推进不到压缩的开头。
+- **`create` 后立刻 `continue`**，不在本轮里消化，而是把压缩任务甩给下一轮循环。这保持了 runLoop 主循环"每轮只处理一个任务"的结构。
+
+### 2.2 reactive 路径：被截断时兜底
+
+proactive 在"正常跑完一轮"的前提下够用，万一某轮中途被 LLM 提前掐断——比如返回 `ContextOverflowError`——就得用处理层去接。`src/session/processor.ts` 在流式响应里捕获这个错误（第 754-758 行）：
+
+```ts
 if (MessageV2.ContextOverflowError.isInstance(error)) {
   ctx.needsCompaction = true
   yield* bus.publish(Session.Event.Error, { sessionID: ctx.sessionID, error })
@@ -149,729 +100,374 @@ if (MessageV2.ContextOverflowError.isInstance(error)) {
 }
 ```
 
-和 step-finish 检查：
+`needsCompaction` 一旦置位，这轮响应会被截停，最后在处理器收尾处（`processor.ts:845`）返回一个特殊的 `"compact"` 结果：
 
 ```ts
-// processor.ts 大约 845 行
-if (ctx.needsCompaction) return "compact"   // 优先级高于 stop/continue
+if (ctx.needsCompaction) return "compact"
 ```
 
-回到 runLoop：
+runLoop 收到 `"compact"` 后走 `create`，这次带上了 `overflow` 标记（`prompt.ts:1477`）：
 
 ```ts
-// prompt.ts:1477
 if (result === "compact") {
   yield* compaction.create({
     sessionID,
     agent: lastUser.agent,
     model: lastUser.model,
     auto: true,
-    overflow: !handle.message.finish,                            // 流被截断了！
+    overflow: !handle.message.finish,   // 流被截断，标记 overflow
   })
 }
 ```
 
-**Reactive 路径的特别之处**：
+### 2.3 共用 create，只差 overflow
 
-- 它会标记 `overflow: true`
-- 这个标记后续会影响 compaction 的处理逻辑——会触发**重放用户消息**（见第七节）
+两条路径都汇到同一个 `create()`，`overflow` 参数是仅有的区别。proactive 是常态：多数会话会在跑完一轮后主动触发，把溢出拦在爆掉之前。reactive 是兜底：proactive 没拦住（模型突然吐超长 reasoning、或者某次响应跨过阈值等），reactive 接住 ContextOverflowError，把消息压回 runLoop 再走同一套 create。
 
-### 2.3 两条路径怎么配合
+`overflow` 标记的价值留给压缩与续接阶段用——它决定 process 里是否重放原用户消息，这是第七节要展的部分。
 
-**Proactive 是主路径**：在大多数情况下，OpenCode 会在 LLM 完成 step 后主动检查，提前一轮触发压缩，避免真的爆掉。
+## 三、流程骨架：create 占位，process 执行
 
-**Reactive 是兜底**：万一 proactive 没拦住（比如模型突然输出了超长 reasoning），API 返回 ContextOverflowError，processor 立刻掐断流，把 `compact` 信号抛回 runLoop。
+compress 的整体骨架大分为两步，拆开看是"占位 + 派发"的动作，加上一组"执行"的动作。create 不调 LLM，process 才调。
 
-这两条路径**共用同一个 `create()` 函数**，差别只在 `overflow` 参数上。设计很统一。
+![Compact 流水线：create → process → prune](/images/opencode/article-04-flow.svg)
 
+### 3.1 create：插一条占位消息，不调 LLM
 
-
-## 三、Compact 流程全景：create → process → select → prune
-
-这是整个压缩机制的核心。我用一张图先给你看全貌，再逐个拆：
-
-```mermaid
-flowchart TD
-    subgraph 主流程
-        A[isOverflow] --> B[create 占位]
-        B --> C[下一轮 runLoop]
-        C --> D[process 调 agent]
-        D --> E[select 切分]
-        E --> F[LLM 摘要]
-        F --> G[filterCompacted]
-        G --> H[合成 continue]
-    end
-    
-    subgraph 异步清理
-        I[runLoop 退出] --> J[prune 标记旧输出]
-        J -.异步.-> K[forkInScope]
-    end
-    
-    H --> I
-```
-
-注意三个关键点：
-
-1. **create 和 process 是分离的**——create 只插入一条占位 user 消息，process 在下一轮才执行
-2. **prune 是异步的**——它在 runLoop 整个 while 循环退出后才 fork 出去，不阻塞响应
-3. **filterCompacted 是序列化时的处理**——不是压缩的一部分，而是把压缩后的消息重排成 LLM 能理解的顺序
-
-### 3.1 create：插一条占位消息
+`create()`（`src/session/compaction.ts:584`）做的是最轻的事——往数据库写一条 user 消息，再在它上面挂一个 `type: "compaction"` 的 part：
 
 ```ts
-// compaction.ts:584-614
-const create = Effect.fn("SessionCompaction.create")(function* (input) {
-  // 1. 创建一条 user 消息
-  const msg = yield* session.updateMessage({
-    id: MessageID.ascending(),
-    role: "user",
-    model: input.model,
-    sessionID: input.sessionID,
-    agent: input.agent,
-    time: { created: Date.now() },
-  })
-  
-  // 2. 在这条 user 上挂一个 compaction part
-  yield* session.updatePart({
-    id: PartID.ascending(),
-    messageID: msg.id,
-    sessionID: msg.sessionID,
-    type: "compaction",
-    auto: input.auto,                                            // 是否自动触发
-    overflow: input.overflow,                                   // 是否 reactive 路径
-  })
-  
-  // 3. 发布事件
-  if (flags.experimentalEventSystem) {
-    yield* events.publish(SessionEvent.Compaction.Started, {
-      sessionID: input.sessionID,
-      timestamp: DateTime.makeUnsafe(Date.now()),
-      reason: input.auto ? "auto" : "manual",
-    })
-  }
-})
-```
-
-**为什么是「占位」**？因为这一步根本不调用 LLM，只是写一条标记消息到数据库。下一轮 runLoop 跑到 `tasks.pop()` 时，发现这是一条 compaction task，才会真正调用 `process()` 去生成摘要。
-
-这个设计解耦了「**决定要压**」和「**真正去压**」两个动作，让 runLoop 主循环保持纯粹的「轮询 + 分发」结构。
-
-### 3.2 process：真正执行压缩的核心
-
-`process()` 是最长的一个函数（275 行），干 5 件事：
-
-```ts
-// compaction.ts:344
-const processCompaction = Effect.fn("SessionCompaction.process")(function* (input) {
-  // 1. 处理 overflow 场景：找上一条 user 消息作为 replay
-  // 2. 拿到 compaction agent 和 model
-  // 3. 过滤掉已完成的 compaction，select 分割 head/tail
-  // 4. 构建 prompt（含 previousSummary）+ plugin hook
-  // 5. 调 LLM 生成摘要，处理结果
-})
-```
-
-第 3 步的 select 是这篇文章的核心，单独成节讲（第四节）。第 5 步的 prompt 构建和摘要模板，第六节细讲。
-
-### 3.3 prune：异步标记旧工具输出
-
-```ts
-// compaction.ts:296
-const prune = Effect.fn("SessionCompaction.prune")(function* (input) {
-  const cfg = yield* config.get()
-  if (!cfg.compaction?.prune) return                             // 用户可以关掉 prune
-  
-  const msgs = yield* session.messages({ sessionID: input.sessionID })
-  // ...从后向前扫描...
-})
-```
-
-**触发时机**（prompt.ts:1495）：
-
-```ts
-// runLoop 退出后
-yield* compaction.prune({ sessionID }).pipe(Effect.ignore, Effect.forkIn(scope))
-return yield* lastAssistant(sessionID)
-```
-
-注意两个细节：
-
-1. **`Effect.forkIn(scope)`** — fork 到一个独立 fiber，**异步执行**
-2. **`Effect.ignore`** — 失败也不影响主流程
-
-也就是说，**用户拿到响应的那一刻，prune 还在后台默默跑**。这是 OpenCode 设计上的一个取舍：宁可响应慢 0.1 秒返回完整摘要，也不要为了 prune 把响应卡住。
-
-
-
-## 四、select：计算保留的尾巴轮次
-
-压缩不是「把全部历史塞给 LLM 让它总结」，而是要**保留最近的对话**——因为最近的上下文是最相关的，模型需要看到才能续上。
-
-OpenCode 用 `select()` 来切分历史为 `head`（送 LLM 摘要）和 `tail`（原样保留）两部分。
-
-![Compact 流水线：create → process → select → prune](/images/opencode/article-04-flow.png)
-
-### 4.1 默认保留 2 轮，可配置
-
-```ts
-// compaction.ts:245-294
-const select = Effect.fn("SessionCompaction.select")(function* (input) {
-  const limit = input.cfg.compaction?.tail_turns ?? DEFAULT_TAIL_TURNS    // 默认 2
-  if (limit <= 0) return { head: input.messages, tail_start_id: undefined }
-  
-  const budget = preserveRecentBudget({ cfg: input.cfg, model: input.model })
-  const all = turns(input.messages)
-  if (!all.length) return { head: input.messages, tail_start_id: undefined }
-  
-  const recent = all.slice(-limit)                                          // 取最近 N 轮
-  // 从后往前累加 token，超过 budget 就 split
-})
-```
-
-**默认保留 2 轮**，但这 2 轮的总 token 不能超过 `preserveRecentBudget`：
-
-```ts
-// compaction.ts:136-141
-function preserveRecentBudget(input) {
-  return (
-    input.cfg.compaction?.preserve_recent_tokens ??                       // 用户配置优先
-    Math.min(MAX_PRESERVE_RECENT_TOKENS,                                   // 8_000
-      Math.max(MIN_PRESERVE_RECENT_TOKENS,                                 // 2_000
-        Math.floor(usable(input) * 0.25)))                                 // 可用额度的 25%
-  )
-}
-```
-
-翻译一下这个公式：
-
-- 默认值 = `clamp(2_000, 8_000, usable * 25%)`
-- 200K context 模型 → `usable ≈ 180K` → budget = `min(8_000, max(2_000, 45_000))` = **8_000**
-
-也就是说，**最近 2 轮对话最多保留 8K token**。如果 2 轮实际加起来不到 8K，就保留全部；如果超过了，就在那一轮里再切分（`splitTurn`）。
-
-### 4.2 为什么是 2 轮，不是 1 轮或 5 轮？
-
-这是个有意思的取舍问题。我建议你先停 10 秒想想：
-
-- **保留 1 轮**：太少。模型刚问完一个问题，答案在上一轮——压完模型忘了自己问过什么
-- **保留 5 轮**：太多。8K budget 装不下，反而把最近的细节挤掉
-- **2 轮**：刚好覆盖「**最近一次完整的问答对**」+ 一点前置上下文
-
-这个数字是 OpenCode 工程师拍脑袋拍的，但拍得有道理。Claude Code 默认保留 3-5 个 tool results + 40K token 窗口，思路类似但更宽（代价是上下文压力大时更易触发下一轮压缩）。
-
-### 4.3 splitTurn：在一轮内部切分
-
-如果某一轮的 token 数已经超过 budget，select 不会简单粗暴丢弃整轮，而是调用 `splitTurn()` 在轮内找切点：
-
-```ts
-// 简化逻辑
-const split = yield* splitTurn({
-  messages: input.messages,
-  turn,
+const msg = yield* session.updateMessage({
+  id: MessageID.ascending(),
+  role: "user",
   model: input.model,
-  budget: remaining,
-  estimate,
+  sessionID: input.sessionID,
+  agent: input.agent,
+  time: { created: Date.now() },
 })
-if (split) keep = split
-```
-
-这保证了**即使某轮特别长（比如用户一次性贴了 30K 的代码），也能保住最近的子片段**，不至于一刀切下去什么都丢。
-
-
-
-## 五、Prune 截断：PRUNE_PROTECT 40K tokens 保护
-
-prune 是 OpenCode 压缩机制的「**第一级**」。它不调用 LLM，纯数据结构操作，把旧的工具输出标记为 `compacted`。
-
-### 5.1 prune 的扫描逻辑
-
-```ts
-// compaction.ts:296-342
-const prune = Effect.fn("SessionCompaction.prune")(function* (input) {
-  // ...省略前面...
-  
-  let total = 0
-  let pruned = 0
-  const toPrune: MessageV2.ToolPart[] = []
-  let turns = 0
-  
-  loop: for (let msgIndex = msgs.length - 1; msgIndex >= 0; msgIndex--) {
-    const msg = msgs[msgIndex]
-    if (msg.info.role === "user") turns++
-    if (turns < 2) continue                                        // 保护最近 2 轮
-    if (msg.info.role === "assistant" && msg.info.summary) break loop  // 不越过已有摘要
-    
-    for (let partIndex = msg.parts.length - 1; partIndex >= 0; partIndex--) {
-      const part = msg.parts[partIndex]
-      if (part.type !== "tool") continue
-      if (part.state.status !== "completed") continue
-      if (PRUNE_PROTECTED_TOOLS.includes(part.tool)) continue      // skill 永不 prune
-      if (part.state.time.compacted) break loop                    // 已修剪边界
-      
-      const estimate = Token.estimate(part.state.output)
-      total += estimate
-      if (total <= PRUNE_PROTECT) continue                         // 保留 40K tokens
-      pruned += estimate
-      toPrune.push(part)
-    }
-  }
-  
-  if (pruned > PRUNE_MINIMUM) {                                    // 只有超过 20K 才真正执行
-    for (const part of toPrune) {
-      if (part.state.status === "completed") {
-        part.state.time.compacted = Date.now()                     // 标记时间戳
-        yield* session.updatePart(part)
-      }
-    }
-  }
+yield* session.updatePart({
+  id: PartID.ascending(),
+  messageID: msg.id,
+  sessionID: msg.sessionID,
+  type: "compaction",
+  auto: input.auto,        // 是否自动触发
+  overflow: input.overflow, // 是否 reactive 路径
 })
 ```
 
-**关键常量**：
+这一步只是打标记。`auto` 和 `overflow` 两个开关先存进 part，留到跑它时再读。
+
+### 3.2 下一轮 runLoop 派发到 compaction task
+
+create 写下的占位 user 消息，本身不是一个普通的用户提问——runLoop 跑任务队列时见到 `type: "compaction"` 的 part，会把它当作 compaction 任务来分发。这一步的输赢在 runLoop 主循环被保持了"轮询 + 分发"的纯结构：它自己不去管压缩的内部细节，只负责"创造一个 task 待下轮处理"，"下轮把它派给 compaction.process"，以及"最后启动一个后台 prune"。
+
+### 3.3 process：调用专用 agent 的压缩引擎
+
+被派发后，`process()`（`src/session/compaction.ts:344`，到 `create` 前约 240 行）才是整条链的主体。它按顺序做几件事：处理 overflow 找重放的用户消息、取出 compaction agent、过滤掉历史已有摘要、用 `select` 切出 head/tail、构建含锚定摘要的 prompt、调 LLM 生成 9 段摘要，再根据结果决定重放或合成 continue。
+
+头两步已在前文带过。`select` 切分是第 5 节，LLM 生成摘要是第 6 节，续接是第 7 节。剩下还有一个异步的 `prune`（第4节），它在 runLoop 整轮跑完后才 fork 出去，不占用主要链路。
+
+## 四、第一级 Prune：不调 LLM 的数据层回收
+
+压缩的第一级是 Prune。它不碰 LLM，只看数据层做回收：把老的工具输出打上时间戳标记，让它们在序列化时"隐身"，而不是删除数据。
+
+### 4.1 扫描与门控
+
+`prune()`（`src/session/compaction.ts:298`）在 runLoop 收尾时被拉起（`prompt.ts:1495`）：
 
 ```ts
-export const PRUNE_MINIMUM = 20_000          // 最少清理 20K tokens 才值得 prune
-export const PRUNE_PROTECT = 40_000          // 保留最近的 40K tokens 不受 prune
-const PRUNE_PROTECTED_TOOLS = ["skill"]     // skill tool 输出永远不被 prune
+yield* compaction.prune({ sessionID }).pipe(Effect.ignore, Effect.forkIn(scope))
 ```
 
-### 5.2 三个关键保护
+`Effect.forkIn(scope)` 把它 fork 成一个独立 fiber，`Effect.ignore` 让它在出错时不拖累主流程。于是用户拿到响应的那一刻，Prune 还在后台默默跑。这是"响应优先，清理不阻塞"的一处取舍。
 
-我从这段代码里读出三个保护机制：
-
-**保护 1：最近 2 轮用户消息**
-
-`if (turns < 2) continue` — 从尾部数，先跳过最近 2 个 user 消息及其之后的内容。**最近的对话不动**。
-
-**保护 2：40K tokens 工具输出**
-
-`if (total <= PRUNE_PROTECT) continue` — 累计到 40K tokens 之前的不动。这是一个**滑动窗口**，保证最近的工具输出大概率完整可见。
-
-**保护 3：skill 永不修剪**
+Prune 的扫描从消息尾部倒着走，有两条硬规则：
 
 ```ts
-if (PRUNE_PROTECTED_TOOLS.includes(part.tool)) continue
+loop: for (let msgIndex = msgs.length - 1; msgIndex >= 0; msgIndex--) {
+  if (msg.info.role === "user") turns++
+  if (turns < 2) continue                        // 保护最近 2 轮
+  if (msg.info.role === "assistant" && msg.info.summary) break loop  // 不越过已有摘要
+  for (let partIndex = msg.parts.length - 1; partIndex >= 0; partIndex--) {
+    const part = msg.parts[partIndex]
+    if (part.type !== "tool") continue
+    if (part.state.status !== "completed") continue
+    if (PRUNE_PROTECTED_TOOLS.includes(part.tool)) continue  // skill 永不剪
+    if (part.state.time.compacted) break loop                // 到已修剪边界就停
+    ...
+  }
+}
 ```
 
-为什么 skill 工具输出特殊？因为 skill 是「**按需加载的指令文件**」，一旦 prune 掉，下次 LLM 又得重新加载，浪费 token 又可能产生不一致。直接保护掉最稳。
+### 4.2 两层保护：最近 2 轮 + PRUNE_PROTECT
 
-### 5.3 「标记」而不是「删除」
+prune 要动手，先过两层保护（`compaction.ts:35`）：
 
-注意这一行：
+```ts
+export const PRUNE_MINIMUM = 20_000   // 少于则不值得动
+export const PRUNE_PROTECT = 40_000   // 保留最近 40K tokens 的工具输出
+const PRUNE_PROTECTED_TOOLS = ["skill"]
+```
+
+- **最近 2 轮不动**——倒序数到第 2 个 user 消息都跳过，只有更早的轮次才进入剪裁候选，最近的对话完整可见。
+- **40K token 工具输出保护**——从尾部累积，未达 `PRUNE_PROTECT` 之前不动，只在累积超过 40K 后才开始标记更早的输出。它是一个滑动窗口，保证最近的工具输出大概率在窗口内。
+- **skill 永不修剪**——`PRUNE_PROTECTED_TOOLS` 只装了 `"skill"`。skill 是按需加载的指令文件，一旦剪掉，下次要用又得重新载一，浪费 token 还可能因上下文变化产生不一致，直接护住。
+
+另有一个最低门槛：只有当可剪部分超过 `PRUNE_MINIMUM` 才落库。省几 K token 不值得付一次数据库写入的开销，得攒够数量才动手。
+
+
+### 4.3 时间戳标记，而不是删除
+
+Prune 从不删除数据。它对待剪的 part 只做一件事（`compaction.ts:336`）：
 
 ```ts
 part.state.time.compacted = Date.now()
 yield* session.updatePart(part)
 ```
 
-prune **没有删除任何数据**，只是给 part 的 `state.time` 字段加了一个 `compacted` 时间戳。
-
-真正的「隐藏」发生在序列化时：
+"隐藏"发生在序列化阶段（`message-v2.ts:791`）：当 part 的 `time.compacted` 被置位，工具输出在发给 LLM 时变成一行占位串：
 
 ```ts
-// message-v2.ts toModelMessagesEffect
-// 如果 part.state.time.compacted 为真
-// → 工具输出正文变为 "[Old tool result content cleared]"
-// → 附件也会清空
+const outputText = part.state.time.compacted
+  ? "[Old tool result content cleared]"
+  : truncateToolOutput(part.state.output, options?.toolOutputMaxChars)
 ```
 
-这是个非常聪明的工程决策——**数据仍在 SQLite 数据库里**，需要回溯、撤销、审计时都能拿出来。压缩和持久化解耦，互不干扰。
+数据仍然完整躺在 SQLite 里，需要回溯、审计、撤销时随时能拿出来。压缩和持久化被拆开：压缩只是在读出去的快照上做手脚，不触碰底层的存储。这让整条链"可逆"——剪出去的内容没有丢。
 
-### 5.4 最低门槛保护
+## 五、保留窗口：select 切 head/tail
+
+Compact 不把全部历史一股脑塞给 LLM 去总结——最近几轮的上下文必须原样保留，因为模型只有看到"刚发生什么"才能续上。区分这两者的，是 `select()`。
+
+### 5.1 默认 2 轮，预算 clamp
+
+`select()`（`src/session/compaction.ts:245`）拿到消息后，先按轮切分，再预算：
 
 ```ts
-if (pruned > PRUNE_MINIMUM) {                                     // 只有超过 20K 才真正执行
-  // ...
+const limit = input.cfg.compaction?.tail_turns ?? DEFAULT_TAIL_TURNS
+if (limit <= 0) return { head: input.messages, tail_start_id: undefined }
+
+const budget = preserveRecentBudget({ cfg: input.cfg, model: input.model })
+const all = turns(input.messages)
+const recent = all.slice(-limit)   // 取最近 N 轮
+```
+
+`DEFAULT_TAIL_TURNS` 是 2，也就是默认保留最近 2 个 user 场次。预算由 `preserveRecentBudget`（`compaction.ts:136`）控制：
+
+```ts
+function preserveRecentBudget(input) {
+  return (
+    input.cfg.compaction?.preserve_recent_tokens ??
+    Math.min(MAX_PRESERVE_RECENT_TOKENS, Math.max(MIN_PRESERVE_RECENT_TOKENS, Math.floor(usable(input) * 0.25)))
+  )
 }
 ```
 
-如果可剪的部分不到 20K，prune 直接放弃。**避免为了省一点 token 而引入数据库写入的开销**。
+`MIN_PRESERVE_RECENT_TOKENS` 是 2_000，`MAX_` 是 8_000；默认值取"可用额度的 25%"夹在这两档之间。200K 上下文的模型，`usable` 约 180K，`usable*0.25` 是 45K，被 8_000 封顶——最近 2 轮最多保留 8K token。当 2 轮加起来不足 8K 就全留，超过就在那一轮里切。
 
-![Prune 三层保护：最近 2 轮 + 40K + skill](/images/opencode/article-04-protect.png)
+保留轮数是 2 而非 1 或 5，落在"保一个完整的问答对加上一点点前文"上：只留 1 轮，模型容易忘了刚才问过什么、答案在哪一轮；留到 5 轮，8K 的预算被撑破，反而把最近的细节挤掉。2 是两者之间的平衡点。Claude Code 默认保 3-5 个 tool results + 40K 窗口，思路同源但更宽，代价是上下文压力更大时更容易推进下一层压缩。
 
-## 六、LLM 摘要生成：9 段摘要模板 + compaction Agent
+### 5.2 splitTurn：一轮之内的切点
 
-压缩的核心，是让一个 LLM 把长对话总结成结构化的 9 段 Markdown。这一步用的是**专门的 compaction agent**。
+某一轮的 token 数已经超过剩余预算时，`select` 不会丢掉整整一轮，而是调 `splitTurn()`（`compaction.ts:161`）在这一轮内部找切点：从 turn 起点往末尾逐段估计，找到第一个能塞进剩余预算的尾偏移，把它收成新的 `tail_start_id`。
 
-### 6.1 compaction Agent 的配置
+这保证了即使某轮特别长——比如用户一次性贴了 30K 的代码——也保得住最近的子片段，而不是一刀切。`select` 的最后再核对一遍：如果 keep 落在索引 0（意味着全部都要保留），就返回 `{ head: messages, tail_start_id: undefined }`——没有可截的尾巴，全部历史送摘要，不强行收窄到空。
+
+`select` 的产出是 `{ head, tail_start_id }`：`head` 送去 LLM 锚定摘要，`tail_start_id` 之后的尾巴内容由 `filterCompacted` 在续接时插回摘要后。
+
+## 六、第二级 Compact：锚定摘要与 9 段模板
+
+第 2 级的核心是让一个 LLM 把送进 `head` 的旧历史压缩成结构化摘要。它用独立的 compaction agent，走锚定摘要增量更新。
+
+### 6.1 专用 agent：hidden + deny all + native
+
+compaction agent 在 `src/agent/agent.ts:235` 定义：
 
 ```ts
-// src/agent/agent.ts:235-249
 compaction: {
   name: "compaction",
   mode: "primary",
   native: true,
-  hidden: true,                                                    // 对用户不可见
-  prompt: PROMPT_COMPACTION,                                       // 来自 compaction.txt
+  hidden: true,
+  prompt: PROMPT_COMPACTION,
   permission: Permission.merge(
     defaults,
-    Permission.fromConfig({
-      "*": "deny",                                                 // 不允许任何工具
-    }),
+    Permission.fromConfig({ "*": "deny" }),
     user,
   ),
   options: {},
 },
 ```
 
-**关键设计**：
+三个字段是它和普通 agent 的分界：
 
-1. **`hidden: true`** — 用户在 agent 列表里看不到它，专供内部使用
-2. **`permission: { "*": "deny" }`** — **完全禁止工具调用**。摘要 agent 只能生成文本，不能搞事
-3. **`native: true`** — 走 native runtime，避免 AI SDK 的中间转换开销
+- `hidden: true`——用户的 agent 列表看不到它，纯内部使用。
+- `permission: { "*": "deny" }`——完全禁止工具调用。它的唯一任务是把历史总结成文本，手里不该有任何副作用。
+- `native: true`——走 native runtime，不做多余的中间转换。
 
-为什么禁止工具？我猜原因有两个：
+禁工具有两层理由。一是收窄行为边界：摘要 agent 只写文本，衔不到任何危险操作。二是防嵌套压缩：如果它也能调工具，万一它自己在摘要过程中把上下文撑爆，就会触发又一次压缩，而压缩的输出又制造压缩——这正是要给"摘要消息"单独挂门控的原因。让它只能"说完一句话"结束，也就止住了这个递归。
 
-- 防止摘要 agent 拿着工具瞎跑——它的任务就一件事：**总结**
-- 控制成本——如果摘要 agent 也能调工具，万一它自己也 overflow 了，就嵌套压缩了
+### 6.2 anchored summary：增量，而不是重新生成
 
-### 6.2 compaction Agent 的 prompt
-
-```
-# src/agent/prompt/compaction.txt
-You are an anchored context summarization assistant for coding sessions.
-
-Summarize only the conversation history you are given. The newest turns may be
-kept verbatim outside your summary, so focus on the older context that still
-matters for continuing the work.
-
-If the prompt includes a <previous-summary> block, treat it as the current
-anchored summary. Update it with the new history by preserving still-true
-details, removing stale details, and merging in new facts.
-
-Always follow the exact output structure requested by the user prompt. Keep
-every section, preserve exact file paths and identifiers when known, and prefer
-terse bullets over paragraphs.
-
-Do not answer the conversation itself. Do not mention that you are summarizing,
-compacting, or merging context. Respond in the same language as the conversation.
-```
-
-**这段 prompt 的精妙之处**在「**anchored summary**（锚定摘要）」这个词上——它不是每次从零开始总结，而是基于上一次的摘要做增量更新。
-
-### 6.3 锚定摘要：增量更新而不是重新生成
+摘要的生成不是每次把全部历史重读一遍，而是基于上一次的摘要做增量更新。`buildPrompt`（`compaction.ts:123`）把两种模式拼接出来：
 
 ```ts
-// compaction.ts:123-134
-function buildPrompt(input: { previousSummary?: string; context: string[] }) {
-  const anchor = input.previousSummary
-    ? [
-        "Update the anchored summary below using the conversation history above.",
-        "Preserve still-true details, remove stale details, and merge in the new facts.",
-        "<previous-summary>",
-        input.previousSummary,
-        "</previous-summary>",
-      ].join("\n")
-    : "Create a new anchored summary from the conversation history above."
-  return [anchor, SUMMARY_TEMPLATE, ...input.context].join("\n\n")
-}
+const anchor = input.previousSummary
+  ? [
+      "Update the anchored summary below using the conversation history above.",
+      "Preserve still-true details, remove stale details, and merge in the new facts.",
+      "<previous-summary>",
+      input.previousSummary,
+      "</previous-summary>",
+    ].join("\n")
+  : "Create a new anchored summary from the conversation history above."
+return [anchor, SUMMARY_TEMPLATE, ...input.context].join("\n\n")
 ```
 
-**两种模式**：
+首次压缩走 "Create" 模式；之后的压缩把 `<previous-summary>` 裹进来，让 LLM 在它基础上合并新事实。对应到 `src/agent/prompt/compaction.txt` 里那句 "Update it with the new history by preserving still-true details, removing stale details, and merging in new facts"。
 
-- **首次压缩**：`Create a new anchored summary from the conversation history above.`
-- **后续压缩**：`Update the anchored summary below using the conversation history above.` + `<previous-summary>` 块
+这套设计的经济性在于：每次压缩只需处理"新产生的对话 + 上一次摘要"，而不是"全部历史"。维持摘要的连续性，同时把重复阅读的 token 省下来。
 
-**为什么要锚定**？
+### 6.3 SUMMARY_TEMPLATE：9 段结构化
 
-- 第一次压缩：从原始对话生成摘要 A
-- 第二次压缩：不重新读所有原始对话（太贵），而是基于摘要 A + 新对话 → 生成更新后的摘要 A'
-
-这样每次压缩只需要处理「**新产生的对话 + 上一次摘要**」，而不是「全部历史」。**省 token 又保证摘要的连续性**。
-
-### 6.4 9 段摘要模板
-
-这是 `SUMMARY_TEMPLATE` 常量（compaction.ts:42-77）：
+摘要输出被一个固定的 `SUMMARY_TEMPLATE`（`compaction.ts:42`）锁死结构。模板是 7 个顶级段，其中 `Progress` 又拆成 Done / In Progress / Blocked 三个子段，摊平下来一共 9 个信息块：
 
 ```markdown
-## Goal
-- [single-sentence task summary]
-
-## Constraints & Preferences
-- [user constraints, preferences, specs, or "(none)"]
-
-## Progress
-### Done
-- [completed work or "(none)"]
-### In Progress
-- [current work or "(none)"]
-### Blocked
-- [blockers or "(none)"]
-
-## Key Decisions
-- [decision and why, or "(none)"]
-
-## Next Steps
-- [ordered next actions or "(none)"]
-
-## Critical Context
-- [important technical facts, errors, open questions, or "(none)"]
-
-## Relevant Files
-- [file or directory path: why it matters, or "(none)"]
+## Goal                        # 用户在做什么
+## Constraints & Preferences   # 偏好、约束、规格
+## Progress                    # Done / In Progress / Blocked 三子段
+## Key Decisions               # 决策和为什么
+## Next Steps                  # 有序下步动作
+## Critical Context            # 技术事实、错误、open question
+## Relevant Files              # 涉及文件与理由
 ```
 
-**为什么是 9 段**？
+每段都对应"续上工作需要的某类信息"：Goal 让模型知道当下要做什么；Constraints & Preferences 防止踩用户的偏好；Progress 拆成 done/in-progress/blocked，把"已完成 / 正在 / 卡住"摊平；Key Decisions 防止推翻已定结论；Next Steps 列出接下来该做什么；Critical Context 拉起错误与待解问题；Relevant Files 省得模型再 grep 一遍。
 
-每一段都是**精确的、结构化的、可消费的**：
-
-| 段 | 解决什么问题 |
-|---|---|
-| Goal | 让 LLM 知道用户当前在做什么 |
-| Constraints & Preferences | 防止违反用户的偏好 |
-| Progress（3 子段） | 已完成 / 正在做 / 卡住了 |
-| Key Decisions | 别覆盖已经决定的事 |
-| Next Steps | 模型自己接下去应该干啥 |
-| Critical Context | 错误、open question 这些关键信息 |
-| Relevant Files | 涉及哪些文件，省得它再 grep 一遍 |
-
-模板里还有几条**硬规矩**：
+模板里有一条硬规则：
 
 ```
-Rules:
 - Keep every section, even when empty.
 - Use terse bullets, not prose paragraphs.
 - Preserve exact file paths, commands, error strings, and identifiers when known.
 - Do not mention the summary process or that context was compacted.
 ```
 
-「Keep every section, even when empty」这一条特别重要——**空段也要保留**，强制 LLM 显式地说「(none)」，而不是直接删掉。这样下次锚定更新时，结构对得上，不会乱套。
+"Keep every section, even when empty"强制 LLM 对空段显式写 "(none)"，而不是删掉段落。这维持了结构到下一次锚定增量时的稳定——不管哪个段没货，它的位置和索引都留着，更新时可对位，不会乱套。（其"不要提压缩过程"则是顺从了 summary 消息不触发判定的前提。）
 
-### 6.5 调用时的额外参数
+### 6.4 序列化时的处理：stripMedia + 2K 截断
+
+摘要调用 `toModelMessagesEffect` 时带两组参数（`compaction.ts:406`）：
 
 ```ts
 const modelMessages = yield* MessageV2.toModelMessagesEffect(msgs, model, {
-  stripMedia: true,                                                // 去掉图片/媒体
-  toolOutputMaxChars: TOOL_OUTPUT_MAX_CHARS,                      // = 2_000
+  stripMedia: true,
+  toolOutputMaxChars: TOOL_OUTPUT_MAX_CHARS,   // = 2_000
 })
 ```
 
-**`stripMedia: true`** — 摘要不需要图片，去掉省 token
+`stripMedia` 起因是摘要不在乎图片/文档附件，直接去掉，省 token。`toolOutputMaxChars` 固定 2_000：摘要只关心"某个工具干了什么"的结论，不关心工具的完整输出，所以工具正文在喂给摘要时只留 2K 字符。这个 2K 是常量，不可配置。
 
-**`toolOutputMaxChars: 2_000`** — 工具输出截断到 2K 字符。因为摘要只关心「这个工具干了什么」，不关心工具的完整输出。**这是个常量，不可配置**。
+## 七、续接语义：filterCompacted 重排与重放
 
-![CC 5 级 vs OpenCode 2 级压缩阶梯](/images/opencode/article-04-stairs.png)
+压缩完成只是写完摘要，让接下来的对话"不断"的是续接。模型看到的上下文序列需要被重排成"摘要在前、保留尾巴在后"的自洽顺序；reactive 场景还要重放原用户消息。
 
-## 七、filterCompacted：消息重排的艺术
+### 7.1 writeCompacted：把尾巴挪到摘要之后
 
-压缩完了，数据库里现在有这些消息（按时间顺序）：
+数据库里按写入顺序是这样一串：
 
 ```
-[old-user1, old-assistant1, old-tool-result1, ...,
+[old-user1, old-assistant1, old-tool1, ...,
  compaction-user, summary-assistant,
- recent-user, recent-assistant, ...,
- continue-synthetic-user]
+ recent-user, recent-assistant, ...]
 ```
 
-但 LLM 看到的顺序应该是：
-
-```
-[compaction-user, summary-assistant,
- recent-user, recent-assistant, ...,
- continue-synthetic-user]
-```
-
-也就是说，要把**压缩点之后的尾巴**挪到摘要后面。这就是 `filterCompacted()` 干的事。
-
-### 7.1 重排逻辑
+但发给 LLM 的顺序必须把保留的 `recent-*` 尾巴搬到摘要后面，而不是留在摘要前面。`filterCompacted()`（`src/session/message-v2.ts:1014`）先正向扫描，遇到已完成 compaction 的 user，读它的 `tail_start_id`；随后 `result.reverse()`、再按 tail_start_id 定位，最后把三段拼起来：
 
 ```ts
-// message-v2.ts:1014-1037
-export function filterCompacted(msgs: Iterable<WithParts>) {
-  const result = [] as WithParts[]
-  const completed = new Set<string>()
-  let retain: MessageID | undefined
-  
-  for (const msg of msgs) {
-    result.push(msg)
-    if (retain) {
-      if (msg.info.id === retain) break                          // 到达保留尾巴的起点
-      continue
-    }
-    
-    // 遇到已完成 compaction 的 user 消息，开始 retain 模式
-    if (msg.info.role === "user" && completed.has(msg.info.id)) {
-      const part = msg.parts.find((item): item is CompactionPart => item.type === "compaction")
-      if (!part) continue
-      if (!part.tail_start_id) break                             // 没保留尾巴，截断
-      retain = part.tail_start_id
-      if (msg.info.id === retain) break
-      continue
-    }
-    
-    // 标记已完成的 compaction assistant
-    if (msg.info.role === "assistant" && msg.info.summary && msg.info.finish && !msg.info.error)
-      completed.add(msg.info.parentID)
-  }
-  result.reverse()
-  
-  // 重排：[compaction-user, summary, ...tail, ...rest]
-  // ...具体重排代码省略...
-}
+return [
+  ...result.slice(compactionIndex, summaryIndex + 1),  // 压缩 user + summary
+  ...result.slice(tailIndex, compactionIndex),          // 保留的尾巴
+  ...result.slice(summaryIndex + 1),                    // 之后的普通消息
+]
 ```
 
-**核心思路**：
+于是 LLM 看到的上下文是：compaction-user 空请求 → summary 9 段 → 最近的 tails → 正常后续。这看起来好像"上下文根本没断"——旧的已压成摘要，新的原样保留，中间档由 `tail_start_id` 无缝衔接。
 
-1. 找到最近一次完成的 compaction（有 summary assistant 的）
-2. 拿到它的 `tail_start_id`（select 时算出来的）
-3. 从那个 ID 开始往后的消息，**插到摘要 assistant 后面**
+![Context Reordering 数组重排](/images/opencode/article-04-reorder.svg)
 
-这样 LLM 看到的上下文是：
+### 7.2 reactive 重放原消息，其余合成 continue
 
-```
-1. [compaction-user]      (空 user 消息，挂 compaction part)
-2. [summary-assistant]     (LLM 生成的 9 段摘要)
-3. [recent-user1]          (保留的最近对话)
-4. [recent-assistant1]
-5. [recent-user2]
-6. ...
-```
+压缩完模型还要继续回应当下的问题。这里按 `overflow` 分了两条支路（`process` 内，`compaction.ts:477`）：
 
-完全自洽，模型不会感到「上下文断了」。
+- **reactive 触发（`overflow: true`）**——用户的最后一条消息在生成半途被截断，没有完整响应。此时 `input.overflow` 让 process 在溢出分支里先向前找到那条被截断的 user 消息，记为 `replay`，压缩完成后把它原样重放（媒体附件退化为文本占位串，避免媒体过大再撑爆）。摘要结束后的模型会对这条指令重新给出完整响应，最新诉求不会丢。
+- **proactive 触发（非 overflow）**——上一轮已经完整结束，无需重答。此时合成一条 user 消息：`"Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."`，并标 `synthetic: true` 与 `metadata.compaction_continue`。让模型自己决定还有没有下一步，不硬塞。
 
-### 7.2 overflow 场景的特殊处理：重放用户消息
+这个分支的取舍是：reactive 场景丢了答案，必须重放问句；proactive 场景上一轮已收尾，交给模型决定是否继续，而不是强扭。
 
-如果是 reactive 路径触发的压缩（`overflow: true`），LLM 在生成时被截断了，**用户的最后一条消息没有完整响应**。这时候 process() 会做一件特别的事：
+## 八、横向取舍：OpenCode 2 级 vs Claude Code 5 级
 
-```ts
-// compaction.ts process() 内部
-if (result === "continue" && input.auto) {
-  if (replay) {
-    // overflow 场景：复制原 user message（去除媒体附件）
-    // 让模型重新响应一次
-  } else {
-    // 非 overflow 场景：发合成 user 消息
-    // "Continue if you have next steps..."
-  }
-}
-```
-
-这是个**很人性化的设计**：
-
-- **reactive 触发**：用户原始问题被中断了，模型应该重答一遍 → 重放用户消息
-- **proactive 触发**：上一轮已经完整结束了，让模型自己决定要不要继续 → 发「Continue if you have next steps」
+把 OpenCode 整条链放回生态对比一次。Claude Code 的压缩是 5 级阶梯，OpenCode 是 2 级。看图再展开。
 
 
+### 8.1 CC 前 4 级零 LLM，第 5 级才调
 
-## 八、为什么 CC 用 5 级压缩，OpenCode 只用 2 级？
-
-这是这篇文章最有意思的部分。把两个框架放在一起看，你会发现它们的压缩哲学完全不同。
-
-### 8.1 Claude Code 的 5 级压缩
-
-CC 实际上有 5 个层级的压缩（按查询循环执行顺序）：
+Claude Code 按查询循环的执行顺序有 5 个层级：
 
 | 层级 | 机制 | 调用 LLM | 触发条件 |
 |------|------|---------|----------|
-| Level 1 | Tool Result Budget | 否 | 单条 tool result > 50K 字符 → 写磁盘留 2KB 预览 |
-| Level 2 | Snip Compact | 否 | token 超（阈值 + 13K） |
-| Level 3 | Microcompact | 否 | 每次 API 调用前 |
+| Level 1 | Tool Result Budget | 否 | 单条 tool result 超 50K 字符，落盘留 2KB 预览 |
+| Level 2 | Snip Compact  | 否 | token 超阈值 + 13K |
+| Level 3 | Microcompact  | 否 | 每次 API 调用前 |
 | Level 4 | Context Collapse | 否 | ~90% 利用率 |
 | Level 5 | Auto-compact | **是** | 前 4 级不足时 |
 
-**关键洞察**：CC 前 4 级都不调用 LLM，纯数据结构操作。只有第 5 级才真正调 LLM 生成摘要。**大多数会话根本走不到第 5 级**——前 4 级就把空间省出来了。
+前 4 级都是纯数据结构操作：截断、占位符替换、读缓存感知——不碰 LLM。多数会话的回收压力在这些层级就被消化掉，走到 Auto-compact 的少。它的深度依赖 Anthropic 的服务端缓存删除机制 `cache_edits`，把"替换为占位符"和缓存失效绑在一起，让改动尽量便宜。
 
-### 8.2 OpenCode 的 2 级压缩
-
-OpenCode 简洁得多：
+### 8.2 OpenCode 的 2 级
 
 | 层级 | 机制 | 调用 LLM | 触发条件 |
 |------|------|---------|----------|
 | Level 1 | Prune | 否 | runLoop 退出后异步 fork |
-| Level 2 | Compact | **是** | isOverflow()=true |
+| Level 2 | Compact | **是** | `isOverflow()`=true |
 
-**只有 2 级**，而且 Compact 一定调 LLM。
+只有 2 级，Compact 级必调 LLM。Prune 不调 LLM但只覆盖工具输出；对话历史一律交给 LLM 摘要。这背后藏着一个代价：OpenCode 每次压缩都要付一次 LLM 调用费，少了一批 CC 里靠"占位符 + cache"换来的低成本。
 
-### 8.3 两种哲学的取舍
+### 8.3 两种哲学：省复杂度 vs 省成本
 
-**CC 的设计哲学**：「**能不调 LLM 就不调**」
+差异落在两处关键：`cache_edits` 依赖，以及源码规模。
 
-- 5 级梯度，从最便宜的开始
-- 大量依赖「替换为占位符」+「服务端 cache_edits」
-- 把 LLM 调用留到最后一道防线
-- **优势**：成本极低，大多数会话零 LLM 调用
-- **代价**：实现复杂，5 级之间协同、缓存感知、特性开关（feature-gated）都需要工程投入
+CC 的第 5 级之所以便宜，是因为 Microcompact 与 cache_edits 都在 Claude 服务端上，且前 4 级零 LLM 的回收只在它的生态里做得到。它的哲学是"能不调 LLM 就不调"，用缓存感知和大量占位符去压成本，代价是 5 级之间的协同、特性开关与 cache 集成都烧进工程里——对应源码约 3,960 行。
 
-**OpenCode 的设计哲学**：「**简单 + 数据可逆**」
+OpenCode 只有 `compaction.ts` 639 行 + `overflow.ts` 32 行。它不依赖 Anthropic 的内建缓存，所以可以跨多家模型厂商跑，`model.cache` 自己有 prompt cache，但没有 CC 那套 cache_edits。它的哲学是"简单 + 数据可逆"：用时间戳标记替代物理删除，把可逆性做进机制；代价是每次压缩都要付一次 LLM 调用的费用。
 
-- 2 级梯度，思路直接
-- Prune 用「时间戳标记」而不是「物理删除」
-- Compact 一定调 LLM 但走锚定摘要（增量更新）
-- **优势**：实现简单，代码量小（compaction.ts 639 行 vs CC 3960+ 行）
-- **代价**：每次压缩都付一次 LLM 调用的钱
+两家的保护窗口表面看近似——OpenCode 是 40K + 最近 2 轮，CC 是 40K + 最近 3-5 个 tool result。面对"上下文压到哪、还得保留最近哪些"同一类问题，两套代码给出了相近的护栏答案，这是工程经验的趋同。
 
-### 8.4 哪种更好？
-
-**没有绝对的更好，只有更适合的场景**：
+### 8.4 DOOM 取舍表
 
 | 维度 | CC 占优 | OpenCode 占优 |
 |------|---------|--------------|
-| 高频长对话（成本敏感） | ✅ | |
-| 中小型会话（简单优先） | | ✅ |
+| 高频长对话成本 | ✅ cache_edits + 低 LLM 频次 | |
+| 中小型会话简单 | | ✅ 2 级 |
 | 数据可逆性 | | ✅ 时间戳标记 |
-| 缓存优化 | ✅ cache_edits | |
-| 调试可读性 | | ✅ 639 行 vs 3960 行 |
-| 跨模型厂商 | | ✅ 不依赖 Anthropic 特性 |
+| 跨模型厂商 | | ✅ 不依赖 Anthropic |
+| 代码可读性 | | ✅ 639 行 vs 3960 行 |
 
-OpenCode 的 2 级设计有一个**意外的好处**——它不依赖 Anthropic 的 `cache_edits` API，可以跑在任意模型厂商上。CC 的 Microcompact 热路径用了 Anthropic 内部 API，**只能在 Claude 上才能享受那种性能**。
+这套取舍的价值不在"多少行"，而在于每个 agent 系统都想清楚两件事：**在哪个维度值得投入复杂度，在哪个维度值得靠"简单 + 可逆"兜住**。CC 把精度压到服务端缓存，OpenCode 把精度压在"别删数据"上，得失都清楚。
 
-这是个非常典型的「**通用性 vs 优化深度**」的工程取舍。
+## 九、收束：设计要点回收
 
+把"判定 → 触发 → 骨架 → 两级 → 续接"这条链收拢成几条线：
 
+- **溢出判定是一个公共开关**——`usable()` 预留输出空间，`isOverflow()` 用占用与可用额度比较，auto 关闭或 limit 为零都短路，成为 proactive 与 reactive 的公共前提。
+- **触发拆两条**——proactive 跑完 assistant 主动查，reactive 接 ContextOverflowError 兜底，共用 `create` 只差 `overflow`。
+- **骨架做成占位 + 派发**——create 只插占位 user；runLoop 只轮询分发；process 才调 LLM；prune 在收尾处异步拉起，不阻塞响应。
+- **什么保留**——Prune 保护最近 2 轮 + 40K + skill；select 默认保 2 轮，预算 clamp 在 8K，超了就 splitTurn 找切点。
+- **摘要可逆增量**——专用 agent 禁工具防嵌套，锚定摘要增量更新，9 段模板空段也保留。
+- **续接要把 LLM 看似没断**——filterCompacted 把尾巴挪到摘要后；overflow 重放原问句，否则合成 continue。
+- **可逆性 + 两段分离**——Prune 用时间戳标记而非删除，数据在 DB 可回溯；Compact 才对上下文做实际的改写。
 
-## 九、OpenCode vs Claude Code：压缩机制对比表
-
-最后用一张表把两个框架的压缩机制全面对比一遍。这张表是整个系列的「独家护城河」——基于两份源码同时分析才能写出来：
-
-| 维度 | Claude Code | OpenCode |
-|------|-------------|----------|
-| **压缩层级数** | 5 级 | **2 级** |
-| **LLM 调用频率** | 仅 Level 5 调用 | Level 2 必调 |
-| **触发阈值** | `effectiveWindow - 13K`（约 83-89%） | `context - 20K buffer` |
-| **轻量清理方式** | Microcompact: 替换占位符 + cache_edits API | Prune: 时间戳标记（**数据不删**） |
-| **保护窗口** | 最后 3-5 个 tool results + 最后 40K tokens | 最后 40K tokens + 最后 2 轮用户消息 |
-| **特殊工具保护** | 按工具 ID 列表（紧凑型工具） | `PRUNE_PROTECTED_TOOLS = ["skill"]` |
-| **摘要结构** | 9 段 XML + `<analysis>` 草稿（后剥离） | 9 段 Markdown（Goal/Progress/...） |
-| **摘要更新方式** | 每次从历史重新生成 | **锚定摘要**（增量更新） |
-| **摘要 agent** | 通用 agent + NO_TOOLS_PREAMBLE | 专用 compaction agent（hidden + deny all） |
-| **压缩后行为** | Continuation message + 重读最近 5 个文件 | 重放最后一条用户消息（reactive）/ 合成 continue（proactive） |
-| **Post-compact 恢复** | 自动重读文件 + skills + plan 状态 | 仅重放用户消息 |
-| **Reactive 路径** | 413 错误后保留最后 4 条消息重试 | ContextOverflowError → 重放用户消息 |
-| **缓存感知** | 深度 Prompt Cache 集成（双路径：cache_control + cache_edits） | 有 prompt cache（`cache: "auto"`），无 cache_edits（Anthropic 专有） |
-| **阻塞限制** | ~98.5% 时主动阻塞 API 请求（effectiveWindow - 3K） | 无明确阻塞限制 |
-| **Circuit Breaker** | 3 次连续失败后停止 | 无明显 circuit breaker |
-| **手动触发** | `/compact [instructions]`，可自定义焦点 | `summarize` HTTP API + `auto: false` |
-| **操作可逆性** | 不可逆（占位符替换 / 摘要替代） | **部分可逆**（timestamp-based hiding，数据在 DB） |
-| **源码规模** | ~3,960 行（11 个文件） | ~639 行（compaction.ts） + 32 行（overflow.ts） |
-| **跨模型厂商** | ❌ 依赖 Anthropic cache_edits | ✅ 不依赖厂商特定 API |
-
-**看完这张表，你应该能 get 到**：
-
-- OpenCode 的简洁不是「做得少」，而是「做得对」——核心机制都在，但少了不必要的优化层
-- CC 的复杂度也不是「过度工程」，是为其特定生态（Anthropic 模型 + Claude API）做了深度优化的结果
-- 两者的保护机制（最近 N 轮 / 40K tokens）惊人地相似——这是工程经验的趋同演化
-
-
-
-## 最后
-
-写到这里，OpenCode 的上下文压缩机制基本就扒完了。
-
-回过头看，这套系统不是简单的「**调个 LLM 总结一下**」，它在**触发时机、保护机制、续接策略、数据可逆性**每一个维度都做了精致的设计：
-
-- **两条触发路径**（proactive + reactive）互补，主路径提前拦、兜底路径接住极端情况
-- **2 级梯度**（Prune + Compact）分工明确，Prune 处理工具输出、Compact 处理对话历史
-- **锚定摘要**让多次压缩变成增量更新，省 token 又保证连续性
-- **时间戳标记**而不是物理删除，数据可回溯
-- **专用 compaction agent**完全禁工具，隔离副作用
-- **filterCompacted 消息重排**让 LLM 看到的上下文顺序自洽
-- **reactive 路径重放用户消息**，确保最新指令不丢失
-
-每一块拆开看都不是啥复杂技术，但组合在一起，就成了一个能在 200K 上下文压力下稳定运行的工业级压缩系统。
-
-更难得的是，OpenCode 用 639 行 TypeScript 干了 Claude Code 3960 行才干的事——**简化的代价是放弃了 cache_edits API（Anthropic 专有的服务端缓存删除机制）**，但换来的是**跨厂商兼容**和**代码可维护性**。这种「**少即是多**」的工程哲学，值得每一个做 Agent 系统的朋友深思。
-
-今天分享就到这里，我们下篇见！
+回看这一整条链，OpenCode 的 2 级压缩值钱的地方在"取舍与可逆性"，而不是"压缩量最大"。它没把精力花在中心化维护一个缓存感知的多级阶梯上，而是把"删不删、怎么续"这几个关键决策做清楚了，再用数据可逆兜住风险。复杂度与成本之间的这个平衡，比把上下文压到极限更值得一个 agent 系统先想清楚。
 
 ## 章节小测
 
@@ -881,31 +477,31 @@ const q = [
     question: 'Claude Code 有 5 级压缩（前 4 级零 LLM 调用），OpenCode 只有 2 级（Compact 必调 LLM）。OpenCode 选择 2 级的核心原因是什么？',
     options: ['CC 的 5 级方案已开源验证且 OpenCode 可直接复用', 'OpenCode 选择 2 级为达到垂直行业中最优压缩比', 'CC 多级依赖 Anthropic 专有而 OpenCode 需跨厂商兼容', '2 级设计在上下文利用率上经实测优于 CC 的 5 级方案'],
     correct: 2,
-    explanation: 'CC 的 Microcompact 热路径用了 Anthropic 的 cache_edits API（服务端缓存删除机制），只能在 Claude 上享受性能优势。OpenCode 为跨 8 家模型厂商，不依赖任何厂商特定 API，所以选择了 2 级简单设计——Prune（纯数据操作）+ Compact（一定调 LLM）。代价是每次压缩都付 LLM 调用费。'
+    explanation: 'CC 的 Microcompact 热路径用了 Anthropic 的 cache_edits API（服务端缓存删除机制），只能在 Claude 上享受性能优势。OpenCode 为跨 8 家模型厂商，不依赖任何厂商特定 API，所以选择了 2 级简单设计——Prune（纯数据操作）+ Compact（一定调 LLM）。代价是每次压缩都付 LLM 调用费。',
   },
   {
     question: 'OpenCode 的 Prune 为什么用「时间戳标记（compacted 时间戳）」而不是「物理删除」工具输出？',
     options: ['时间戳标记在批量 compaction 场景下具有更高的标记吞吐量', '物理删除虽节省存储但破坏了审计回溯所需的数据完整性', '物理删除会触发数据库外键级联删除导致意外丢失关联 parts', '时间戳标记在序列化时压缩快照体积上比物理删除效率更高'],
     correct: 1,
-    explanation: '这是非常聪明的工程决策——prune 没有删除任何数据，只给 part 的 state.time 字段加 compacted 时间戳。真正的隐藏发生在序列化时，输出变为 "[Old tool result content cleared]"。数据仍在 DB 里，需要回溯审计时都能拿回来。'
+    explanation: '这是非常聪明的工程决策——prune 没有删除任何数据，只给 part 的 state.time 字段加 compacted 时间戳。真正的隐藏发生在序列化时，输出变为 "[Old tool result content cleared]"。数据仍在 DB 里，需要回溯审计时都能拿回来。',
   },
   {
     question: '锚定摘要（Anchored Summary）的核心机制是什么？',
     options: ['每次压缩将全部历史消息重新发给 LLM 以生成最准确的摘要', '每次压缩基于上次摘要增量更新避免重读全部原始对话历史', '压缩仅保留最近 N 轮对话原文并丢弃所有更早的上下文消息', '压缩将摘要持久化至文件系统并在后续轮次中直接读文件复用'],
     correct: 1,
-    explanation: '首次压缩从原始对话生成摘要 A，后续压缩不重新读所有原始对话（太贵），而是基于摘要 A + 新对话生成更新后的 A\'。这样每次压缩只需处理「新产生的对话 + 上一次摘要」，省 token 又保证连续。'
+    explanation: '首次压缩从原始对话生成摘要 A，后续压缩不重新读所有原始对话（太贵），而是基于摘要 A + 新对话生成更新后的 A\'。这样每次压缩只需处理「新产生的对话 + 上一次摘要」，省 token 又保证连续。',
   },
   {
     question: '为什么 compact 的 9 段摘要模板要求「Keep every section, even when empty」？',
     options: ['空段以维持卡片布局与排版间距的一致性', '空段保留确保锚定更新时各段按固定索引对齐', '空段满足下游 Markdown 对段数的最低数量要求', '空段使压缩前后消息量一致便于 Token 用量预估'],
     correct: 1,
-    explanation: '强制 LLM 显式说 "(none)" 而不是直接删掉空段，这样下次锚定更新时结构对得上，不会乱套。这是个「结构稳定性」的设计——让增量更新可预测。'
+    explanation: '强制 LLM 显式说 "(none)" 而不是只删掉空段，这样下次锚定更新时结构对得上，不会乱套。这是个「结构稳定性」的设计——让增量更新可预测。',
   },
   {
-    question: 'Prune 的 40K tokens 保护窗口中，为什么 skill 工具的输出被特殊保护（永不修剪）？',
-    options: ['skill 含高频数据剪掉可节省算力', 'skill 按需加载的指令文件剪掉后需要重新加载', 'skill 只读查询输出幂等性强可丢弃', 'skill 输出 Token 低于 PRUNE_MINIMUM 阈值'],
+    question: 'Prune 的 40K tokens 保护窗口中，为什么 skill 的输出被强制保护（永不剪枝）？',
+    options: ['skill 含高频数据剪掉可省计算', 'skill 按需加载的指令文件剪掉后需要重新加载', 'skill 只读查询输出幂等性强可丢弃', 'skill 输出 Token 低于 PRUNE_MINIMUM 阈值'],
     correct: 1,
-    explanation: 'skill 工具输出包含完整的指令内容，是 LLM 按需加载的「工作流定义」。如果被 prune 掉，下次需要时得重新加载，不仅浪费 token 而且可能因上下文变化产生不一致。直接保护掉最稳。'
+    explanation: 'skill 工具输出包含完整的指令内容，是 LLM 按需加载的「工作流定义」，剪掉后下次需重新加载，浪费 token 又可能因上下文变化产生不一致。直接保护掉最稳。',
   }
 ]
 </script>

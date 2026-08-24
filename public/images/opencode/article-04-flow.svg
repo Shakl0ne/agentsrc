@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500" width="1000" height="500" role="img" aria-label="Compact Pipeline">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 32px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 18px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 13px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 14px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+    
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.3); stroke-width: 1.5; }
+    .card-async { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.3); stroke-width: 1.5; stroke-dasharray: 4 4; }
+    
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-async { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 6; }
+    .spine-gray { fill: none; stroke: rgba(139,158,179,0.5); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-async" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(63,185,80,0.8)"/>
+    </marker>
+    <marker id="arrow-gray" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(139,158,179,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="500" fill="url(#bg)"/>
+  <rect width="1000" height="500" fill="url(#grid)"/>
+
+  <text x="500" y="60" text-anchor="middle" class="title">Compact Pipeline</text>
+  <text x="500" y="90" text-anchor="middle" class="subtitle">create ’ process ’ prune</text>
+
+  <!-- Main Timeline -->
+  <path d="M 100 250 L 900 250" class="spine" marker-end="url(#arrow)"/>
+  <text x="100" y="235" class="arrow-text" text-anchor="start">runLoop (Main Thread)</text>
+
+  <!-- Step 1: Create -->
+  <rect x="180" y="210" width="140" height="80" rx="10" class="inner-card"/>
+  <text x="250" y="245" class="inner-text">1. create()</text>
+  <text x="250" y="265" class="inner-sub">Insert Placeholder</text>
+  <text x="250" y="315" class="inner-sub" fill="#8b9eb3">No LLM Call</text>
+
+  <!-- Step 2: Process (Big Block) -->
+  <rect x="420" y="130" width="240" height="240" rx="16" class="card-highlight"/>
+  <text x="540" y="165" class="card-title" text-anchor="middle">2. process()</text>
+  <text x="540" y="185" class="inner-sub" fill="#58a6ff">Calls Compaction Agent</text>
+
+  <rect x="440" y="210" width="200" height="40" rx="6" class="inner-card"/>
+  <text x="540" y="235" class="inner-text" font-size="14">select (head/tail)</text>
+
+  <rect x="440" y="260" width="200" height="40" rx="6" class="inner-card"/>
+  <text x="540" y="285" class="inner-text" font-size="14">LLM 9-Section Summary</text>
+
+  <rect x="440" y="310" width="200" height="40" rx="6" class="inner-card"/>
+  <text x="540" y="335" class="inner-text" font-size="14">filterCompacted (reorder)</text>
+
+  <!-- Step 3: Prune (Async) -->
+  <path d="M 750 250 L 750 350 L 820 350" class="spine-async" marker-end="url(#arrow-async)"/>
+  <rect x="820" y="310" width="140" height="80" rx="10" class="card-async"/>
+  <text x="890" y="345" class="inner-text" fill="#3fb950">3. prune()</text>
+  <text x="890" y="365" class="inner-sub" fill="#3fb950">Async Fork</text>
+  <text x="890" y="415" class="inner-sub" fill="#8b9eb3">Timestamp Mark Only</text>
+
+</svg>
