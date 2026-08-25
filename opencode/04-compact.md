@@ -1,8 +1,8 @@
 ---
-title: OpenCode 上下文压缩：Compact 2 级机制
+title: OpenCode 会话压缩：Compact 2 级机制
 ---
 
-# OpenCode 上下文压缩：Compact 2 级机制
+# OpenCode 会话压缩：Compact 2 级机制
 
 长会话最怕的不是模型偶尔答错，而是上下文慢慢被塞满：前面定过的设计想不起来，上一次的改动被覆盖，甚至直接抛 `context overflow` 中断。只要会话够长，这个问题迟早会来，所以压缩不是补丁，而是 agent 框架里必须预留的一条正常通路。
 
