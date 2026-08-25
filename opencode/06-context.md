@@ -219,7 +219,7 @@ while (current.startsWith(root) && current !== root) {
 
 溢出判定之后，OpenCode 走 proactive（上一轮 assistant 结束后查 `isOverflow`）与 reactive（流中 LLM 返回 `ContextOverflowError`）两条路径，经 `compaction.create` 立占位、下一轮 `runLoop` 从任务队列派给 `compaction.process`。压缩的产物是"不删数据、只标记 + 重排 + 锚定摘要"的两级机制。
 
-这一段的完整实现（`PRUNE_MINIMUM`/`PRUNE_PROTECT`/辅助干摘要/`filterCompacted` 重排）就在前面讲过的 [OpenCode 上下文压缩：Compact 2 级机制](/opencode/04-compact)。这里只需记住它在装配链里的位置：System Prompt + 持久知识 + 对话构成"能装下的"，溢出与压缩决定"装不下时怎么办"。
+这一段的完整实现（`PRUNE_MINIMUM`/`PRUNE_PROTECT`/辅助干摘要/`filterCompacted` 重排）就在前面讲过的 [OpenCode 会话压缩：Compact 2 级机制](/opencode/04-compact)。这里只需记住它在装配链里的位置：System Prompt + 持久知识 + 对话构成"能装下的"，溢出与压缩决定"装不下时怎么办"。
 
 ### 5.3 Prompt Caching 的架构收益：不是独立 cache 层
 
