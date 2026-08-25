@@ -20,7 +20,7 @@ title: OpenCode 源码精读
 | 4 | [上下文压缩：Compact 2 级机制](/opencode/04-compact) | 源码解析 | ~14,000 字 |
 | 5 | [Agent 系统：SubAgent 的委派、隔离与边界设计](/opencode/05-agents) | 源码解析 | ~13,000 字 |
 | 6 | [上下文架构：持久知识、按需注入与窗口预算](/opencode/06-context) | 源码解析 | ~13,000 字 |
-| 7 | [plan-execute-verify 编排机制](/opencode/07-plan-execute-verify) | 源码解析 | ~13,000 字 |
+| 7 | [编排模式：plan-execute-verify 的角色拆分、硬边界与验证关卡](/opencode/07-plan-execute-verify) | 源码解析 | ~13,000 字 |
 
 ## 关于系列
 

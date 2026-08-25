@@ -1,523 +1,269 @@
 ---
-title: OpenCode 魔法开关：plan-execute-verify 编排机制解剖
+title: OpenCode 编排模式：plan-execute-verify 的角色拆分、硬边界与验证关卡
 ---
 
-# OpenCode 魔法开关：plan-execute-verify 编排机制解剖
+# OpenCode 编排模式：plan-execute-verify 的角色拆分、硬边界与验证关卡
 
-被面试官追问「**你的 Agent 是怎么防止它瞎改代码的？怎么保证它跑的每一步都是对的？**」的时候，很多人只能答出「我们让 LLM 自己链式思考、一步步改、然后用眼睛 review」。
+一个单循环 agent 在真实工程里反复地撞上两堵墙。第一堵是**范围漂移**：它一边读代码定位问题、一边动手改、一边又回头查文档，读和写的角色混在一炉，改着改着就偏离最初的目标。第二堵是**验证缺口**：模型在最终答复里说"完成了、测过了"，但没有任何机制去证明这句话，用户只能选择相信。
 
-但当你真的面对一个几万行的代码库，单靠一个主循环里的模型上下文去推，很快就会撞上三个墙：
+本系列前几篇把 OpenCode 内核的 runLoop、工具系统、Agent 系统、上下文架构都拆过了。这一篇换一个载体：一个构建在 OpenCode 之上的开源插件 `oh-my-openagent`（4.9.2），它把"一个单体 agent"重构成"一支分工明确、有状态、有验证关卡的小团队"。这套编排并没有给内核加新的魔法，它做的是**用原生的积木搭出 plan / execute / verify 三种有界角色**，再给每个角色配一个硬约束——Plan 用只读硬边界，Execute 用状态机，Verify 用对抗性验证关卡。三条约束正好各自堵住上文提到的两种失败模式。下文沿这条"证明链"往下拆：先定义问题，再看三态如何分工、每态怎么被硬边界锁住，最后落回这套编排对原生内核的启示。
 
-- **上下文溢出**——对话历史越来越长，模型开始「忘掉」前面的范围与约束
-- **认知漂移**——主 agent 一边读代码、一边写代码、一边查文档，角色混乱，越改越偏
-- **验证缺口**——模型说「完成了」，但你没有任何机制去证明它真完成了，只能无脑相信它的「我测过了」
+## 一、单循环 Agent 的两个失败模式
 
-本系列前几篇已经把 OpenCode 的底子扒干净了：runLoop（[02-runLoop](/opencode/02-runloop)）、工具系统（[03-tools](/opencode/03-tools)）、Agent 系统（[05-agents](/opencode/05-agents)）、上下文架构（[06-context](/opencode/06-context)）。这一篇我们要回答一个更「工程化」的问题：
+先把问题摆清。原生 runLoop 已经是一个"感知 → 推理 → 行动 → 反馈"的闭环，模型在这个循环里既能读文件、也能改文件、还能跑命令。那为什么还需要在它外面再叠一层 plan-execute 编排？因为单循环本身同时把两种失败模式放进了同一个上下文。
 
-> **OpenCode 是怎么把「规划 → 执行 → 验证」组织成一个可落地、可恢复、可对抗模型幻觉的编排机制的？**
+### 1.1 范围漂移：边读边写、角色混乱、越改越偏
 
-答案不只在 OpenCode 内核里，更在一个**基于 OpenCode 构建的开源插件——`oh-my-openagent`** 里被推到了极致。
+想象你让一个单循环 agent 去"重构 auth 模块，顺便加个限流"。它通常的轨迹是：读二十来个相关文件 → 在上下文里攒出一套理解 → 直接开始 `Edit` 十几个文件 → 中途发现某个依赖要查，再回头看代码 → 改着改着，最初那条"不要动数据库 schema"的约束从上下文里被挤掉了。这不是模型笨，而是它把"设计决策"和"逐文件修改"塞进了同一个上下文，每读一个文件产出的新理解都在悄悄改写它自己对目标范围的心智模型。
 
-这是一个把「一个单体 agent」重构成「一支有分工、有状态、有验证关卡的小团队」的完整案例。
+范围漂移的本质是**决策与执行不分开**。一个同时握有"决定改哪里"和"实际动手改"两种权力的 agent，会在执行过程中不断重新解释自己手里的范围——因为它每读一个文件，目标就可能被微调一次。这也让任务的可复现性变差：同样的需求，上一轮和下一轮可能收敛到完全不同的改动面。
 
-看完这篇，你会 get 到四个问题：
+### 1.2 验证缺口：模型说"完成了"，但没人证明
 
-- 第一，**plan / execute / verify 三个角色是怎么被拆成独立 Agent 的**——Prometheus 只做规划，Atlas 只做调度，Sisyphus-Junior 只做执行
-- 第二，**「只读规划」是怎么被硬强制实施的**——不是靠提示词，而是靠 `tool.execute.before` 钩子 throw
-- 第三，**「模型说做完了」怎么被验证的**——COMPLETION GATE + VERIFICATION_REMINDER 的对抗性验证协议
-- 第四，**OpenCode 原生给了什么，插件又补了什么**——你能在原生 API 上实现同样的东西吗
+第二个失败模式更隐蔽。模型在最终答复里写下"完成了"，这句话在单循环里就是一个终结信号——控制流直接交还给用户，没有任何一方去核对"完成"是否成立。模型高估自己改动质量的倾向是 base rate 级别的，它给测试的乐观、它对某个边界的忽略，都不会被纠正，因为**验证和执行共享同一个上下文、同一套先入为主**。
 
-我们会逐个拆，这次照旧不藏着掖着。
+这里先排除一个误读：验证缺口不等于没有测试。模型确实会"跑测试"，但"跑了一遍测试且通过"和"独立于改动者的第三方去按验收标准证明它完成"是两件事。前者是自证，后者才是关卡。
 
+### 1.3 为什么单单一个 runLoop 堵不住
 
-## 零、先认识一下这支队伍的成员
+runLoop（见本系列第二章）的设计目标是"不间断地把一轮工具调用跑完"，它没有区分规划态、执行态、验证态。它把三种不同的脑力负担——想清楚要做什么、照着做出来、证明做的对——揉进同一条循环，于是两个失败模式同时得手：范围漂移来自"决策权与执行权不分"，验证缺口来自"自证代替了关卡"。
 
-在直奔机制之前，值得先给这个插件的 agent 名片认一眼——因为它是理解后面所有分工的「人设表」，而且命名**中二到让人会心一笑**：它把一整支希腊神话天团塞进了 IDE 里。
+这一段推理逼出一个结论：要想同时堵住两种失败模式，系统需要把单一循环拆成**有界的三阶段**——只规划、只执行、只验证，每个阶段用一个独立的角色承担、用一道硬约束把它的操作范围钉死。这就是下面三节逐层展开的设计。
 
-`oh-my-openagent` 一共定义了 **11 个 agent**，主 primary 有 4 个、subagent 有 7 个：
+## 二、拆成三态：plan / execute / verify 的角色分工
 
-| Agent | 定位 |
-|-------|------|
-| **Sisyphus** | 主 agent · 默认执行者 |
-| **Hephaestus** | 主 agent · deep worker |
-| **Prometheus** | 主 agent · **规划师** |
-| **Atlas** | 主 agent · **指挥者 / dispatcher** |
-| **Sisyphus-Junior** | subagent · 任务执行 worker |
-| **Oracle** | subagent · 架构顾问 |
-| **Explore** | subagent · 只读代码搜索 |
-| **Librarian** | subagent · 文档 / OSS 调研 |
-| **Metis** | subagent · 顾问 / 缺口分析 |
-| **Momus** | subagent · 评审官 |
-| **Multimodal-looker** | subagent · 视觉 / UI 审查 |
+顺着上一段的推理，编排的第一步是把三阶段物化成三个独立角色，并给每个角色一份明确的"什么能做、什么绝对不能碰"的操作边界。oh-my-openagent 在 OpenCode 的 Agent 机制上（第五章已讲）用插件注册了整套角色名册。这里不谈全量名册，只留与论证主线直接相关的三个核心角色，机制比名单重要得多。
 
-分工的逻辑其实很简洁：**Prometheus 只负责「策划」不负责「动手」，Atlas 一个人扛起整个计划的执行，Sisyphus-Junior 是埋头干活的 worker**。按使用的是「哪一类模型用在哪个角色」来配套（强的给规划 / 评审，轻量的给检索等），但这不是本节的要点——记住分工，后面看源码时就能对上号。
+### 2.1 三态 = 三角色：只规划 / 只执行 / 只验证
 
----
+三阶段各有专职角色：**Plan** 端是只读规划师 Prometheus；**Execute** 端分为指挥者（orchestrator）与执行者（worker）；**Verify** 端是验证关卡。三态各自隔离操作范围——规划师不写产品代码，执行者不自己决定范围，验证者不信任任何人的"完成"二字。
 
-## 一、问题定义：为什么单循环 Agent 会撞墙
+把这三者放一起看，背后是一条明确的分工原则：**让握有范围定义权、实际改动权、结果评判权的三个实体互相独立**。拆开之后，任何一个角色的上下文被污染，都不至于传染到另外两个——这直接对抗第一节的两个失败模式：范围定义权被隔离在规划态，改动权被隔离在执行态且受计划约束，评判权被隔离在验证态且不信任执行者的自述。
 
-先想清楚一个问题：OpenCode 的 runLoop 本身已经是个「**感知→推理→行动→反馈**」的闭环了。那为什么还需要一个更外层的「plan-execute 编排」？
+### 2.2 角色的操作边界 = allowed-tools 白名单
 
-随便引一个典型翻车现场：
+角色划分不是靠提示词，而是靠 OpenCode 原生的工具白名单。插件在运行时解析每个 agent 的 `allowed-tools`（`parseAllowedTools`，见 `// 位置：oh-my-openagent@4.9.2/dist/index.js:98067`），把"这个角色能用哪些工具"固化成一份可执行的清单。白名单的好处是它是硬约束：不在名单里的工具，模型连调用入口都拿不到。
 
 ```
-用户：给我把 auth 模块重构一下，顺便加个限流。
-Agent：好，我先看一下代码...（读了 30 个文件）
-Agent：我准备这样改：（写了一段计划）
-Agent：开始改...（直接 Edit 了 10 个文件）
-Agent：我加了个限流中间件，还写了个测试，应该没问题了。（结束）
-```
-
-问题在哪？
-
-**1. 规划没有独立成「可签名、可复用、可持续」的工件。** 上面的「计划」只存在于模型自己的上下文里，用户没有机会逐条 review、修改、拦截。任务一长，计划就飘。
-
-**2. 执行和规划挤在同一个上下文里。** 模型读代码、写计划、改代码、跑测试全在一个 session 里发生。上下文一长，最开始的「不要动数据库 schema」这种约束就被挤掉了——这就是**认知漂移**。
-
-**3. 「验证」只靠模型自说自话。** 模型说「测过了」，但它没有独立于自己的动作来证明。一个被 prompt 固有偏置影响的模型，会不自觉地高估自己改的代码的质量。
-
-所以真正工程化的解法是：**把「想」「做」「验」三个本来就不同的脑力负担，拆成三个不同的上下文/角色/agent，并用一个持久化的状态机把它们组装起来。** 这正是 `oh-my-openagent` 的整个产品内核。
-
-它的核心抽象就一句话（来自官方调研文档 `docs/guide/orchestration.md`）：
-
-> 把简单的 AI agent 变成一个协调的开发团队——**通过「规划与执行分离」**。
-
-## 二、整体架构：三阶段 + 三角色
-
-让我们画一张总图，先把「谁在什么阶段干什么」看清楚。
-
-```mermaid
-flowchart TB
-    subgraph PLAN["① 规划层（只读）"]
-        User1(("用户"))
-        Prom["Prometheus<br/>规划师<br/>采访 + 研究"]
-        Metis["Metis<br/>顾问<br/>缺口分析"]
-        Momus["Momus<br/>审查官<br/>质量把关"]
-        Orac["Oracle<br/>架构师<br/>独立复核"]
-        User1 -->|"描述需求"| Prom
-        Prom -->|"咨询"| Metis
-        Metis -->|"补缺"| Prom
-        Prom -->|"交叉提问"| User1
-        Prom -->|"反复修改"| Momus
-        Prom -->|"反复修改"| Orac
-        Momus -->|"OKAY/REJECT"| Prom
-        Orac -->|"OKAY/REJECT"| Prom
-        Prom -->|"写出"| PlanFile[".omo/plans/*.md"]
-    end
-
-    subgraph EXEC["② 执行阶段（调度器）"]
-        Start["/start-work<br/>命令钩子"]
-        Start --> Atlas["Atlas<br/>指挥者<br/>orchestrator"]
-        Atlas -->|"读计划"| PlanFile
-    end
-
-    subgraph WORKERS["Worker 层（专用执行者）"]
-        Junior["Sisyphus-Junior<br/>任务执行者<br/>写代码"]
-        Oracle2["Oracle<br/>架构建议"]
-        Explore2["Explore<br/>只读检索"]
-        Lib2["Librarian<br/>文档调研"]
-    end
-
-    subgraph VERIFY["③ 验证阶段（把关）"]
-        Gate["COMPLETION GATE<br/>改 checkbox + 重新 Read"]
-        Vrem["VERIFICATION_REMINDER<br/>认定子 agent 在说谎"]
-        Progress["boulder.json<br/>X of Y 进度"]
-        FinalWave["Final Verification Wave<br/>F1-F4 终审"]
-        Human("「只有这里才需要用户点头」")
-    end
-
-    Atlas -->|"task(category/…)"| Junior
-    Atlas -->|"task(subagent_type=…)"| Oracle2
-    Atlas -->|"task(subagent_type=explore)"| Explore2
-    Atlas -->|"task(subagent_type=librarian)"| Lib2
-    Junior -->|"结果 + Learnings"| Atlas
-    Atlas -->|"验证每个 worker 结果"| Gate
-    Gate -->|"失败则复用会话修复"| Junior
-    Gate -->|"通过"| Progress
-    Progress -->|"最后终审"| FinalWave
-    FinalWave -->|"全部通过"| Human
-    Human -->|"点头"| Done((完成))
-```
-
-图里最值得注意的有两点：
-
-1. **流程是「单向的、分层的」**：规划层只产出一个文件（`.omo/plans/*.md`），执行层只消费这个文件，验证层只认这个文件里的 checkbox。三层的「契约」是个**磁盘上的 Markdown 文件**，而不是进程间的内存对象。
-2. **验证层存在一个「模型完成即说谎」的默认怀疑假设**——这个假设我们在第五节细讲。
-
-下面按三个阶段，从源码逐行拆。
-
----
-
-## 三、Plan 阶段：把「规划权」从执行权里剥出来
-
-### 3.1 Prometheus：一个「只读 + 只能写 .omo/plans/*.md」的心智
-
-在 `oh-my-openagent` 里，规划者是叫 **Prometheus** 的 agent（寓意「盗火者」）。它的定位在 `packages/prompts-core/prompts/prometheus/default.md` 里被写死：
-
-> You are Prometheus, a planning consultant… You are a **PLANNER**. You read, search, and write only plan artifacts under `.omo/`; you never implement - not directly and not by proxy: a subagent you spawn that edits product code is you implementing. Plan mode is sticky: 'do X' / 'fix X' / 'just do it' all mean 'plan X' — execution belongs to a separate worker that only the user starts (such as `/start-work`), and no subagent you dispatch is ever that worker.
-
-翻译过来：**规划师绝不能实现**。这种「实现必须由执行工作流来」的硬隔离，是整套编排的基石。它的权限配置（`packages/omo-opencode/src/agents/prometheus/system-prompt.ts:3-8`）：
-
-```ts
-PROMETHEUS_PERMISSION = { edit: "allow", bash: "allow", webfetch: "allow", question: "allow" }
-```
-
-注意，这里 `edit: "allow"` 是**全局**开放的——你光靠这个字段根本无法约束它只能写 plan 文件。真正的约束在**钩子（hook）**，也就是下一节那个会 throw 的 `prometheus-md-only` 钩子。
-
-### 3.2 硬边界：`tool.execute.before` 钩子 throw，而不是「提示词劝退」
-
-这是整套编排里「最狠」的地方，也是源码精读必须看的一行。`packages/omo-opencode/src/hooks/prometheus-md-only/hook.ts` 给每一个 `tool.execute.before` 挂了逻辑：
-
-```ts
-// packages/omo-opencode/src/hooks/prometheus-md-only/hook.ts
-"tool.execute.before": async (input, output) => {
-  const agentName = await getAgentFromSession(input.sessionID, ctx.directory, ctx.client)
-  if (!isPrometheusAgent(agentName)) return            // 只有 Prometheus 才管
-
-  if (TASK_TOOLS.includes(input.tool)) {
-    // 若是 task/call_omo_agent → 给子 agent 注入"只读规划"警告
-    ...
-  }
-
-  if (!BLOCKED_TOOLS.includes(input.tool)) return      // 非 Write/Edit 放行
-  const filePath = output.args.filePath ?? ...          // 取要写的文件
-  if (!isAllowedFile(filePath, ctx.directory)) {
-    throw new Error(
-      "[prometheus-md-only] Prometheus is a planning agent. "
-      + "File operations restricted to .omo/*.md plan files only. "
-      + "Do NOT route this change through a subagent either - "
-      + "delegated implementation is still implementation."
-    )
-  }
-  ...
+// 位置：oh-my-openagent@4.9.2/dist/index.js:98067
+function parseAllowedTools(allowedTools) {
+  // 把 agent 配置/文件的 "allowed-tools": [...] 解析成工具白名单
+  // 后续按 agent 名查表，决定把哪些工具暴露给该 session
 }
 ```
 
-关键点：
+工具白名单与三态分工互为表里：规划师的白名单天然不含产品代码写入工具，执行者白名单里没有"改范围"的入口。这张白名单是"边界"的运行载体——下面每一节讲的具体硬约束，都要落在它之上。
 
-- **它是硬裁决，不是软约束。** 一旦 Prometheus 试图写 `.omo/plans/*.md` 之外的任何文件，钩子直接 `throw`。OpenCode 的工具执行会把这个异常当作该次工具调用的失败，写不出去。
-- **它的范围判断在独立的 `path-policy.ts`**：`isAllowedFile()` 解析绝对路径，拒绝逃出工作区（`rel.startsWith("..")`），只允许路径含 `.omo` 段，且扩展名必须在 `ALLOWED_EXTENSIONS = [".md"]` 里。
-- **它连「派子 agent 去改代码」也堵死了。** `TASK_TOOLS = ["task", "call_omo_agent"]`，任何 Prometheus 发起的委托，都会被打上 PLANNING_CONSULT_WARNING，提示子 agent「你在被一个只读规划师调用，请只提供规划建议，不要实现」。
+### 2.3 只保留与主线相关的核心角色
 
-这就把「规划只读」从「提示词劝告」升格成了「进程级硬约束」——这是每一个把 Agent 当产品做的工程师都该学的。
+插件注册了十几个 agent（希腊神话命名），但论证主线只需关注三个：规划师（plan）、指挥者 + 执行者（execute）、验证关卡（verify）。名册里其余的角色（顾问、评审、检索、视觉审查等）服务于更精细的分工，但对"范围漂移 / 验证缺口"这条主线不构成新的设计论点。下文只在这三个核心角色上展开——选择性地砍名册、留机制，因为这一章的要点是"编排的骨架"而不是"插件有多少种开会方式"。
 
-### 3.3 计划的「工件格式」：Markdown + 一串严格的 checkbox
+## 三、Plan：只读规划是怎么被"硬强制"实施的
 
-一个好的规划，必须能被「机器判读」。`oh-my-openagent` 对 `.omo/plans/*.md` 的解析/验证逻辑在同一串正则里（`packages/boulder-state/src/plan-checklist.ts:5-12`）：
+规划态是整套编排的起点，也是范围漂移的防线。它的设计要点在于：**规划权必须从执行权里剥出来**，并且这个剥离不能只靠提示词，要用硬边界锁死。
 
-```ts
-const TODO_HEADING_PATTERN = /^##[ \t]+TODOs(?:[ \t]+#+)?[ \t]*$/i
-const FINAL_VERIFICATION_HEADING_PATTERN = /^##[ \t]+Final Verification Wave(?:[ \t]+#+)?[ \t]*$/i
-const TODO_CHECKBOX_PATTERN = /^- \[([ xX])\] ([1-9]\d*\. .+)$/            // - [ ] 1. 限流
-const FINAL_WAVE_CHECKBOX_PATTERN = /^- \[([ xX])\] (F[1-9]\d*\. .+)$/i   // - [ ] F1. 计划合规审查
-```
+### 3.1 为什么"规划权"要从"执行权"里剥出来
 
-所以一份「合法」的 `.omo/plans/*.md` 至少要有两大块（大小写不敏感）：
+复用第一节的场景：一个既能规划又能执行的 agent，"打算怎么做"和"实际怎么做"在它脑子里没有分界。它可能一边写计划、一边就把计划里的改动顺手做了——而一旦开始做，范围就在执行中被悄悄改写。剥出来的好处是：**规划只在只读的意义上接触项目**，它产出一个可被审阅、可被存档的工件，而不是把理解直接折进修改动作里。规划师的任务是"把要做什么钉死成一份文件"，不是"开始实现"。
 
-```markdown
-# auth-refactor - Work Plan
-
-## TL;DR
-（给人看的一句话）
-
-## Scope
-## Verification strategy
-## Execution strategy
-
-## TODOs
-- [ ] 1. 抽出认证服务
-- [ ] 2. 加限流中间件        ← 每个实现任务，裸数字编号 `N.`
-
-## Final Verification Wave
-- [ ] F1. 计划合规审查
-- [ ] F2. 安全边界审查
-- [ ] F3. 回归风险审查   ← 终审任务，前缀 `F<n>.`
-```
-
-两个细节特别妙：
-
-1. **`Progress` 不是单独一张数据库表**。`X of Y` 进度是实时解析 Markdown 里 checkbox 数出来的（`getPlanProgress()` → `parsePlanChecklist()`）。所以「Plan 文件本身就是唯一事实源（source of truth）」，任何钩子都强制重新 `Read` 计划文件来判断进度，而不是看图。
-
-2. **每个实现任务还可以带一行 `Recommended task executor category`**，用来告诉调度器该用哪一类 worker 去做（`quick`/`unspecified-low`/`deep`/…）。这就是「计划」（策略）和「执行委派」（战术）通过文件形成松耦合的衔接。
-
-### 3.4 规划不是一次过的：采访 + 顾问 + 双评审
-
-`oh-my-openagent` 把「把清楚的计划写出来」拆成了更细的面试式流程：
-
-- **Prometheus（规划师）**：先采访用户、先读代码，把需求模糊点问清楚，产出计划草案。
-- **Metis（顾问）**：强制做缺口分析——它专门抓规划师的 **ADHD 工作记忆** 里没落到纸面上的隐形假设、缺失验收标准、AI-slop（过度设计、范围蔓延）。
-- **Momus + Oracle（评审）**：在高精度模式下，两人独立 review 计划。Momus 负责「计划的质量门」（只拒绝已证实的拦路虎），Oracle 负责「最强推理模型的独立复核」。任何一位说 REJECT，Prometheus 都要修完问题再重新提交，没有重试上限。
-
-> 这也是一个很实际的工程取舍：**Prometheus / Metis 等规划角色可以配对「强推理或多模态」的中坚模型来压低成本，而评审环节的 Momus / Oracle 才值得上最强推理模型**。花钱买清楚，而不是买蛮力。规划阶段多磨一个字的边界，执行阶段就能少返工十行代码。
-
-**Plan 阶段的产出永远只有一个东西：一个通过校验的 `.omo/plans/*.md` 文件。** 它像一个契约，把「想清楚了」这件事物化了，交给下一阶段。
-
----
-
-## 四、Execute 阶段：/start-work → boulder → Atlas 指挥 + worker 执行
-
-规划完了，但**谁去执行、按什么顺序、怎么恢复中途崩溃**？这是 execute 阶段的核心。
-
-### 4.1 `/start-work` 钩子：把 session agent 切成 Atlas
-
-执行有一个跨会话的入口命令 `/start-work`（`packages/omo-opencode/src/hooks/start-work/start-work-hook.ts`）。它一旦识别到命令文本里带 `You are starting an Atlas work session.` 这类标记，就会：
-
-```ts
-// start-work-hook.ts（节选，关键 4 行）
-const activeAgent = isAgentRegistered("atlas") ? "atlas" : "sisyphus"
-updateSessionAgent(input.sessionId, activeAgent)          // ① 把 session agent 切换成 Atlas
-...
-const existingState = readBoulderState(ctx.directory)      // ② 读 boulder 状态
-const { planName, ... } = parseUserRequest(promptText)     // ③ 解析 --worktree/--make-pr/--ship 等 flag
-```
-
-这个钩子里还做了「INIT vs RESUME」的双分支（`/start-util` / `plan-discovery-context.ts`）：
-
-- **INIT**（没有现存工作）：找 `.omo/plans/` 里最近的计划 → 调 `createBoulderState()` 建一个新 `boulder.json` → 从任务 1 开始执行。
-- **RESUME**（已有 boulder.json 且没做完）：读出 `Progress`（X/Y 完成）→ 注入「RESUMING existing work」提示 → Atlas 从断点继续。
-
-> **为什么「崩了能续上」这么重要？** 因为 LLM 会话极其脆弱（进程崩、关机、token 超限被截断都算）。你不可能接受「刚写了一半的代码，因为重启就全部重讲一遍」。把进度持久化在磁盘的 `boulder.json` 里，就是一种「工程式的状态恢复」。
-
-### 4.2 boulder.json：编排的状态机
-
-`boulder.json` 是 execute/verify 阶段的状态中枢（`packages/boulder-state/src/storage/write-state.ts`）：
-
-```ts
-createBoulderState(...)     // => { schema_version: 2, works: { <workId>: { status: "active",
-                           //      session_ids, started_at, plan_name, task_sessions: {} } } }
-```
-
-- `works` 是一个 map，键是 `work_id`，值描述一次工作：**状态（active）、参与的 session、开始时间、对应计划名、每个任务和 session 的映射**。
-- 它同时还自动在 `.omo/` 下生成一个 `.omo/.gitignore`（`*`，只放行 `rules/`），既保护状态文件不被拖进 git，也标注「这是一片独立的工作区」。
-
-这样一来，「现在做哪件事、做了几件、谁在做」就是**可查询、可恢复**的，而不是藏在某个 LLM 的上下文里。
-
-### 4.3 Atlas：指挥者，从不亲自动手
-
-`Atlas` 是 execute 阶段的主 orchestrator。强调「**指挥者不干活**」，看它的职责清单（`docs/guide/orchestration.md`）：
-
-| Atlas 可以（直接做） | Atlas 必须委派（不能碰） |
-|---|---|
-| 读文件理解上下文 | 写/编辑代码文件 |
-| 跑命令验证结果 | 修 bug |
-| 用 `lsp` 查错误 | 创建测试 |
-| grep/glob/ast-grep 检索 | git commit |
-
-它靠一个工具箱 `task()` 把工作分发给 worker（`packages/omo-opencode/src/tools/delegate-task/`）：
-
-- `task(category="deep")` → 走 **Sisyphus-Junior**，按「意图」的语义类别路由模型
-- `task(subagent_type="explore")` → 派那个只读检索 agent
-- `task(subagent_type="oracle")` → 架构咨询
-
-**Category 是本插件最有意思的设计之一**。它不叫「用 gpt-5 跑这种任务」，而是「**描述意图**」（`docs/guide/orchestration.md`）：
-
-```ts
-// OLD：模型名带来分布偏误
-task({ agent: "gpt-5.6-sol", prompt: "..." })     // 模型知道自己的"身份"
-// NEW：category 描述意图
-task({ category: "ultrabrain", prompt: "..." })  // "战略性思考"
-task({ category: "visual-engineering", prompt: "..." }) // "交给会做 UI 的"
-task({ category: "quick", prompt: "..." })       // "快点搞定"
-```
-
-`category` → 模型 的映射在 `categories.ts` 里按「user override > 内置默认」解析——比如 `visual-engineering` 走多模态模型、`deep` 走强推理模型、`quick` 走低延迟模型。这实现了「**一处声明意图，多路模型路由**」的解耦。
-
-一条更狠的限制：`sisyphus-junior` 是**不能自己再委派的**（preflight 里会拒绝 `task(subagent_type="sisyphus-junior")` 这种请求）。这样 worker 是「单层」的——执行者没有递归，也就没有递归爆炸。
-
-### 4.4 Sisyphus-Junior：执行、专注、但用 todo 续命
-
-worker 主力叫 `Sisyphus-Junior`（西西弗斯，推石头——命名暗示「如果不 push，石头就滚回山脚」，系统会提醒它把活干完）：
-
-- `Focused`：不能委派（被 task 工具挡住）
-- `Disciplined`：被迫 obsessively 跟踪 todo
-- `Verified`：完成前必须过 `lsp_diagnostics`
-- `Constrained`：不能改计划文件（只读）
-
-它的「不要半途而废」靠一个系统提示（来自公开文档的 `System Reminder` 机制）去「推石头」：
+规划师的核心约束用一句话写在它的指令里（`// 位置：oh-my-openagent@4.9.2/dist/index.js:82092`）：
 
 ```
-[SYSTEM REMINDER - TODO CONTINUATION]
-You have incomplete todos! Complete ALL before responding:
-- [ ] Implement user service  ← IN PROGRESS
-- [ ] Add validation
-- [ ] Write tests
-DO NOT respond until all todos are marked completed.
+REFUSE. Say: "I'm a planner. I create work plans, not implementations. Run `/start-work` after I finish planning."
 ```
 
-这一整套「规划者只写、调度者只指派、执行者只实现」的分权，就是 **plan-execute**（第二阶段应用）的骨血。
+当用户让规划师"直接实现"时，它会明确拒绝并引向 `/start-work` 执行入口。这句话把"规划师不实现"从一句建议升成了一个不可规避的行为锚点。
 
----
+### 3.2 两层强制：prompt 软约束 + 白名单硬边界
 
-## 五、Verify 阶段：如何不被「模型说完成了」骗到
-
-Execute 只解决「按计划做」，但无法保证「做的对」。Verify 阶段是 `oh-my-openagent` 里最出彩、也最反直觉的部分——**它默认模型会撒谎（或者至少会高估自己）**。
-
-### 5.1 COMPLETION GATE：进度不是「子 agent 说完了」就算
-
-每次一个 worker 干完一个任务，Atlas 都会给它一个 **COMPLETION GATE**（`verification-reminders.ts` `buildCompletionGate`），核心是：
+只靠 3.1 那行 REFUSE 是不够的——提示词是软约束，模型不听话就破功。所以在这之外还要有一层硬的：**只读工具 + 写范围白名单**。规划师的工具表明确写明（`// 位置：oh-my-openagent@4.9.2/dist/index.js:82077`）：
 
 ```
-你的完成度只有在完成以下全部时才会被记录：
-1) Edit 计划文件 .omo/plans/<name>.md：把该任务 - [ ] → - [x]
-2) 再 Read 一次计划文件：确认 checkbox 数真变了
-3)（在完成 1、2 之前）不允许再调 task()
+| Tool | Allowed | Blocked |
+|------|---------|---------|
+| Write/Edit | `.omo/**/*.md` ONLY | Everything else |
 ```
 
-看出来了吗？**「成功」的唯一证据，是一个磁盘文件里的 checkbox 从「未勾选」变成「已勾选」**。它故意不让你拿「我改完代码了」这种话当完成，而强迫你去戳更新那个全局事实。任何失败都用 `task(task_id=...)` 复用同一个子会话去修，而不是开新会话（保持上下文，省 token）。
+它在 `dist` 侧的常量化（`// 位置：oh-my-openagent@4.9.2/dist/index.js:104308`）：
 
-### 5.2 VERIFICATION_REMINDER：默认模型在说谎
+```js
+var ALLOWED_EXTENSIONS = [".md"];
+var BLOCKED_TOOLS = ["Write", "Edit", "write", "edit"];
+```
 
-这才是验证的灵魂。在 `system-reminder-templates.ts` 里，`VERIFICATION_REMINDER` 的开头是：
+`BLOCKED_TOOLS` 列出需要拦的写入工具，`ALLOWED_EXTENSIONS` 只放行 `.md`——规划师只能写 `.omo/` 下的 markdown 计划文件，除此之外一切写入都被拒。这套"写范围白名单"由 `prometheus-md-only` 钩子挂在 `tool.execute.before` 上强制执行（const 常量见 `// 位置：...:104308`），一旦规划师试图写 `.omo/*.md` 之外的任何路径，钩子就会 throw 拦截这次调用并抛一个明确原因的拒绝消息（`// 位置：oh-my-openagent@4.9.2/dist/index.js:105233`）：`[prometheus-md-only] Prometheus is a planning agent. File operations restricted to .omo/*.md plan files only.` 这个"只准写计划但禁止实现"的状态在别处也被标注成 `plan-mode-only`（`// 位置：oh-my-openagent@4.9.2/dist/index.js:63133` 的合法性拒绝文案），它和钩子 throw 是**同一条规则在不同通道上的两个表述**——63133 拦的是规划师往队内通道发写操作，钩子 throw 拦的是写文件，两者的判定依据都是"plan-mode-only"。连"派一个子 agent 去代写"也被堵死——`PLANNING_CONSULT_WARNING` 会被注入到规划师发起的顾问子 agent，明确告之"你在被一个只读规划师调用，只提供分析，不要实现"。
 
-> **THE SUBAGENT JUST CLAIMED THIS TASK IS DONE. THEY ARE PROBABLY LYING.**
-> Assume the work is broken until YOU prove otherwise.
+两层为什么都要：**prompt 软约束给模型一个可理解的"为什么不行"，白名单硬约束保证模型"破不了"**。前者管"情愿"，后者管"能力"——即使模型因为某种理由想越界，它也没法越过白名单。
 
-跟着是四段「证明机制」：
+### 3.3 计划的工件格式：checkbox 是可审计的进度载体
 
-- **PHASE 1: READ THE CODE** — `git diff --stat -- ':!node_modules'`、Read 每个被改的文件、Grep 找 TODO/FIXME/HACK、`as any`、`@ts-ignore`、空 catch……
-- **PHASE 2: RUN AUTOMATED CHECKS + lsp_diagnostics**（每个改动文件 0 新增错误）、跑测试、build/typecheck 退出码 0
-- **PHASE 3: HANDS-ON QA** — 前端跑 /playwright、TUI/CLI 用交互 bash、后端用 curl
-- **PHASE 4: GATE DECISION** —「我能解释每个改动行的作用？我真的用眼睛看到它工作了吗？有把握没破坏别的吗？全部 YES 才算过，否则 REJECT。」
+规划唯一的落盘产出是 `.omo/plans/*.md`。这份文件不仅是给人看的目标清单，更是整条编排的**契约**：执行端照着它打勾，验证端靠它判断进度。计划里每一项任务都是一个 checkbox（`- [ ] N. 任务`），执行时把它勾成 `- [x]`。计划文件与执行进度的绑定，让"要做什么"从模型的内存落到了磁盘上可审计的文件里——这正是范围漂移的对立面：范围被钉在文件里，而不是飘在上下文里。
 
-它用一种强对抗的姿态，把「验证」从一个选项变成了**关卡**。而这一切都不是靠另一个模型二次审查，而是靠同一个 Atlas 用**确定性工具**（diff + 读 + 跑 lsp/测试）去获取证据。
+这样一份计划文件同时承担三个角色：给人审阅（用户能逐项改）、给机器校验（正则解析 checkbox）、给崩溃恢复（下节 boulder 基于它重建进度）。它是下一阶段 execute 的"唯一事实源"。
 
-> 这里体现了本系列的一个反复主题：**真正安全的「验证」不是靠「更强模型」看一遍，而是靠「会跑的确定性工具」去亲手把证据链抓在手里。** ——这跟 OpenCode 对 `bash` 的信任是一脉相承的。
+## 四、Execute：状态机怎么保证"可恢复 + 不偏离"
 
-### 5.3 终审 Final Wave + 唯一的用户审批点
+规划态产出计划文件后，执行态接手。执行态的设计要回答两个问题：怎么把 session 从"规划"切换成"执行"，以及怎么保证执行是"照着计划来、且崩溃能续"的。
 
-计划文件里开头那个 `## Final Verification Wave`（就是那些以 `F1.`、`F2.` 开头的终审勾选行）就是**终审任务**。当所有实现 todo 都完成后，Atlas 才会转入 F1-F4 终审。
+### 4.1 /start-work 钩子：阶段切换的一次性入口
 
-而且，`buildFinalWaveFinalApprovalReminder` 明确说：这是整套流程里**唯一需要用户交互审批**的时刻——
+规划到执行的切换由命令 `/start-work` 触发。插件在 `chat.message` 钩子里识别这条命令，识别到之后做两件事：一是把当前 session 的 agent 从规划师切成执行端（`updateSessionAgent(input.sessionID, activeAgent)`，其中 `activeAgent = isAgentRegistered("atlas") ? "atlas" : "sisyphus"`），二是读取 boulder 状态决定是初始化还是续跑（`// 位置：oh-my-openagent@4.9.2/dist/index.js:105993`）：
 
-> This is the ONLY point where approval-style user interaction is required…
-> Ask for explicit user approval before editing any remaining final-wave checkboxes or marking the plan complete.
-> **DO NOT mark the final-wave checkbox complete until the user explicitly says okay.**
+```js
+const activeAgent = isAgentRegistered("atlas") ? "atlas" : "sisyphus";
+updateSessionAgent(input.sessionID, activeAgent);   // 切到执行端
+const existingState = readBoulderState(ctx.directory);  // 读编排状态
+```
 
-所以整个流程的「人机协同点」是非常克制的：**前面的执行、自动验证都不打扰你；只在 Final Wave 收尾时，把终审结论 + 剩余风险交给你做最终裁决。** 这就避免了两端的问题——既不让机器脱离人判断，也不让人反复被打断。
+这里用的是 OpenCode 原生的 session-agent 切换能力（`setSessionAgent` / `sessionAgentMap`，`// 位置：...:57104` / `...:57118`）——插件没有改内核，只是在一个明确的命令入口上调用它。`/start-work` 因此是阶段切换的**一次性闸门**：规划态里绝不能绕过它直接开始实现；一旦经过此闸，当前 session 就正式进入执行态。
 
-### 5.4 防跑飞的第三重保险：Anti-runaway
+### 4.2 boulder.json：可查询、可恢复的编排状态机
 
-执行阶段还有一个防「停不下来」的hook（`atlas/tool-progress.ts`）：
+执行态的状态中枢是一份磁盘 JSON：`.omo/boulder.json`。它记录当前 active work 的 `plan_name`、`status`、参与的 `session_ids`、任务-会话映射等（`completeBoulder` 等操作见 `// 位置：oh-my-openagent@4.9.2/dist/index.js:106285`，`plan_name` 读取见 `...:104583`）。这样一个文件把"现在做哪件事、做了几件、谁在做"从某个 LLM 的上下文里抽出来，变成一个**可查询、可恢复**的事实。
 
-- `MAX_BOULDER_CONTINUATION_NO_TOOL_PROGRESS = 3`：如果连续 3 次 idle 自动续跑都没有真正的 `bash/edit/write` 进度，就判定 `stalled` 并中断续跑。
+状态落盘是"崩溃可恢复"的前提。LLM 会话很脆弱：进程崩、关机、token 超限被截断都很常见；如果进度只存在于上下文里，一旦中断就得重头来。把 `plan_name`/进度/会话映射持久化到 `boulder.json`，执行就能在重启后按状态续跑——这是"可恢复"这一设计点的工程落点。
 
-这避免了 Atlas「假装在干活、实际上只是在转圈补 token」的死循环。
+### 4.3 执行端怎么"照着计划打勾"
 
----
+boulder 解决"可恢复"，而"不偏离"靠执行端与计划文件的强绑定。执行者每完成一个任务，不是直接说"我做完了"，而是要**回写计划文件里的 checkbox**：把对应任务的 `- [ ]` 改成 `- [x]`，再 `Read` 一次计划文件确认未勾项确实减少了（`// 位置：oh-my-openagent@4.9.2/dist/index.js:83493`）：
 
-## 六、OpenCode 原生 vs oh-my-openagent：到底谁补了谁
+```
+1. **EDIT the plan checkbox**: Change `- [ ]` to `- [x]` for the completed task in `.omo/plans/{plan-name}.md`
+2. **READ the plan to confirm**: Read `.omo/plans/{plan-name}.md` and verify the checkbox count changed (fewer `- [ ]` remaining)
+```
 
-现在把「插件做的高级编排」和「OpenCode 原生能力」对着比——这能回答一个最常见的困惑：**单靠 OpenCode 你能不能自己做 plan-execute-verify？**
+这招的用意是让执行者**不自由发挥**：进度的锚点始终是计划文件，而非执行者自己的叙述。执行者想推进"完成"，就必须先让计划里对应的项变成已勾——它被强制在写代码之外再做一次"更新计划文件"的动作，这个动作把它拉回计划这个唯一事实源，防止它在执行中悄悄扩大范围。
 
-研究员档（librarian）已结合 opencode 官方文档和 `anomalyco/opencode`（dev 分支）核实了原生的机制：
+### 4.4 执行者的边界：只准按计划做，不准自己改范围
 
-| 能力点 | OpenCode 原生能做什么 | oh-my-openagent 补了什么 |
-|---|---|---|
-| **Plan 阶段** | `plan` agent（`permission.edit: "*": "deny"` 仅 `.opencode/plans/*.md` 放行）| 把「规划权」进一步隔离到 Prometheus，并用 `prometheus-md-only` 钩子**硬 throw** 杜绝任何产品代码写入 |
-| **Plan 工件** | `plan_exit` 后把 `.opencode/plans/*.md` 切回 build agent | 计划文件有规范格式（TODOs + Final Verification Wave）+ 校验钩子 | 
-| **Execute** | `AgentLoop`（`SessionProcessor.process` → `LLMEvent` 流）+ `plan`/`tool` | `/start-work` 钩子 + boulder 状态机 + Atlas 委派 + worker 不可递归 |
-| **上下文恢复** | Snapshot（`snapshot.track `/`patch`）支持 step 级 diff / revert | Continue 崩溃后读 boulder.json 「断点续命」 |
-| **验证** | `lsp` 工具（原生工具名是 `lsp`，诊断是 LSP event）、模型自发跑 bash test | 强化「Completion Gate + Verifier」的硬性过程证明——用 `lsp_diagnostics` 等确定性工具做一次性验证，而不是只靠模型自说自话 |
-| **插件挂点** | 官方钩子 30+（`tool.execute.before/after`、`session.idle`、`session.compacted`……）|全部编排都挂在同这些原生 hook 上 |
+执行角色被进一步约束：它要按计划里的 checkbox 挨个推进，不能被自己读到的代码带偏去改范围。这条边界与第二节的 allowed-tools 白名单一脉相承——执行者手里有"改产品代码"的工具，但没有"改范围定义"的入口；范围的任何变动都得回到规划态（重新起规划师、更新计划文件）才能生效，不能在执行态自我授权。
 
-翻译成一句话：
+于是执行态的"人不偏离"由两条线保证：checkbox 回写把进度钉在计划文件上，boulder 的状态机保证中断后可续、范围可查。执行态把"照着计划做"从一句叮嘱变成了一个持久化的、可核对的过程。
 
-> OpenCode 原生把「能不能做成」的**底层能力**（工具、Agent、快照、钩子）都准备好了，但它本身「**不替你决定要不要严格分离规划/执行/验证**」。`-plugin` 的价值，是在原生钩子上把「会跑、能恢复、能被证明」编排成一整套开箱即用的能力层。
+## 五、Verify：验证关卡怎么挡住"模型说完成了"
 
-如果你要自己照着实现一遍，你需要的 OpenCode 原生三样：
+执行态能"照着计划做"，但不保证"做对了"。这就是验证态的地盘。它的核心信念一反多数系统的"信任但验证"——它**默认子 agent 在撒谎**，于是把"验证"从可选动作变成不可绕过的关卡。
 
-1. 一个**只读 plan agent**（原生就能做，但你要自己用钩子去硬约束写入范围）；
-2. 一套 `tool.execute.before / after` 钩子（原生的），用来当「守门员」；
-3. 一个**持久化**状态载体（比如你自己的 `.json`，或者直接复用 `Session` 的 snapshot）。
+### 5.1 buildCompletionGate：完成必须有证据，不是一句话
 
-换句话说：**机制是原生给的，编排是插件定的。** 这正是可拓展性最好的证明——插件并不是修改 OpenCode 内核，而是在它公开的 hook 面上叠加策略。
+每完成一个任务，验证端会给执行者塞一段 **COMPLETION GATE**（`buildCompletionGate`，`// 位置：oh-my-openagent@4.9.2/dist/index.js:107577`）：
 
----
+```
+**COMPLETION GATE - DO NOT PROCEED UNTIL THIS IS DONE**
+Your completion will NOT be recorded until you complete ALL of the following:
+1. **Edit** the plan file `.omo/plans/{planName}.md`: Change `- [ ]` to `- [x]`
+2. **Read** the plan file AGAIN: verify the checkbox count changed
+3. **DO NOT call `task()` again** until steps 1 and 2 are done.
+```
 
-## 七、工程哲学：为什么「拆角色」能对抗认知漂移
+这一段的含义是：**"成功"的唯一证据，是一个磁盘文件里的 checkbox 从"未勾"变成"已勾"**。完成门并不接受"我把代码改了"这类叙述，它强制执行者在宣称完成之前，用一次写 + 一次读把可核对的进度变化落进计划文件。没走完这道门，执行者的"完成"不会被记录——它直接堵住了"模型说做完了"这种验证缺口的最浅形态。
 
-回顾整篇文章，最值得记住的不是某一个实现，而是三条工程哲学：
+### 5.2 VERIFICATION_REMINDER：默认子 agent 在撒谎
 
-1. **角色分离 = 对抗上下文污染。** 规划者只读、执行者只写、验证者只认证据。每种角色在自己的「小头」里工作是清晰的，不会因为上下文里杂糅了「我既要设计又要写又要测」而崩塌。
-2. **磁盘上的文件是「多 agent 之间的通信协议」。** plan 用 Markdown、progress 用 checkbox、进度在 boulder.json。这不是「为了让 agent 能解析」，更多是为了**人能 review、机器能校验、崩溃能恢复**——信息的载体是文本而不是内存，天然可审计、可复用。
-3. **验证要「可证明」，不只「可相信」。** 用 diff + 读源码 + 跑测试 + 看退出码来证明「做了且做对了」，而不是「模型说做完了」。「最终用户一个审批」放在终审后，是最克制的关注点。
+验证的灵魂在 `VERIFICATION_REMINDER`（`// 位置：oh-my-openagent@4.9.2/dist/index.js:106135`）：
 
-这套设计的本质是：**用一个可测试的状态机，去给一个不可靠的 LLM 当脚手架。** 它的骨架（规划-执行-验证）是通用的，哪怕你不装插件，也能在原生 OpenCode 上用我们第六节提到的钩子最小复刻一个玩。
+```
+**THE SUBAGENT JUST CLAIMED THIS TASK IS DONE. THEY ARE PROBABLY LYING.**
 
-而它给我们的现实启发是：**当你发现「连自己都信不过 agent 的一次性输出」的时候，正确答案不是「换更强模型」，而是「构建一个能自我验证的角色编排」。**
+Subagents say "done" when code has errors, tests pass trivially, logic is wrong,
+or they quietly added features nobody asked for. This happens EVERY TIME.
+Assume the work is broken until YOU prove otherwise.
+```
+
+它把"子 agent 声称完成"当成默认不可信的起点，并要求验证者用确定性工具去证明：`git diff --stat` 看改动范围、`Read` 每个被改文件、Grep 找 TODO/FIXME/@ts-ignore/空 catch、跑 `lsp_diagnostics` 检查每个改动文件没有新增错误、跑测试 / build 看退出码。整套"证明机制"都用可复现的工具产证据——而不是借另一个更强模型"看一眼再判断"。
+
+### 5.3 验证的三重关卡：Completion Gate → 独立 Review → Final Wave
+
+"不信任"被固化成了三道递进的关卡：
+
+- **关卡一：Completion Gate**（5.1）——执行者要逐条自证（checkbox 全勾 + 测试跑过）才允许宣称完成。这一关拦的是"口头完成"。
+- **关卡二：独立 Review**——在关卡一通过后，由执行者之外的独立 agent 按验收标准复跑关键路径，而非执行者自我评估。独立性的意义在于避开 1.2 说的"自证代替关卡"：评判者与执行者上下文不同，不共享执行时的先入为主。
+- **关卡三：Final Verification Wave**——当所有实现 todo 都进入"已勾"，开始收尾的统验批次，它是**把终审结论集中交给用户的唯一审批时刻**（`// 位置：oh-my-openagent@4.9.2/dist/index.js:83534` 附近的计划里 `F1-F4` 终审项，及 `107869` 处 `shouldPauseForApproval` 决定是走 final-wave 审批还是普通完成门）：
+
+```
+Final Wave 任务是 APPROVAL GATES——不是普通任务。
+在所有实现任务完成前，不进入 Final Wave。
+```
+
+于是整套流程里，规划、执行、自动验证不在中途向用户要**审批式**的确认，只有结尾这一次把终审结论交给用户做最终裁决；就算流程中发现有"待用户决策"的分支，也只在需要人工拍板时暂停一次。前面三道关卡把"验证缺口"一层层堵住，用户审批点则把"机器不敢独自拍板"的最后一道门守住。
+
+### 5.4 对抗性设计哲学：为什么默认不信
+
+把 5.1-5.3 放在一起会看到一个共同点：验证不给"信任"留位置。设计者的假设是**幻觉和过度乐观是 base rate**——子 agent 说"完成"时，大概率有某处错了，只是它没看到。所以验证的起点是"默认坏、去证明它好"，而不是"默认好、去抽查它坏"。
+
+这与"信任但验证"的区别很实在：信任模式把举证责任放给执行者（证明自己做对了），对抗模式把举证责任放给验证者（先假设坏，再证明好）。放给验证者更稳，因为验证者手里握的是 `git diff`/`lsp`/测试这类**处置过程可复现的证据链**，而不是执行者那套先入为主的叙述。这套"默认不信"的信念，正是 verify 态之所以能堵住验证缺口的根源。
+
+## 六、这套编排给原生内核的启示
+
+把三阶段走完，回到一个更本质的问题：这套编排到底是插件发明的，还是 OpenCode 原生就能拼出来的？答案更接近后者——原生已经把"积木"备齐，插件做的是把积木按纪律搭起来。
+
+### 6.1 原生给齐了积木，插件只是搭法
+
+OpenCode 原生提供了三样拼装这套编排所需的底层：**工具白名单 + allowed-tools**（决定角色能调什么工具）、**Agent/SubAgent 机制**（第五章已讲，`task` 委派 + 权限派生）、以及 **tool.execute.before/after 等钩子**（把"硬边界"挂在调用生命周期的关卡上）。`prometheus-md-only` 这类钩子写死非 `.omo` 写入，本质是挂在一个原生钩子上做策略判断，没有篡改内核任何一行。
+
+这让"插件可扩展"成为可证结论：机制是原生给的，策略是插件定的。任何想在原生 OpenCode 上做 plan-execute-verify 的人，都能用同一套积木搭出自己的版本——只读规划 agent、写入守门钩子、一个 `.json` 状态载体。
+
+### 6.2 三层硬约束的通用性：只读边界 / 状态机 / 验证关卡
+
+这套编排值得记住的不是某个角色名，而是三条可以迁移到任何 Agent 系统的**通用硬约束**：
+
+| 阶段 | 硬约束 | 堵住哪个失败模式 |
+|------|--------|-----------------|
+| Plan | 只读硬边界（allowed-tools + hook reject） | 范围漂移（决策权不越界） |
+| Execute | 状态机（boulder + checkbox 回写） | 范围漂移（不偏离计划）+ 可恢复 |
+| Verify | 验证关卡（Gate + 独立 Review + Final Wave） | 验证缺口（证明替代自述） |
+
+这三条约束是正交的：只读边界管"不能越界"、状态机管"不偏离且能续"、验证关卡管"完成可证明"。任何一个失败模式都至少被其中一层兜住。这正是第一节那段推理的最短落实——单一循环堵不住的两个问题，被三态各自的硬约束分段堵住。
+
+### 6.3 回扣主线 + 总对比
+
+把论证链收口：**范围漂移**由 Plan 的只读硬边界与 Execute 的 checkbox 回写双重兜底（决策权在规划态被隔离，改动范围在执行态被钉死）；**验证缺口**由 Verify 的对抗性关卡堵住（完成必须有证据、且最终要过用户审批）。三层硬约束，两个失败模式，设计闭环。
+
+| 维度 | OpenCode 原生 | oh-my-openagent |
+|------|--------------|-----------------|
+| 只读规划 | `plan` agent + edit `*: deny` | 可另起只读 agent + hook 硬 reject 非 `.omo` 写入 |
+| 阶段切换 | `/plan`、agent 切换原语 | `/start-work` → `updateSessionAgent` 一次性闸门 |
+| 执行状态 | Session/Snapshot 持久化 | boulder.json 状态机（可恢复、可查询） |
+| 验证 | lsp/bash 等确定性工具 | Completion Gate + 独立 Review + Final Wave 三道关卡 |
+| 兜底哲学 | 提供工具与钩子，不决定策略 | 在原生钩子上把"严格角色分离 + 可证明完成"编排成纪律 |
+
+一句话回扣主线：**这套编排的价值在于用最少的抽象层把"想、做、验"三个本来挤在单循环里的负担拆开，并用只读边界、状态机、验证关卡三道硬约束各自堵住一个失败模式**。它对原生内核的启示是：能抗住范围漂移与验证缺口的，不是更强的模型，而是"决策权、改动权、评判权互相隔离 + 每权都有一道它破不了的硬边界"的编排纪律——所有积木，原生都已给齐。
 
 ## 章节小测
 
 <script setup>
 const q = [
   {
-    question: 'Prometheus「只读规划」到底靠哪一层机制真正闭环？',
-    options: [
-      '靠 permission 把 Write/Edit 的 action 全部设为 deny，并在插件注册时彻底摘除这两个工具',
-      '挂 tool.execute.before：凡写入路径不含 `.omo/*.md` 即 throw，子 agent 代写也拦截',
-      '让规划师换用几乎不具备代码修改倾向的保守小型模型，从能力端压制其写代码冲动',
-      '`plan_exit` 工具并不真正限制写入，它只是让规划期结束时把写权限交回 build agent，从而在形式上保证规划期间绝不落盘任何产品代码'
-    ],
+    question: '范围漂移的本质是「决策权与执行权不分开」。plan-execute-verify 编排是怎么在 Plan 阶段堵住这个风险的？',
+    options: ['让规划师直接实现以最快暴露范围边界', '给规划师只读工具加 hook 硬 reject 非 .omo 写入', '把执行调度权集中到规划师一人避免范围不定', '用更强模型让规划师一次想清楚以消除漂移'],
     correct: 1,
-    explanation: '钩子 + 委托拦截：`prometheus-md-only` 在 tool.execute.before 里用 `isAllowedFile()` 裁定，非 `.omo/*.md` 直接 throw；并对 `task`/`call_omo_agent` 注入规划警告，堵死派子 agent 代写。'
+    explanation: 'Plan 阶段把决策权（规划师）用只读硬边界隔离——allowed-tools 白名单只放行 .omo/*.md，prometheus-md-only 钩子在 tool.execute.before 上拒绝其余写入。这样规划师无法越界实现，范围漂移在源头被堵。',
   },
   {
-    question: 'boulder.json 在 plan-execute-verify 里承担的核心职责是什么？',
-    options: [
-      '持久化 active 计划、session_ids 与任务进度，使 /start-work 能按 INIT 或 RESUME 双分支续跑',
-      '把每次触发 /start-work 前的完整对话归档，供事后进行逐字的全量回放与审计追踪核对',
-      '为每个 worker 的每一次提交都建立文件 hash 索引，供 step 级 revert 在发生意外误覆盖之后，能依据此精确地把现场回滚到上一个可用状态',
-      '将整份计划文件拷入独立索引，并为每一条 checkbox 进度再单独建一张计数统计表来做'
-    ],
+    question: 'Execute 阶段为什么要用 boulder.json 持久化编排状态，而不是只依赖 LLM 的上下文？',
+    options: ['为了把「现在做什么/做了几件」从易失上下文抽到可查询、可恢复的磁盘状态', '为了让模型在处理上下文时有一个更大的 token 缓存减少调用费', '为了让用户能随时修改计划文件而不断言流水线一致性', '为了把执行调度完全静态化使规划阶段不再需要任何决策'],
     correct: 0,
-    explanation: '记录 active 计划、session_ids、进度等，是 /start-work 判断 INIT vs RESUME 的事实源。进度本身不另存表，实时解析计划文件 checkbox 得出。'
+    explanation: 'boulder.json 记录 plan_name/status/session_ids/进度，把执行状态从 LLM 上下文里抽出。在线程崩溃、关机、token 超限等中断场景下，系统能按磁盘状态续跑而不是重讲一遍——这是「可恢复」这一设计点的落点。',
   },
   {
-    question: 'VERIFICATION_REMINDER 对 worker 完成度的默认假设是什么？',
-    options: [
-      '假定子 Agent 始终诚实可信，其完成度仅凭口头声明即可被直接放行，并推进到队列里的下一项任务',
-      '默认子 Agent 高估完成度，须以 diff/读码/lsp/跑测试等确定性证据过了关卡才算完成',
-      '触发一个更强推理的独立模型，对该输出再做一次更高成本的语义审查来兜底判断',
-      '同一轮 turn 反复执行到退出码全部归零，用重试轮数来折算其所声称的证据质量'
-    ],
+    question: 'COMPLETION GATE 要求执行者 Edit 计划文件把 checkbox 从 - [ ] 改为 - [x]，再 Read 一次确认。这项要求的本质作用是什么？',
+    options: ['让执行者每次完成任务都留下一个可核对的进度锚点而非口头声明', '让执行者通过反复编辑文件来增加上下文中的信息密度', '让执行者以编辑计划为手段来扩大自己对范围的定义权', '让执行者在完成后立即关闭会话以节省 token 消耗'],
+    correct: 0,
+    explanation: '它把「完成」的唯一证据定义为磁盘文件里 checkbox 的变更，强制执行者在宣称完成前先更新计划文件再读回确认。这样进度锚在计划文件（唯一事实源），执行者不能以「我改完代码了」这类叙述替代可核对的进度变化，堵住验证缺口的最浅形态。',
+  },
+  {
+    question: 'VERIFICATION_REMINDER 开头断言「THE SUBAGENT IS PROBABLY LYING」。这种对抗性信念和「信任但验证」的差别在哪？',
+    options: ['对抗模式把举证责任交给验证者去证明好，而非执行者自证', '对抗模式意味着验证者完全不运行任何确定性工具只看叙述', '对抗模式只适用于执行者是子代理而规划师绝对可信的场景', '对抗模式用更强模型重复执行同一次自证以提高可信度'],
+    correct: 0,
+    explanation: '信任但验证把举证责任交给执行者（自证做对）；对抗模式假设坏、要求验证者用 git diff/Read/lsp_diagnostics/跑测试等确定性工具主动证明好，并把证据链抓在手里。幻觉是 base rate，验证者手里的可复现证据链才稳。',
+  },
+  {
+    question: 'Final Verification Wave 在整套编排里扮演什么角色，为何它是唯一需要用户审批的时刻？',
+    options: ['它是执行前的计划确认要用户先点头再审阅文档', '它把收尾统验与唯一用户审批点集中在最后避免频繁打断', '它是执行态每轮任务的常规进度汇报途径', '它允许验证者在任何关卡直接跳过用户直接放行'],
     correct: 1,
-    explanation: '开头即假设「THE SUBAGENT IS PROBABLY LYING」，须用确定性工具（git diff、读码、lsp_diagnostics、跑测试）取舍，而非二次模型审查或模型自述。'
+    explanation: '所有实现 todo 勾完后才进入 Final Wave 统验批次，且它由 shouldPauseForApproval 决定走审批路径，是唯一要求用户显式点头后再标记终审项的时刻。规划、执行、自动验证全程不打扰人，只在结尾把终审结论交用户裁决——既不让机器脱离人判断，也不让人反复被打断。',
   },
-  {
-    question: '这套编排里唯一需要用户交互审批的时刻在哪？',
-    options: [
-      '每个 worker 交付后都得更用户逐条手动勾选确认对应 checkbox 的完成状态与细节',
-      '每次把变更写入目标文件之前，对疑似「风险」的输出路径都即时申请授权才放行',
-      '等全部 Final Verification Wave 终审通过、准备标记 F 项并整体完成的那一刻',
-      '在每次正式执行 /start-work 之前，都要重新读取一次 boulder 的进度，并将其当作本次新的授权依据'
-    ],
-    correct: 2,
-    explanation: '规划、执行与自动验证全程不打扰；唯独 Final Wave 收尾时才把终审结论 + 剩余风险交用户最终确认，再动 checkbox 或标记整体完成。'
-  },
-  {
-    question: 'OpenCode 原生能力与插件的分工关系，哪个描述最准确？',
-    options: [
-      'OpenCode 本身缺乏工具与钩子能力，因此这个插件必须 fork 内核源码，才能完整补齐这一整套编排',
-      '原生 plan/AgentLoop/snapshot/lsp 与钩子提供底层，插件叠加策略成为一个状态机',
-      '插件会替换并接管 runLoop，因此它与原生不兼容、不能在同一个运行时共存并行',
-      'OpenCode 内置了三阶段编排，上面的插件无非是给这早已存在的机制套了一层皮肤'
-    ],
-    correct: 1,
-    explanation: '原生有 plan agent、AgentLoop、snapshot、lsp 及 30+ 钩子；插件不侵内核，仅在公开 hook 叠「角色分离 + 持久化 + 验证关卡」。'
-  },
-  {
-    question: 'Sisyphus-Junior 为何被设计成「不能递归委派 task」？',
-    options: [
-      '纯粹为了省 token，因递归会让每次调用反复命中过期的 cached-prefix 从而白白多耗开销',
-      '防 subagent 递归爆炸：执行者被委派一次即只做实现，递归调度权由 Atlas 单一持有',
-      '受运行时 proxied 通道限制，task 工具本身并不支持子任务再对子任务做嵌套委派调用',
-      '避免多个 worker 相互复用同名 Session，使其各自的编辑上下文随之互相污染而错乱状态'
-    ],
-    correct: 1,
-    explanation: 'preflight 拒绝再调 task。执行层保持单层，杜绝递归 subagent，使状态管理与错误恢复复杂度不呈指数级上升，调度权集中于 Atlas。'
-  }
 ]
 </script>
 
 <Quiz :questions="q"></Quiz>
-```
