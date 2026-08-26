@@ -14,7 +14,7 @@ hero:
 
 ### OpenCode 源码精读
 
-> 开源版 Claude Code 终端编程 Agent 源码深度解析，基于 TypeScript + Effect-TS 函数式架构
+> 开源版 Claude Code 终端编程 Agent 源码深度解析，基于 TypeScript + Effect-TS 函数式架构（`packages/opencode` ≈ 86K 行、`packages/core` ≈ 12K 行，配套 Drizzle ORM），每篇附 OpenCode vs Claude Code 架构对比
 
 | # | 文章 | 主题 | 字数 |
 |---|------|------|------|
@@ -26,11 +26,11 @@ hero:
 | 06 | [上下文架构](/opencode/06-context) | 5 层上下文注入、指令文件 + Skill 系统、为什么不用 RAG | ~13K |
 | 07 | [plan-execute-verify 编排](/opencode/07-plan-execute-verify) | 规划/执行/验证三阶段编排、oh-my-openagent 机制解析 | ~13K |
 
-<p class="catalog-cta"><a href="opencode/" class="VPButton medium brand">进入 OpenCode 专栏 →</a></p>
+<p class="catalog-cta"><a href="opencode/01-overview" class="VPButton medium brand">开始阅读 OpenCode →</a></p>
 
 ### Codex 源码精读
 
-> OpenAI 官方开源终端编程 Agent 源码深度解析，基于 Rust 的 ~100 crates 工程体系
+> OpenAI 官方开源终端编程 Agent 源码深度解析，基于 Rust 的 ~100 crates 工程体系（核心 `codex-core`，配套 tokio async + ratatui + SQLite + MCP），每篇附 Codex vs Claude Code 架构对比
 
 | # | 文章 | 主题 | 字数 |
 |---|------|------|------|
@@ -43,11 +43,11 @@ hero:
 | 07 | [模型管理与 Provider 抽象](/codex/07-models) | 4 种 Provider、AuthManager、WebRTC 语音对话 | ~20K |
 | 08 | [Codex vs CC 设计哲学对比](/codex/08-philosophy) | 3 个核心假设、连锁反应、未来启示 | ~14K |
 
-<p class="catalog-cta"><a href="codex/" class="VPButton medium brand">进入 Codex 专栏 →</a></p>
+<p class="catalog-cta"><a href="codex/01-overview" class="VPButton medium brand">开始阅读 Codex →</a></p>
 
 ### Claude Code 源码精读
 
-> Anthropic 官方终端编程 Agent 源码深度解析，基于已泄露源码，TypeScript + Bun + React + Ink 技术栈
+> Anthropic 官方终端编程 Agent 源码深度解析，基于已泄露源码，TypeScript + Bun + React + Ink 技术栈，源码规模约 51 万行、~1,900 文件
 
 | # | 文章 | 主题 | 字数 |
 |---|------|------|------|
@@ -62,11 +62,11 @@ hero:
 | 09 | [Bridge 桥接与远程模式](/claudecode/09-bridge) | IDE 扩展通信、JSON-RPC、Remote Session | ~10K |
 | 10 | [记忆系统与上下文注入](/claudecode/10-memory) | claude.md、memdir 持久化、SessionMemory | ~13K |
 
-<p class="catalog-cta"><a href="claudecode/" class="VPButton medium brand">进入 Claude Code 专栏 →</a></p>
+<p class="catalog-cta"><a href="claudecode/01-overview" class="VPButton medium brand">开始阅读 Claude Code →</a></p>
 
 ### DeepSeek Harness 源码精读
 
-> DeepSeek 开源通用 agent harness 源码深度解析，基于 vendored Cordis 插件框架，四十余万行 TypeScript、两百多个 package
+> DeepSeek 开源通用 agent harness 源码深度解析，基于 vendored Cordis 插件框架，四十余万行 TypeScript、两百多个 package（"一切皆插件"），每篇附跨框架架构对比
 
 | # | 文章 | 主题 | 字数 |
 |---|------|------|------|
@@ -79,7 +79,7 @@ hero:
 | 07 | [压缩/上下文注入/子代理](/deepseek/07-compaction-context-subagent) | 压缩可换缝、agent.inject 排队、ctx.subagents provider 注册表 | ~10K |
 | 08 | [自改/hooks 桥/生态](/deepseek/08-self-modification-hooks) | self-referential cordis toolset、CC/Codex hooks 翻译桥、typed-Decision 拦截 | ~10K |
 
-<p class="catalog-cta"><a href="deepseek/" class="VPButton medium brand">进入 DeepSeek Harness 专栏 →</a></p>
+<p class="catalog-cta"><a href="deepseek/01-overview" class="VPButton medium brand">开始阅读 DeepSeek Harness →</a></p>
 
 ### Reading · 论文解读与随笔
 
@@ -90,7 +90,7 @@ hero:
 | 01 | [Skill 到底为什么有效，又在哪失效](/reading/01-skill-paper) | Demystifying Agent Skills 论文解读：12 种 skill-use 模式、何时该用 / 何时有害 | ~4K |
 | 02 | [LLM 验证的「自动驾驶等级」](/reading/02-verification-autonomy) | Grading the Graders 论文解读：验证自主性等级 VAL L0-L5、完备性盲区 | ~4K |
 
-<p class="catalog-cta"><a href="reading/" class="VPButton medium brand">进入 Reading 专栏 →</a></p>
+<p class="catalog-cta"><a href="reading/01-skill-paper" class="VPButton medium brand">开始阅读 Reading →</a></p>
 
 </div>
 

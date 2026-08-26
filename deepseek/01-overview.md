@@ -14,6 +14,12 @@ title: DeepSeek Harness 全景：一个"一切皆插件"的通用 agent harness
 
 这篇文章先把全景铺开：它是什么、代码怎么组织、为什么这么组织，以及它和 OpenCode、Codex 到底是不是同一类东西。
 
+## 整体架构速览
+
+下面展示 dsh 的装配链全景：空 root → bundle 层 → patch 覆盖 → 装配成的插件树，再到 CLI / Web 两个产品壳，本文会围绕它展开：
+
+![dsh 装配链架构：profile / bundle 分层组装一棵插件树](/images/deepseek/01-architecture.svg)
+
 ## 一、同能不同构：它和你熟悉的终端 Agent 不是一回事
 
 先设一个小问题：让一个 agent"跑一个回合"——读一条用户消息，决定该不该调工具，再生成回复。三个终端 Agent 各自用热衷的形态实现它：OpenCode 有一个 while(true) 的 7 步 runLoop，Codex 有一个事件 reactor，Claude Code 有 continuation 驱动的 QueryEngine。这三个循环都**硬编码进二进制**：你要扩展，得改核心循环，或在它上面再套钩子。

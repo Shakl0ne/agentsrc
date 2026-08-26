@@ -110,11 +110,11 @@ export default withMermaid(defineConfig({
 
     nav: [
       { text: '首页', link: '/' },
-      { text: 'OpenCode', link: '/opencode/' },
-      { text: 'Codex', link: '/codex/' },
-      { text: 'Claude Code', link: '/claudecode/' },
-      { text: 'DeepSeek Harness', link: '/deepseek/' },
-      { text: 'Reading', link: '/reading/' },
+      { text: 'OpenCode', link: '/opencode/01-overview' },
+      { text: 'Codex', link: '/codex/01-overview' },
+      { text: 'Claude Code', link: '/claudecode/01-overview' },
+      { text: 'DeepSeek Harness', link: '/deepseek/01-overview' },
+      { text: 'Reading', link: '/reading/01-skill-paper' },
     ],
 
     sidebar: {
@@ -122,7 +122,6 @@ export default withMermaid(defineConfig({
         {
           text: 'OpenCode 源码精读',
           items: [
-            { text: '专栏介绍', link: '/opencode/' },
             { text: '1. 整体架构', link: '/opencode/01-overview' },
             { text: '2. 主循环 runLoop', link: '/opencode/02-runloop' },
             { text: '3. 工具系统', link: '/opencode/03-tools' },
@@ -137,7 +136,6 @@ export default withMermaid(defineConfig({
         {
           text: 'Codex 源码精读',
           items: [
-            { text: '专栏介绍', link: '/codex/' },
             { text: '1. 全景：架构与定位', link: '/codex/01-overview' },
             { text: '2. 主循环：Submission 驱动', link: '/codex/02-mainloop' },
             { text: '3. 上下文组合与增量注入', link: '/codex/03-context' },
@@ -153,7 +151,6 @@ export default withMermaid(defineConfig({
         {
           text: 'Claude Code 源码精读',
           items: [
-            { text: '专栏介绍', link: '/claudecode/' },
             { text: '1. 整体架构与启动流程', link: '/claudecode/01-overview' },
             { text: '2. 主循环：QueryEngine', link: '/claudecode/02-mainloop' },
             { text: '3. 工具系统：50+ 内置工具', link: '/claudecode/03-tools' },
@@ -171,7 +168,6 @@ export default withMermaid(defineConfig({
         {
           text: 'DeepSeek Harness 源码精读',
           items: [
-            { text: '专栏介绍', link: '/deepseek/' },
             { text: '1. 全景：一切皆插件', link: '/deepseek/01-overview' },
             { text: '2. Cordis 组合框架', link: '/deepseek/02-cordis' },
             { text: '3. Agent 接口与默认 loop', link: '/deepseek/03-agent-loop' },
@@ -184,11 +180,10 @@ export default withMermaid(defineConfig({
         },
       ],
       '/reading/': [
-        {
+{
           text: 'Reading · 论文解读与随笔',
           items: [
-            { text: '专栏介绍', link: '/reading/' },
-{ text: '1. Skill 到底为什么有效，又在哪失效', link: '/reading/01-skill-paper' },
+            { text: '1. Skill 到底为什么有效，又在哪失效', link: '/reading/01-skill-paper' },
             { text: '2. LLM 验证的「自动驾驶等级」', link: '/reading/02-verification-autonomy' },
           ],
         },

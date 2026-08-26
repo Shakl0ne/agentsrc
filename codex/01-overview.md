@@ -15,6 +15,12 @@ Codex 是 OpenAI 官方出品的本地编程代理。它在 2025 年 5 月开源
 
 后面的文章再逐一深入每个子系统。
 
+## 整体架构速览
+
+下面是 Codex 核心引擎 `codex-core` 的反应器 + turn 流程，本文会围绕它展开：
+
+![Codex 反应器架构：submission_loop 分发 Ops，run_turn 驱动采样与工具](/images/codex/article-index-architecture.svg)
+
 ## 一、Codex 自顶向下看
 
 ### 1.1 一句话定位

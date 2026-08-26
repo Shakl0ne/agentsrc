@@ -6,6 +6,12 @@ title: Claude Code 整体架构：51 万行源码全景
 
 Claude Code 是 Anthropic 官方出品的终端 AI 编程助手，也是当前最成熟的终端编程 Agent 之一。本系列开篇从宏观视角切入：先看清它的技术栈、源码组织、启动流程与分层架构，再为后续逐章精读奠定骨架。本文所有源码引用均可在 `src/` 目录下 grep 验证。
 
+## 整体架构速览
+
+下面展示 Claude Code 主循环的 QueryEngine 流式调用，分流渲染 / 工具执行 / 完成，本文会围绕它展开：
+
+![Claude Code 主循环：QueryEngine 流式调用，分流渲染 / 工具执行 / 完成](/images/claudecode/article-index-architecture.svg)
+
 ## 一、项目概览
 
 ### 1.1 定位与规模
