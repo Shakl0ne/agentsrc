@@ -20,12 +20,6 @@ title: OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条�
 
 这一篇先从「设计一个通用 Agent 引擎到底面临哪些核心挑战」说起。主循环、工具和上下文这些细部机制，放到后面的文章再往下拆。
 
-## 整体架构速览
-
-下面这张 Monorepo 包拓扑，展示了 CLI 入口 → `packages/opencode` 实现枢纽 → `packages/core` 契约底座的装配关系，本文会围绕它展开：
-
-![OpenCode Monorepo 包拓扑：CLI 入口 → packages/opencode 实现枢纽 → packages/core 契约底座](/images/opencode/index-architecture.svg)
-
 ## 一、先把问题摆出来：做一个「通用 Agent 引擎」的摊子有多大
 
 ### 1.1 一个能想象的任务
@@ -54,6 +48,8 @@ title: OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条�
 ## 二、三大引擎包：为什么是「契约 / 模型 / 实现」三体
 
 先看 OpenCode 真正的代码骨架。它不是一个包打天下的巨石架构（Monolith），而是一个有边界、有依赖方向的 monorepo——核心引擎由三个包构成：`core`、`llm`、`opencode`。
+
+![OpenCode Monorepo 包拓扑：CLI 入口 → packages/opencode 实现枢纽 → packages/core 契约底座](/images/opencode/index-architecture.svg)
 
 ### 2.1 `core`：契约 + 厂商接入基座，是整个系统的底座
 
