@@ -482,7 +482,7 @@ yield* permission.ask({ permission: "doom_loop", patterns: [value.name], session
 
 ![Doom Loop Needs a Permission Gate](/images/opencode/02-doom.svg)
 
-OpenCode 把这个判断交还给权限系统，避免框架替用户过早做决定。框架没有假装自己一定比用户更懂现场。
+OpenCode 将决策权移交给权限系统，避免框架层过度预设，由用户根据具体的业务场景自主掌控。
 
 ### 5.4 中断、重试、清理：失败路径也被设计进去了
 
