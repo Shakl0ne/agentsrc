@@ -178,7 +178,7 @@ const q = [
     question: '关于「单一入口」，正确的是？',
     options: [
       'CLI 和 Web 用两套独立引擎分别实现，入口不同需要并行维护两份',
-      '有一个 index.ts 一个代码入口，它是唯一 CLI 入口（yargs 装 20+ 子命令），跑 serve 同进程开 HTTP + WebSocket',
+      '有一个 index.ts 单一入口，跑 serve 同进程开 HTTP + WebSocket',
       '入口只有一个 serve 命令，不支持 CLI，必须走 HTTP',
       '每个子命令都编译成一个独立二进制，无共享装配'
     ],
@@ -186,7 +186,7 @@ const q = [
     explanation: 'cli 和 web 等等是同一套引擎同一入口，靠 index.ts(serve 等子命令)装配，同进程开出 HTTP API 和 WebSocket。'
   },
   {
-    question: '把持久化用 SQLite + Drizzle 做，而非 JSONL，主要说明什么抽象？',
+    question: '将持久化方案从 JSONL 替换为 SQLite + Drizzle，主要是出于怎样的架构考量？',
     options: [
       '它是 append-only 的纯文本，适合日志级的顺序追加与手工翻阅',
       '它把会话状态落到可结构化查询的底座，能审计能恢复',
