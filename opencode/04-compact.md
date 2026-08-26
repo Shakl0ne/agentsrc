@@ -45,9 +45,11 @@ export function usable(input) {
 }
 ```
 
-`reserved` 这段预留有两种取值来源。用户可以在 `cfg.compaction.reserved` 自己定；没配就用 `COMPACTION_BUFFER`（20_000）和模型最大输出 token 数之间较小的那个。
+`reserved`（上下文预留量）的确定分为"来源判定"与"空间扣减"两步：
 
-围绕"扣多少"有两个分叉。模型如果显式上报了 `limit.input`，走 `input - reserved`；只报 `context` 的话，就走 `context - maxOutputTokens`。这两条路对应模型 API 声明方式的不同，但落点一致——都是"留着给下一轮吐字"。
+首先，预留值优先采用用户配置的 `cfg.compaction.reserved`；未配置时，则取默认缓冲值（20,000）与模型最大输出 Token 数中的较小者。
+
+其次，关于可用空间的实际扣减，则根据模型 API 声明方式的不同分为两条路径：若模型显式上报了 `limit.input`，则按 `input - reserved` 扣减；若仅声明了 `context`，则按 `context - maxOutputTokens` 计算。两条路径虽起点不同，但落点一致——皆是为了给下一轮模型生成预留出足够安全的空间。
 
 ### 1.2 isOverflow：比较的是占用，而不是剩余
 
