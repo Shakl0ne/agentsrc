@@ -88,7 +88,7 @@ title: OpenCode 整体架构：一个 10 万行 Agent 怎么被组织成一条�
 
 `packages/opencode/src/index.ts` 是唯一入口，用 yargs 装好 20+ 个子命令（run / serve / tui / acp / mcp / providers / agent / …）。真正长驻的是 `serve`：它拉起一个 **Engine runtime**（Effect 装配的运行时），同一个进程里同时把 **HTTP API** 和 **WebSocket** 两个面开出来。
 
-> 这里的 **Effect** 是这套引擎的**依赖与执行编排库**：把各服务的创建、注入、异步与对外操作组合成一张可执行的蓝图，再由同一个 runtime 统一跑起来。它不只在 3.1 出现——后面章节里的 `Effect.fn`、`Effect.Schema`、`forkIn` 都从这一个心智模型长出来，细节后面再细聊。
+> 这里的 **Effect** 是这套引擎的**依赖与执行编排库**：把各服务的创建、注入、异步与对外操作组合成一张可执行的蓝图，再由同一个 runtime 统一跑起来。它不只在 3.1 出现——后面章节里的 `Effect.fn`、`Effect.Schema`、`forkIn` 都从这一个心智模型长出来。
 
 - 这也意味着：终端里敲 `opencode`(CLI) 和网页里连它 (Web/HTTP) 是**同一套引擎**，只是暴露了不同的入口——设计上省去了一大笔「重复实现」的成本。
 
