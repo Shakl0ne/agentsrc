@@ -12,16 +12,16 @@ title: Codex 源码精读
 
 ## 文章列表
 
-| # | 文章 | 类型 | 字数 |
-|---|---|------|------|
-| 1 | [Codex 全景：架构与定位](/codex/01-overview) | 源码解析 | ~16,000 字 |
-| 2 | [主循环：Submission 驱动的 Turn 系统](/codex/02-mainloop) | 源码解析 | ~13,000 字 |
-| 3 | [上下文组合与增量注入](/codex/03-context) | 源码解析 | ~14,000 字 |
-| 4 | [Compact 系统：3 种压缩机制](/codex/04-compact) | 源码解析 | ~19,000 字 |
-| 5 | [多 Agent 编排架构](/codex/05-multi-agents) | 源码解析 | ~25,000 字 |
-| 6 | [工具系统与安全沙箱](/codex/06-tools-sandbox) | 源码解析 | ~23,000 字 |
-| 7 | [模型管理与 Provider 抽象](/codex/07-models) | 源码解析 | ~20,000 字 |
-| 8 | [Codex vs CC 设计哲学对比](/codex/08-philosophy) | 源码解析 | ~14,000 字 |
+| # | 文章 |
+|---|------|
+| 1 | [Codex 全景：架构与定位](/codex/01-overview) |
+| 2 | [主循环：Submission 驱动的 Turn 系统](/codex/02-mainloop) |
+| 3 | [上下文组合与增量注入](/codex/03-context) |
+| 4 | [Compact 系统：3 种压缩机制](/codex/04-compact) |
+| 5 | [多 Agent 编排架构](/codex/05-multi-agents) |
+| 6 | [工具系统与安全沙箱](/codex/06-tools-sandbox) |
+| 7 | [模型管理与 Provider 抽象](/codex/07-models) |
+| 8 | [Codex vs CC 设计哲学对比](/codex/08-philosophy) |
 
 ## 关于系列
 

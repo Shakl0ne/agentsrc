@@ -21,16 +21,16 @@ title: DeepSeek Harness 源码精读
 
 ## 文章列表
 
-| # | 文章 | 类型 | 字数（约） |
-|---|---|---|---|
-| 1 | [DeepSeek Harness 全景：一个"一切皆插件"的通用 agent harness](/deepseek/01-overview) | 源码解析 | ~8,000 |
-| 2 | [Cordis 组合框架：几十个 package 靠什么拼成一个 agent](/deepseek/02-cordis) | 源码解析 | ~12,000 |
-| 3 | [Agent 接口与默认 loop：一个 agent 到底怎么跑一个回合](/deepseek/03-agent-loop) | 源码解析 | ~11,000 |
-| 4 | [会话日志与上下文投影：模型看到的上下文从哪来](/deepseek/04-session-log) | 源码解析 | ~9,000 |
-| 5 | [工具系统与执行管线：模型怎么把一个工具请求变成真实行动](/deepseek/05-tools-pipeline) | 源码解析 | ~10,000 |
-| 6 | [Capability 缝体系：为什么换一个实现能牵一发动全身](/deepseek/06-capability-seams) | 源码解析 | ~10,000 |
-| 7 | [压缩 / 上下文注入 / 子代理：装配式的长会话扩展](/deepseek/07-compaction-context-subagent) | 源码解析 | ~10,000 |
-| 8 | [自改 / hooks 桥 / 生态：agent 学会改自己、也接得住别家的协议](/deepseek/08-self-modification-hooks) | 源码解析 | ~10,000 |
+| # | 文章 |
+|---|---|
+| 1 | [DeepSeek Harness 全景：一个"一切皆插件"的通用 agent harness](/deepseek/01-overview) |
+| 2 | [Cordis 组合框架：几十个 package 靠什么拼成一个 agent](/deepseek/02-cordis) |
+| 3 | [Agent 接口与默认 loop：一个 agent 到底怎么跑一个回合](/deepseek/03-agent-loop) |
+| 4 | [会话日志与上下文投影：模型看到的上下文从哪来](/deepseek/04-session-log) |
+| 5 | [工具系统与执行管线：模型怎么把一个工具请求变成真实行动](/deepseek/05-tools-pipeline) |
+| 6 | [Capability 缝体系：为什么换一个实现能牵一发动全身](/deepseek/06-capability-seams) |
+| 7 | [压缩 / 上下文注入 / 子代理：装配式的长会话扩展](/deepseek/07-compaction-context-subagent) |
+| 8 | [自改 / hooks 桥 / 生态：agent 学会改自己、也接得住别家的协议](/deepseek/08-self-modification-hooks) |
 
 ## 整体架构速览
 

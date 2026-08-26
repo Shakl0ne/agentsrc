@@ -12,15 +12,15 @@ title: OpenCode 源码精读
 
 ## 文章列表
 
-| # | 文章 | 类型 | 字数 |
-|---|---|------|------|
-| 1 | [整体架构：5 万行源码全景](/opencode/01-overview) | 源码解析 | ~7,000 字 |
-| 2 | [主循环 runLoop](/opencode/02-runloop) | 源码解析 | ~15,000 字 |
-| 3 | [工具系统：20+ 内置工具设计](/opencode/03-tools) | 源码解析 | ~15,000 字 |
-| 4 | [会话压缩：Compact 2 级机制](/opencode/04-compact) | 源码解析 | ~14,000 字 |
-| 5 | [Agent 系统：SubAgent 的委派、隔离与边界设计](/opencode/05-agents) | 源码解析 | ~13,000 字 |
-| 6 | [上下文装配：持久知识、按需注入与窗口预算](/opencode/06-context) | 源码解析 | ~13,000 字 |
-| 7 | [编排模式：plan-execute-verify 的角色拆分、硬边界与验证关卡](/opencode/07-plan-execute-verify) | 源码解析 | ~13,000 字 |
+| # | 文章 |
+|---|------|
+| 1 | [整体架构：5 万行源码全景](/opencode/01-overview) |
+| 2 | [主循环 runLoop](/opencode/02-runloop) |
+| 3 | [工具系统：20+ 内置工具设计](/opencode/03-tools) |
+| 4 | [会话压缩：Compact 2 级机制](/opencode/04-compact) |
+| 5 | [Agent 系统：SubAgent 的委派、隔离与边界设计](/opencode/05-agents) |
+| 6 | [上下文装配：持久知识、按需注入与窗口预算](/opencode/06-context) |
+| 7 | [编排模式：plan-execute-verify 的角色拆分、硬边界与验证关卡](/opencode/07-plan-execute-verify) |
 
 ## 关于系列
 

@@ -14,18 +14,18 @@ Claude Code 是 Anthropic 官方出品的终端 AI 编程助手，用 TypeScript
 
 ## 文章列表
 
-| # | 文章 | 主题 | 字数 |
-|---|------|------|------|
-| 1 | [整体架构与启动流程](/claudecode/01-overview) | 51 万行源码全景、Bun 运行时、React + Ink 终端 UI、分层架构 | |
-| 2 | [主循环：QueryEngine 与 Continuation-Driven 架构](/claudecode/02-mainloop) | 流式 API 调用循环、工具调度、continuation-based turn 管理 | |
-| 3 | [工具系统：40+ 内置工具](/claudecode/03-tools) | Tool 接口设计、20+ 工具目录、MCP 扩展 | |
-| 4 | [对话压缩：5 级压缩机制](/claudecode/04-compact) | autoCompact / microCompact / apiMicrocompact / reactiveCompact / sessionMemoryCompact | |
-| 5 | [Agent 系统：单 Agent 调度与 Swarm 协作](/claudecode/05-agents) | AgentTool、Coordinator、Teammate 模式、Agent Swarms | |
-| 6 | [命令系统：70+ 斜杠命令与 CLI 参数](/claudecode/06-commands) | Commander.js 解析、commit/review/mcp/memory 等命令实现 | |
-| 7 | [权限系统：7 种权限模式](/claudecode/07-permissions) | 5 外部 + 2 内部权限模式、AI 分类器、denial tracking | |
-| 8 | [MCP 集成架构](/claudecode/08-mcp) | 4 种传输层、OAuth 认证、官方注册表、插件系统 | |
-| 9 | [Bridge 桥接与远程模式](/claudecode/09-bridge) | IDE 扩展通信、JSON-RPC over WebSocket、Remote Session、SDK 适配层 | |
-| 10 | [记忆系统与上下文注入](/claudecode/10-memory) | claude.md、memdir 持久化、SessionMemory、MagicDocs、AutoDream | |
+| # | 文章 |
+|---|------|
+| 1 | [整体架构与启动流程](/claudecode/01-overview) |
+| 2 | [主循环：QueryEngine 与 Continuation-Driven 架构](/claudecode/02-mainloop) |
+| 3 | [工具系统：40+ 内置工具](/claudecode/03-tools) |
+| 4 | [对话压缩：5 级压缩机制](/claudecode/04-compact) |
+| 5 | [Agent 系统：单 Agent 调度与 Swarm 协作](/claudecode/05-agents) |
+| 6 | [命令系统：70+ 斜杠命令与 CLI 参数](/claudecode/06-commands) |
+| 7 | [权限系统：7 种权限模式](/claudecode/07-permissions) |
+| 8 | [MCP 集成架构](/claudecode/08-mcp) |
+| 9 | [Bridge 桥接与远程模式](/claudecode/09-bridge) |
+| 10 | [记忆系统与上下文注入](/claudecode/10-memory) |
 
 ## 关于本系列
 
