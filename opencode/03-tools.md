@@ -59,7 +59,7 @@ export interface Def<
 
 ### 2.3 Context 与 ExecuteResult：运行时两条通道
 
-工具执行时的环境由 `Context` 提供（`src/tool/tool.ts:34`）。`sessionID`/`messageID`/`callID` 定位调用，`abort` 传递中断信号，`messages` 让工具能读对话历史。里面最要紧的是 `ask`——它是 Permission 系统的入口，任何敏感操作执行前都要从这里过（第六章细讲）。
+工具执行时的环境由 `Context` 提供（`src/tool/tool.ts:34`）。`sessionID`/`messageID`/`callID` 定位调用，`abort` 传递中断信号，`messages` 让工具能读对话历史。里面最要紧的是 `ask`——它是 Permission 系统的入口，任何敏感操作执行前都要从这里过。
 
 执行完返回 `ExecuteResult`：`output` 是纯文本，喂给 LLM；`title` 和 `metadata` 喂给 UI 展示。两个消费端看同一份结果，一个读语义驱动下一步，一个读元数据画界面。
 
@@ -176,7 +176,7 @@ LSP errors detected in this file, please fix: ...
 - **plugin hook**：`tool.definition` 钩子让插件能改任意工具的 `description`、`parameters`、`jsonSchema`。
 - **动态 description**：`task`/`skill` 工具的 description 末尾按当前 agent 注入可用的 agent/skill 列表（task 用 `describeTask`、skill 用 `describeSkill`）。
 
-这三步合起来，就是"每次请求都对这个 agent 重新算一遍工具注册表"。路由这一点值得单独拎出来：同一类"改文件"操作，为何给不同模型配不同工具？因为 GPT 系对 unified patch 格式理解更好，Claude 系对 `oldString + newString` 的精确替换更在行。正常让工具适配模型，而非反过来要求模型迁就工具——这是多模型框架必须面对的差距。
+这三步合起来，就是"每次请求都对这个 agent 重新算一遍工具注册表"。路由这一点值得单独拎出来：同一类"改文件"操作，为何给不同模型配不同工具？因为 GPT 系对 unified patch 格式理解更好，Claude 系对 `oldString + newString` 的精确替换更在行。正常让工具适配模型，而非反过来要求模型迁就工具——多模型框架必须为这种模型差异做路由。
 
 ### 5.2 自定义工具的两种加载
 
@@ -277,15 +277,6 @@ yield* permission.ask({ permission: "doom_loop", patterns: [value.name], ... })
 | 自定义工具 | 主要靠 MCP | 文件加载 + Plugin 注册 |
 | 模型路由 | 无 | GPT 系用 apply_patch，其他 edit/write |
 | Plugin Hook | PreToolUse / PostToolUse | `tool.definition` / execute 前后钩子 |
-
-四条关键差异值得占住：
-
-1. **Doom Loop**：OpenCode 用权限机制复用实现，CC 暂无这类内置，社区不断要求。
-2. **Edit 策略层级丰富度截然不同**：OpenCode 用 9 种 Replacer 消化空白/缩进/转义/多匹配等不一致；CC 更简单，靠精确替换 + 引号归一化。
-3. **多模型路由**：OpenCode 原生支持跨厂商模型，按模型切换 edit/apply_patch；CC 只服务 Claude，路由无需求。
-4. **权限集成度**：OpenCode 把 Doom Loop、External Directory、Deferred 全归进一个三态系统；CC 用内置规则 + hooks 各管一摊，hooks 灵活但一致性略散。
-
-OpenCode 的取舍，是牺牲一部分 hooks 自由，换来统一、可复用的权限模型；CC 的 hooks 是外部扩展入口，灵活，但规则分散。你要在"边界统一性"与"扩展自由度"之间权衡。
 
 ## 八、设计要点回收
 
