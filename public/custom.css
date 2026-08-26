@@ -27,51 +27,82 @@
 .catalog-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  gap: 1.5rem;
   margin-top: 1.5rem;
 }
 
-@media (max-width: 768px) {
-  .catalog-grid {
-    grid-template-columns: 1fr;
-  }
+.catalog-card {
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.catalog-grid table {
+.catalog-card:hover {
+  border-color: var(--vp-c-brand-1);
+  box-shadow: 0 0 0 1px var(--vp-c-brand-1);
+}
+
+.catalog-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: 1.15rem;
+}
+
+.catalog-card blockquote {
+  margin: 0 0 1rem 0;
+  padding: 0.6rem 0.8rem;
+  border-left: 3px solid var(--vp-c-brand-1);
+  color: var(--vp-c-text-2);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  background: transparent;
+}
+
+.catalog-card blockquote p {
+  margin: 0;
+}
+
+.catalog-card table {
   width: 100%;
   font-size: 0.9rem;
+  margin: 0;
 }
 
-.catalog-grid th,
-.catalog-grid td {
+.catalog-card th,
+.catalog-card td {
   padding: 0.4rem 0.5rem;
   text-align: left;
   border-bottom: 1px solid var(--vp-c-divider);
 }
 
-.catalog-grid th {
+.catalog-card th {
   font-weight: 600;
   color: var(--vp-c-text-1);
   background: var(--vp-c-bg-soft);
 }
 
-.catalog-grid td:first-child {
+.catalog-card td:first-child {
   width: 2.2rem;
   color: var(--vp-c-brand-1);
   font-weight: 500;
   text-align: center;
 }
 
-.catalog-grid td:nth-child(2) {
+.catalog-card td:nth-child(2) {
   white-space: nowrap;
 }
 
-.catalog-grid td:nth-child(3) {
+.catalog-card td:nth-child(3) {
   color: var(--vp-c-text-2);
   font-size: 0.85rem;
 }
 
-.catalog-grid td:nth-child(4) {
+.catalog-card td:nth-child(4) {
   width: 3rem;
   text-align: right;
   color: var(--vp-c-text-3);
@@ -79,7 +110,8 @@
 }
 
 .catalog-cta {
-  margin-top: 1rem;
+  margin-top: auto;
+  padding-top: 1rem;
   text-align: right;
 }
 
@@ -98,9 +130,18 @@
   opacity: 0.85;
 }
 
+@media (max-width: 768px) {
+  .catalog-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .catalog-card {
+    padding: 1.25rem;
+  }
+}
+
 /* Add spacing between article content and Giscus comment section */
 .blog-comment-wrapper {
   margin-top: 3rem;
 }
-
-
