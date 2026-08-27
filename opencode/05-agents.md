@@ -65,7 +65,7 @@ export const Info = Schema.Struct({
 })
 ```
 
-core 与运行时两份 schema 共有的委派核心字段是一致的——`mode`、`hidden`、`permission`、`model`、`steps` 谁都有。差别在两端端点：core 那份还含 `description`、`color`、`system`、`options` 等 `@opencode/v2` 契约字段；opencode 运行时那份则在共享字段上追加 `native`、`prompt`、`temperature` 等只执行时才需要的执行期参数（上表的 `topP`/`temperature`/`color`/`options` 一行省略号即代表这些）。**真正驱动 runLoop 与 task 调度的是 opencode 运行时那套**，core 的 `AgentV2` 是平行投影。这一拆分把"定义层与运行层分开"：schema 端声明的部分是稳定契约（决定 agent 是谁），运行端声明的是可注入部分（具体怎么执行），层层不跨界。
+core 与运行时两份 schema 共有的委派核心字段是一致的——`mode`、`hidden`、`permission`、`model`、`steps` 谁都有。两者的差异在于：core 那份还含 `description`、`color`、`system`、`options` 等 `@opencode/v2` 契约字段；opencode 运行时那份则在共享字段上追加 `native`、`prompt`、`temperature` 等只执行时才需要的执行期参数（上表的 `topP`/`temperature`/`color`/`options` 一行省略号即代表这些）。**真正驱动 runLoop 与 task 调度的是 opencode 运行时那套**，core 的 `AgentV2` 是平行投影。这一拆分把"定义层与运行层分开"：schema 端声明的部分是稳定契约（决定 agent 是谁），运行端声明的是可注入部分（具体怎么执行），层层不跨界。
 
 ### 1.3 mode 即委派能力
 
@@ -81,7 +81,7 @@ core 与运行时两份 schema 共有的委派核心字段是一致的——`mod
 
 ## 二、委派入口：task 工具 + runLoop 的"占位式"分发
 
-委派请求从哪发出？LLM 调一次 `task` 工具。但 `task` 工具不立刻去跑子 agent——它先往消息流里立一条 `subtask` 标记，真正执行要等 runLoop 的下一轮从头派发。这两步不由同一次调用完成，是"占位 + 下一轮派发"的两段式。这与第四章压缩的 create/process 同源思路一致：先落占位，再由主循环分派。
+当 LLM 调用 `task` 工具时，`task` 工具不会立刻执行子 agent——它先往消息流里立一条 `subtask` 标记，真正执行要等 runLoop 的下一轮从头派发。这两步不由同一次调用完成，是"占位 + 下一轮派发"的两段式。这与第四章压缩的 create/process 同源思路一致：先落占位，再由主循环分派。
 
 ### 2.1 task 是委派契约
 
