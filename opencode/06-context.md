@@ -24,14 +24,14 @@ title: OpenCode 上下文装配：持久知识、按需注入与窗口预算
 
 把 OpenCode 的上下文拆开，是这么几块：
 
-- **文件系统持久知识**（不随每次请求耗 token，按需读入）：指令文件 `AGENTS.md`/`CLAUDE.md`、`Skill`、`Reference`。这三类住在磁盘上，给人的是"项目是什么样、该怎么查"，而不是每次调用都往 prompt 里倒全文。
+- **文件系统持久知识**——指令文件 `AGENTS.md`/`CLAUDE.md`、`Skill`、`Reference`，驻留磁盘、按需读入，不随每次请求耗 token。这三类住在磁盘上，给人的是"项目是什么样、该怎么查"，而不是每次调用都往 prompt 里倒全文。
 - **请求级装配**：System Prompt。它每次调用都按当前模型、当前环境、当前可用 skill 重新拼一遍，是"每次都注入"的那部分。
 - **运行时对话**：Messages。存在 SQLite，跨会话存活，是"对话记忆"的落点。
 - **预算闸**：overflow + compaction。它决定窗口塞满之后腾不腾空间、怎么腾，衔接本系列第四章做过的深入拆解。
 
 ### 1.2 谁是"每请求全量"，谁是"驻留磁盘、按需进窗"
 
-这套装配最关键的分界线在"注入时机"。System Prompt 是**请求级、每次都全量**的——它基本稳定，因为越是稳定、越是基本不长的部分，越值得重复发送以便靠缓存省钱。持久知识（指令文件/Skill/Reference）则相反，是**驻留磁盘、按需进窗**——除非 LLM 恰好走到那个目录、加载那个 skill、或引用那个 reference，它们的完整内容不会被拖进每次调用。
+这套装配最关键的分界线在"注入时机"。System Prompt 是**请求级、每次都全量**的——它基本稳定，因为越是稳定、越是基本不长的部分，越值得重复发送以便靠缓存省钱。指令文件/Skill/Reference 这些持久知识则相反，是**驻留磁盘、按需进窗**——除非 LLM 恰好走到那个目录、加载那个 skill、或引用那个 reference，它们的完整内容不会被拖进每次调用。
 
 这条分界线不是概念上的把戏，而是成本结构上的必然：理论上每次都能全塞，但那样 token 就撑爆了。因此系统把"哪些必须每请求都有"（模型身份、工作区、工具清单、指令）和"哪些可以用到才取"（Skill 内容、Reference 源码、深层指令）分开调度。下文二、三、四节分别把这两头的装配讲透，第五节分析预算控制机制，第六节讨论跨会话的持久化。
 
@@ -41,7 +41,7 @@ System Prompt 是每次 LLM 请求的固定头部。它由 `src/session/system.t
 
 ### 2.1 四段拼装：provider 专属 / 环境 / 指令文件 / skill 清单
 
-在 runLoop 把消息喂给 LLM 前，`prompt.ts` 会先并行取四种东西（`src/session/prompt.ts:1435`）：
+在 runLoop 把消息喂给 LLM 前，`prompt.ts` 会先并行取四种东西：
 
 ```ts
 const [skills, env, instructions, modelMsgs] = yield* Effect.all([
@@ -65,7 +65,7 @@ const system = [
 ]
 ```
 
-于是最终 System Prompt 的四段顺序是：**agent/provider 指令 → 环境块 → 指令文件 → skill 描述**。四段各自承担一种稳定角色：指令告诉模型"你是谁"，环境告诉它"你在哪"（这支撑相对路径解析与 git 命令选择），指令文件告诉它"这个项目的约定"，skill 清单告诉它"有哪些工具能按需取来"。
+于是最终 System Prompt 的四段顺序是：**agent/provider 指令 → 环境块 → 指令文件 → skill 描述**。四段各自承担一种稳定角色：指令告诉模型"你是谁"，环境告诉它"你在哪"——这支撑着相对路径解析与 git 命令选择——指令文件告诉它"这个项目的约定"，skill 清单告诉它"有哪些工具能按需取来"。
 
 ### 2.2 Provider 专属 prompt：一套内核跑多家模型
 
@@ -90,7 +90,7 @@ export function provider(model) {
 
 这项设计的核心逻辑在于：同一个 Agent 内核需要适配多家模型，而不同模型对指令风格、工具调用及上下文组织的偏好差异巨大。与其用一套通用 Prompt 导致各模型效果互相折损，不如针对每家模型提供专属指令。
 
-该机制通过无外部依赖的纯字符串匹配完成路由，实现了"更换模型仅需切换 Prompt"，使得 Agent 内核无需为此分叉；此外，特定 Agent（如 explore、compaction）还可配置自身的 `agent.prompt` 来覆盖默认的 Provider 文案。
+该机制通过无外部依赖的纯字符串匹配完成路由，实现了"更换模型仅需切换 Prompt"，使得 Agent 内核无需为此分叉；此外，诸如 `explore`、`compaction` 这类特定 Agent，还可配置自身的 `agent.prompt` 来覆盖默认的 Provider 文案。
 
 ### 2.3 环境注入 `<env>`：位置与状态的快照
 
@@ -119,7 +119,7 @@ environment: Effect.fn("SystemPrompt.environment")(function* (model) {
 
 ## 三、驻留磁盘、按需进窗：指令文件 / Skill / Reference
 
-System Prompt 负责每次都有。但描述"这个项目"的持久知识大多不该每次都发——它们驻留在磁盘，只有当 LLM 实际需要用时才被拖进窗口。这三类（指令文件、Skill、Reference）共享同一个模式：**只给轻量元数据/描述，完整内容按需再取**。
+System Prompt 负责每次都有。但描述"这个项目"的持久知识大多不该每次都发——它们驻留在磁盘，只有当 LLM 实际需要用时才被拖进窗口。指令文件、Skill、Reference 这三类共享同一个模式：**只给轻量元数据/描述，完整内容按需再取**。
 
 ### 3.1 指令文件（instruction.ts）：从磁盘到 system prompt
 
@@ -138,7 +138,7 @@ if (!Flag.OPENCODE_DISABLE_PROJECT_CONFIG) {
 }
 ```
 
-`instructionFiles` 是 `["AGENTS.md", ...(disableClaudeCodePrompt ? [] : ["CLAUDE.md"]), "CONTEXT.md"]`——CLAUDE.md 仅在未禁用时加载（用于兼容 Claude Code），CONTEXT.md 标为 deprecated。查找分两路：全局（`~/.config/opencode/AGENTS.md`，以及 `~/.claude/CLAUDE.md`）与项目（从 CWD 向上 `findUp`）。`systemPaths` 的注释点明了关键取舍：**取首个匹配就停，不叠加各级父目录里的 AGENTS.md**——不把工作目录到根之间所有 AGENTS.md 全摞起来，避免多层互相覆盖时的不可预期。这是"简单可预测 vs 多层叠加"之间的明确选择：宁可丢失一些父级目录里的约定，也要保证行为确定。内容拼成 `Instructions from: {filepath}\n{content}` 注入，`config.instructions` 里还能挂本地/远程指令 URL。
+`instructionFiles` 是 `["AGENTS.md", ...(disableClaudeCodePrompt ? [] : ["CLAUDE.md"]), "CONTEXT.md"]`——CLAUDE.md 仅在未禁用时加载，用于兼容 Claude Code；CONTEXT.md 标为 deprecated。查找分两路：全局（`~/.config/opencode/AGENTS.md` 与 `~/.claude/CLAUDE.md`）和项目——从 CWD 向上 `findUp`。`systemPaths` 的注释点明了关键取舍：**取首个匹配就停，不叠加各级父目录里的 AGENTS.md**——不把工作目录到根之间所有 AGENTS.md 全摞起来，避免多层互相覆盖时的不可预期。这是"简单可预测 vs 多层叠加"之间的明确选择：宁可丢失一些父级目录里的约定，也要保证行为确定。内容拼成 `Instructions from: {filepath}\n{content}` 注入，`config.instructions` 里还能挂本地/远程指令 URL。
 
 ### 3.2 Skill（skill/index.ts）：描述轻、内容贵、按需取
 
@@ -160,7 +160,7 @@ skills: Effect.fn("SystemPrompt.skills")(function* (agent) {
 
 `Skill.fmt(list, { verbose: true })` 用于输出包含 `name`、`description` 和 `location` 的 `<available_skills>` 清单。源码注释解释了其设计初衷：在 System Prompt 中提供详尽的技能清单，能让 Agent 更准确地识别技能。
 
-**技能的具体实现与完整指令（`content`）并不随 System Prompt 预加载**。System Prompt 仅注入轻量级的"技能名片"；只有当 LLM 匹配到对应需求时，才会通过 `skill` 工具把具体的 `content` 动态拉取并注入到 Messages 对话流中。
+**技能的具体实现与完整指令 `content` 并不随 System Prompt 预加载**。System Prompt 仅注入轻量级的"技能名片"；只有当 LLM 匹配到对应需求时，才会通过 `skill` 工具把具体的 `content` 动态拉取并注入到 Messages 对话流中。
 
 这种**System 存高密度摘要，工具按需载入全文**的分级加载策略，避免了将所有 Skill 全文一次性塞入上下文的 Token 浪费，是典型的"描述轻、内容贵、按需调"。
 
@@ -182,7 +182,7 @@ text: [
 ].join("\n")
 ```
 
-它告诉 LLM "这里有个 reference，根在这、是什么类型"，然后明确丢给 Read/Glob/Grep（或调 scout 子 agent）去访问正文。于是 LLM 拿到的是一份**线索而非全文**——Reference 的源码永远在磁盘，需要时由模型自己用工具去读。三类持久知识（指令文件/Skill/Reference）在这里对齐到同一条原则：**驻留磁盘，只给可用于定位的元数据/描述，正文按需再取**。
+它告诉 LLM "这里有个 reference，根在这、是什么类型"，然后明确丢给 Read/Glob/Grep（或调 scout 子 agent）去访问正文。于是 LLM 拿到的是一份**线索而非全文**——Reference 的源码永远在磁盘，需要时由模型自己用工具去读。指令文件/Skill/Reference 这三类持久知识在这里对齐到同一条原则：**驻留磁盘，只给可用于定位的元数据/描述，正文按需再取**。
 
 ## 四、读文件时的上下文相关注入：instruction.resolve
 
@@ -213,7 +213,7 @@ while (current.startsWith(root) && current !== root) {
 
 ### 4.2 为什么比"全塞 system"精准：按需 + 上下文相关
 
-这套机制替代了"把所有指令全塞进 system prompt"——那样 token 会撑。它只在 LLM 真读了某目录下的文件时，才把那个目录的约定给到 LLM，且**同一 assistant 消息只注入一次**（通过 `claims` 这个 `Map<MessageID, Set<string>>` 去重）。读 `src/auth/` 下的文件，就注入 `src/auth/AGENTS.md`（如果存在），而不是每次都把全项目指令倒进来。
+这套机制替代了"把所有指令全塞进 system prompt"——那样 token 会撑。它只在 LLM 真读了某目录下的文件时，才把那个目录的约定给到 LLM，并用 `claims` 这个 `Map<MessageID, Set<string>>` 去重，保证同一 assistant 消息只注入一次。读 `src/auth/` 下的文件，就注入 `src/auth/AGENTS.md`（如果存在），而不是每次都把全项目指令倒进来。
 
 这是"预检索"的反面：不预先猜哪些 context 相关，而是让 LLM 的行动（去读某处）本身带来相关的 context。下一节会看到，这条原则和"不用 RAG"是同一枚硬币的两面——与其先 chunk 索引再相似度召回，不如把指令留在它会出现的路径上，让读取动作把它们带进来。
 
@@ -255,7 +255,7 @@ while (current.startsWith(root) && current !== root) {
 
 ### 6.3 跨会话恢复 + filterCompacted 重排
 
-持久化让跨会话成为可能：下次启动读 SQLite 就能恢复历史。但压缩之后，数据库里消息的物理顺序、与压缩时要保留的两轮内容，跟 LLM 该看到的自洽顺序未必一致。`filterCompacted`（`src/session/message-v2.ts`，第四章细讲过）在序列化给 LLM 前重排，使输出成为 `[compaction-user][summary-assistant][tail][后续]` 的自洽序列。
+持久化让跨会话成为可能：下次启动读 SQLite 就能恢复历史。但压缩之后，数据库里消息的物理顺序、与压缩时要保留的两轮内容，跟 LLM 该看到的自洽顺序未必一致。`filterCompacted`（详见第四章）在序列化给 LLM 前重排，使输出成为 `[compaction-user][summary-assistant][tail][后续]` 的自洽序列。
 
 它的重点在于"**重排而不是删**"：压缩阶段只打标记、更新 `tail_start_id`，数据库里的旧消息仍在；LLM 看到的是摘要 + 保留尾巴 + 后续，顺序对得上，仿佛上下文没断。这一层和第三章对照着看：**会话历史走数据库，持久知识走文件系统——两条持久化轨道**。知识（指令/skill/reference）住在文件的字面里，历史（说了什么、改了什么）住在数据库的行里，二者在装配时汇合进窗口。
 
