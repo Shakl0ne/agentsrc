@@ -252,11 +252,13 @@ foreground 完成 → `state="completed"`；后台启动 → `state="running"`�
 
 到这里才到多 Agent 系统最需要决策的一层：一次来了多个子任务，怎么跑？OpenCode 用极简方式——任务队列 + `pop()`，一次一个，串行。这与 Claude Code 的 coordinator 并行正相反，是两种哲学的断点。
 
-### 5.1 OpenCode：单队列，一次一个
+### 5.1 OpenCode：单队列串行调度
 
-回看 runLoop 的 `const task = tasks.pop()`，`tasks` 正是 `MessageV2.latest` 收集的 subtask part。运行层维护的是单个任务队列，每轮用 `pop()` 从中取一个交给对应的 handler——**一次只处理一个 task**，子 agent 排队执行，OpenCode 一个一个跑完。
+源码中 `const task = tasks.pop()` 的逻辑表明，OpenCode 维护的是一个单任务队列，每轮从 `MessageV2.latest` 收集的 subtask 中弹出一个，交由 Handler 串行执行。
 
-优：**简单、可控、便宜**——一次一个，无并发状态，上下文顺序稳定，成本低（一次只发一个 LLM 调用）。缺：**慢**——如果一次派了 3 个子 agent，OpenCode 只能串行跑完一个再跑下一个，等待会累积。
+优势（简单、控成本）：无并发状态冲突，上下文顺序稳定，且单次仅触发一个 LLM 调用，控制成本极低。
+
+劣势（吞吐低、延迟累积）：无法并行处理任务。若同时分发多个 SubAgent，只能按顺序逐个排队执行，整体耗时较长。
 
 ### 5.2 Claude Code：coordinator 并行
 
