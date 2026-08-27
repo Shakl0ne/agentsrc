@@ -31,7 +31,7 @@ title: OpenCode 工具系统：定义、执行与权限三道设计关口
 
 ## 二、定义层：一个工具怎么被同时"给 LLM"和"给引擎"理解
 
-### 2.1 Tool.Def：五个字段锁定的"身份证"
+### 2.1 Tool.Def：六个字段锁定的"身份证"
 
 OpenCode 的所有工具都对齐同一个 `Tool.Def` 接口（`src/tool/tool.ts:53`）：
 
