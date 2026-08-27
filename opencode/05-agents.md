@@ -116,9 +116,9 @@ if (task?.type === "subtask") {
 
 `tasks` 队列的出处很关键：`MessageV2.latest`（`packages/opencode/src/session/message-v2.ts`）只会把"最新一轮 finished assistant 之后新到的 subtask/compaction part"收集进"未处理工作"队列，已完成的旧 subtask 不重复收。这个时序过滤让 runLoop 不会对同一条子委派跑两遍。这就是"占位 — 派发"的核心：**task 工具只管立好 `subtask` 标记，runLoop 下一轮 `pop()` 到它时才真正跑 handleSubtask**。
 
-### 2.3 handleSubtask：搭桥执行
+### 2.3 handleSubtask：派发执行
 
-`handleSubtask`（`packages/opencode/src/session/prompt.ts`）拿到 `task` 后做的是"搭桥"：
+`handleSubtask`（`packages/opencode/src/session/prompt.ts`）拿到 `task` 后做的是"派发"：
 
 ```ts
 const taskModel = task.model ? yield* getModel(task.model.providerID, task.model.modelID, sessionID) : model
