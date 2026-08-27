@@ -50,10 +50,9 @@ runLoop（见本系列第二章）的设计目标是"不间断地把一轮工具
 
 ### 2.2 角色的操作边界 = allowed-tools 白名单
 
-角色划分不是靠提示词，而是靠 OpenCode 原生的工具白名单。插件在运行时解析每个 agent 的 `allowed-tools`（`parseAllowedTools`，见 `// 位置：oh-my-openagent@4.9.2/dist/index.js:98067`），把"这个角色能用哪些工具"固化成一份可执行的清单。白名单的好处是它是硬约束：不在名单里的工具，模型连调用入口都拿不到。
+角色划分不是靠提示词，而是靠 OpenCode 原生的工具白名单。插件在运行时解析每个 agent 的 `allowed-tools`（`parseAllowedTools`），把"这个角色能用哪些工具"固化成一份可执行的清单。白名单的好处是它是硬约束：不在名单里的工具，模型连调用入口都拿不到。
 
 ```
-// 位置：oh-my-openagent@4.9.2/dist/index.js:98067
 function parseAllowedTools(allowedTools) {
   // 把 agent 配置/文件的 "allowed-tools": [...] 解析成工具白名单
   // 后续按 agent 名查表，决定把哪些工具暴露给该 session
@@ -74,7 +73,7 @@ function parseAllowedTools(allowedTools) {
 
 复用第一节的场景：一个既能规划又能执行的 agent，"打算怎么做"和"实际怎么做"在它脑子里没有分界。它可能一边写计划、一边就把计划里的改动顺手做了——而一旦开始做，范围就在执行中被悄悄改写。剥出来的好处是：**规划只在只读的意义上接触项目**，它产出一个可被审阅、可被存档的工件，而不是把理解直接折进修改动作里。规划师的任务是"把要做什么钉死成一份文件"，不是"开始实现"。
 
-规划师的核心约束用一句话写在它的指令里（`// 位置：oh-my-openagent@4.9.2/dist/index.js:82092`）：
+规划师的核心约束用一句话写在它的指令里：
 
 ```
 REFUSE. Say: "I'm a planner. I create work plans, not implementations. Run `/start-work` after I finish planning."
@@ -84,7 +83,7 @@ REFUSE. Say: "I'm a planner. I create work plans, not implementations. Run `/sta
 
 ### 3.2 两层强制：prompt 软约束 + 白名单硬边界
 
-只靠 3.1 那行 REFUSE 是不够的——提示词是软约束，模型不听话就破功。所以在这之外还要有一层硬的：**只读工具 + 写范围白名单**。规划师的工具表明确写明（`// 位置：oh-my-openagent@4.9.2/dist/index.js:82077`）：
+只靠 3.1 那行 REFUSE 是不够的——提示词是软约束，模型不听话就破功。所以在这之外还要有一层硬的：**只读工具 + 写范围白名单**。规划师的工具表明确写明：
 
 ```
 | Tool | Allowed | Blocked |
@@ -92,14 +91,14 @@ REFUSE. Say: "I'm a planner. I create work plans, not implementations. Run `/sta
 | Write/Edit | `.omo/**/*.md` ONLY | Everything else |
 ```
 
-它在 `dist` 侧的常量化（`// 位置：oh-my-openagent@4.9.2/dist/index.js:104308`）：
+它在 `dist` 侧的常量化：
 
 ```js
 var ALLOWED_EXTENSIONS = [".md"];
 var BLOCKED_TOOLS = ["Write", "Edit", "write", "edit"];
 ```
 
-`BLOCKED_TOOLS` 列出需要拦的写入工具，`ALLOWED_EXTENSIONS` 只放行 `.md`——规划师只能写 `.omo/` 下的 markdown 计划文件，除此之外一切写入都被拒。这套"写范围白名单"由 `prometheus-md-only` 钩子挂在 `tool.execute.before` 上强制执行（const 常量见 `// 位置：...:104308`），一旦规划师试图写 `.omo/*.md` 之外的任何路径，钩子就会 throw 拦截这次调用并抛一个明确原因的拒绝消息（`// 位置：oh-my-openagent@4.9.2/dist/index.js:105233`）：`[prometheus-md-only] Prometheus is a planning agent. File operations restricted to .omo/*.md plan files only.` 这个"只准写计划但禁止实现"的状态在别处也被标注成 `plan-mode-only`（`// 位置：oh-my-openagent@4.9.2/dist/index.js:63133` 的合法性拒绝文案），它和钩子 throw 是**同一条规则在不同通道上的两个表述**——63133 拦的是规划师往队内通道发写操作，钩子 throw 拦的是写文件，两者的判定依据都是"plan-mode-only"。连"派一个子 agent 去代写"也被堵死——`PLANNING_CONSULT_WARNING` 会被注入到规划师发起的顾问子 agent，明确告之"你在被一个只读规划师调用，只提供分析，不要实现"。
+`BLOCKED_TOOLS` 列出需要拦的写入工具，`ALLOWED_EXTENSIONS` 只放行 `.md`——规划师只能写 `.omo/` 下的 markdown 计划文件，除此之外一切写入都被拒。这套"写范围白名单"由 `prometheus-md-only` 钩子挂在 `tool.execute.before` 上强制执行，一旦规划师试图写 `.omo/*.md` 之外的任何路径，钩子就会 throw 拦截这次调用并抛一个明确原因的拒绝消息：`[prometheus-md-only] Prometheus is a planning agent. File operations restricted to .omo/*.md plan files only.` 这个"只准写计划但禁止实现"的状态在别处也被标注成 `plan-mode-only`（它对应的合法性拒绝文案），它和钩子 throw 是**同一条规则在不同通道上的两个表述**——前者拦的是规划师往队内通道发写操作，后者拦的是写文件，两者的判定依据都是"plan-mode-only"。连"派一个子 agent 去代写"也被堵死——`PLANNING_CONSULT_WARNING` 会被注入到规划师发起的顾问子 agent，明确告之"你在被一个只读规划师调用，只提供分析，不要实现"。
 
 两层为什么都要：**prompt 软约束给模型一个可理解的"为什么不行"，白名单硬约束保证模型"破不了"**。前者管"情愿"，后者管"能力"——即使模型因为某种理由想越界，它也没法越过白名单。
 
@@ -115,7 +114,7 @@ var BLOCKED_TOOLS = ["Write", "Edit", "write", "edit"];
 
 ### 4.1 /start-work 钩子：阶段切换的一次性入口
 
-规划到执行的切换由命令 `/start-work` 触发。插件在 `chat.message` 钩子里识别这条命令，识别到之后做两件事：一是把当前 session 的 agent 从规划师切成执行端（`updateSessionAgent(input.sessionID, activeAgent)`，其中 `activeAgent = isAgentRegistered("atlas") ? "atlas" : "sisyphus"`），二是读取 boulder 状态决定是初始化还是续跑（`// 位置：oh-my-openagent@4.9.2/dist/index.js:105993`）：
+规划到执行的切换由命令 `/start-work` 触发。插件在 `chat.message` 钩子里识别这条命令，识别到之后做两件事：一是把当前 session 的 agent 从规划师切成执行端（`updateSessionAgent(input.sessionID, activeAgent)`，其中 `activeAgent = isAgentRegistered("atlas") ? "atlas" : "sisyphus"`），二是读取 boulder 状态决定是初始化还是续跑：
 
 ```js
 const activeAgent = isAgentRegistered("atlas") ? "atlas" : "sisyphus";
@@ -123,17 +122,17 @@ updateSessionAgent(input.sessionID, activeAgent);   // 切到执行端
 const existingState = readBoulderState(ctx.directory);  // 读编排状态
 ```
 
-这里用的是 OpenCode 原生的 session-agent 切换能力（`setSessionAgent` / `sessionAgentMap`，`// 位置：...:57104` / `...:57118`）——插件没有改内核，只是在一个明确的命令入口上调用它。`/start-work` 因此是阶段切换的**一次性闸门**：规划态里绝不能绕过它直接开始实现；一旦经过此闸，当前 session 就正式进入执行态。
+这里用的是 OpenCode 原生的 session-agent 切换能力（`setSessionAgent` / `sessionAgentMap`）——插件没有改内核，只是在一个明确的命令入口上调用它。`/start-work` 因此是阶段切换的**一次性闸门**：规划态里绝不能绕过它直接开始实现；一旦经过此闸，当前 session 就正式进入执行态。
 
 ### 4.2 boulder.json：可查询、可恢复的编排状态机
 
-执行态的状态中枢是一份磁盘 JSON：`.omo/boulder.json`。它记录当前 active work 的 `plan_name`、`status`、参与的 `session_ids`、任务-会话映射等（`completeBoulder` 等操作见 `// 位置：oh-my-openagent@4.9.2/dist/index.js:106285`，`plan_name` 读取见 `...:104583`）。这样一个文件把"现在做哪件事、做了几件、谁在做"从某个 LLM 的上下文里抽出来，变成一个**可查询、可恢复**的事实。
+执行态的状态中枢是一份磁盘 JSON：`.omo/boulder.json`。它记录当前 active work 的 `plan_name`、`status`、参与的 `session_ids`、任务-会话映射等。这样一个文件把"现在做哪件事、做了几件、谁在做"从某个 LLM 的上下文里抽出来，变成一个**可查询、可恢复**的事实。
 
 状态落盘是"崩溃可恢复"的前提。LLM 会话很脆弱：进程崩、关机、token 超限被截断都很常见；如果进度只存在于上下文里，一旦中断就得重头来。把 `plan_name`/进度/会话映射持久化到 `boulder.json`，执行就能在重启后按状态续跑——这是"可恢复"这一设计点的工程落点。
 
 ### 4.3 执行端怎么"照着计划打勾"
 
-boulder 解决"可恢复"，而"不偏离"靠执行端与计划文件的强绑定。执行者每完成一个任务，不是直接说"我做完了"，而是要**回写计划文件里的 checkbox**：把对应任务的 `- [ ]` 改成 `- [x]`，再 `Read` 一次计划文件确认未勾项确实减少了（`// 位置：oh-my-openagent@4.9.2/dist/index.js:83493`）：
+boulder 解决"可恢复"，而"不偏离"靠执行端与计划文件的强绑定。执行者每完成一个任务，不是直接说"我做完了"，而是要**回写计划文件里的 checkbox**：把对应任务的 `- [ ]` 改成 `- [x]`，再 `Read` 一次计划文件确认未勾项确实减少了：
 
 ```
 1. **EDIT the plan checkbox**: Change `- [ ]` to `- [x]` for the completed task in `.omo/plans/{plan-name}.md`
@@ -154,7 +153,7 @@ boulder 解决"可恢复"，而"不偏离"靠执行端与计划文件的强绑�
 
 ### 5.1 buildCompletionGate：完成必须有证据，不是一句话
 
-每完成一个任务，验证端会给执行者塞一段 **COMPLETION GATE**（`buildCompletionGate`，`// 位置：oh-my-openagent@4.9.2/dist/index.js:107577`）：
+每完成一个任务，验证端会给执行者塞一段 **COMPLETION GATE**（`buildCompletionGate`）：
 
 ```
 **COMPLETION GATE - DO NOT PROCEED UNTIL THIS IS DONE**
@@ -168,7 +167,7 @@ Your completion will NOT be recorded until you complete ALL of the following:
 
 ### 5.2 VERIFICATION_REMINDER：默认子 agent 在撒谎
 
-验证的灵魂在 `VERIFICATION_REMINDER`（`// 位置：oh-my-openagent@4.9.2/dist/index.js:106135`）：
+验证的灵魂在 `VERIFICATION_REMINDER`：
 
 ```
 **THE SUBAGENT JUST CLAIMED THIS TASK IS DONE. THEY ARE PROBABLY LYING.**
@@ -186,7 +185,7 @@ Assume the work is broken until YOU prove otherwise.
 
 - **关卡一：Completion Gate**（5.1）——执行者要逐条自证（checkbox 全勾 + 测试跑过）才允许宣称完成。这一关拦的是"口头完成"。
 - **关卡二：独立 Review**——在关卡一通过后，由执行者之外的独立 agent 按验收标准复跑关键路径，而非执行者自我评估。独立性的意义在于避开 1.2 说的"自证代替关卡"：评判者与执行者上下文不同，不共享执行时的先入为主。
-- **关卡三：Final Verification Wave**——当所有实现 todo 都进入"已勾"，开始收尾的统验批次，它是**把终审结论集中交给用户的唯一审批时刻**（`// 位置：oh-my-openagent@4.9.2/dist/index.js:83534` 附近的计划里 `F1-F4` 终审项，及 `107869` 处 `shouldPauseForApproval` 决定是走 final-wave 审批还是普通完成门）：
+- **关卡三：Final Verification Wave**——当所有实现 todo 都进入"已勾"，开始收尾的统验批次，它是**把终审结论集中交给用户的唯一审批时刻**（计划里的 `F1-F4` 终审项，及 `shouldPauseForApproval` 决定是走 final-wave 审批还是普通完成门）：
 
 ```
 Final Wave 任务是 APPROVAL GATES——不是普通任务。
