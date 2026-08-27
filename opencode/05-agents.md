@@ -139,7 +139,7 @@ const result = yield* taskTool.execute(taskArgs, {
 
 ## 三、边界隔离：子 agent 被塞进"被父锁死"的领地
 
-子 agent 委派出去不等于它天然安全。一个权限全开的子 agent 撞进一个只读父会话，会乱改一通；父的拒绝如果传不下子，隔离就名存实亡。OpenCode 的答案是 `deriveSubagentSessionPermission`——把子会话的权限从父那里派生，父 agent 的封禁必须传下来，外加默认收紧。
+子 Agent 的委派并不意味着天然安全。如果让一个全权限的子 Agent 进入只读状态的父会话，极易造成误修改；而一旦父级的拦截规则无法传递给子级，隔离机制就会形同虚设。OpenCode 的解法是 `deriveSubagentSessionPermission`：子会话的权限统一由父级派生——不仅父 Agent 的拒绝规则（deny）必须向下传递，默认权限还会进一步收紧。
 
 ### 3.1 派生子会话权限：父的限制优先
 
