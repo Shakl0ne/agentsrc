@@ -325,7 +325,7 @@ const q = [
     explanation: 'Agent 常要找函数定义、error 字符串、import 这类「特定东西」，相似度召回不如精确匹配。加上向量库实时性差（代码更新索引滞后）、chunk 丢上下文、embedding 有成本——四条对应 Grep 实时 / Read 读全文 / 本地零成本 / 精确匹配。',
   },
   {
-    question: 'OpenCode 不用独立记忆层（如 CC 的 memdir）。它为什么认为这方面的覆盖已经够用？',
+    question: 'OpenCode 不用独立记忆层（如 CC 的 memdir）。作者为什么认为这方面的覆盖已经够用？',
     options: ['指令按需注入 + SQLite 持久化 + filterCompacted 已覆盖三块', '文件系统足够表达记忆故数据库只存会话不必另建层', '因为跨厂商环境不支持本地记忆文件所以放弃抽象层', '记忆尚未覆盖但未来版本会补 memdir 因此暂不叠层'],
     correct: 0,
     explanation: '记忆层想覆盖的三种能力——项目知识、会话历史、上下文自洽——分别已被指令文件按需注入、SQLite 持久化、filterCompacted 重排接管，再加 memdir 等于建平行重复子系统，复杂度上升收益有限。这是「功能完备性 vs 架构简洁」的取舍。',
