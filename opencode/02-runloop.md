@@ -85,7 +85,7 @@ if (input.noReply === true) return message
 return yield* loop({ sessionID: input.sessionID })
 ```
 
-这里解耦了两个环节：**“接收用户消息”** 与 **“驱动 Agent 回复”**。
+这里解耦了两个环节：**接收用户消息** 与 **驱动 Agent 回复**。
 
 为什么要显式拆开？因为一旦这两个动作绑定死，很多能力就做不出来：
 

@@ -86,7 +86,7 @@ export function provider(model) {
 }
 ```
 
-跨厂商的适配取舍最终收敛为**"给每家模型配置一份独立的 Prompt 文件"**——共预置 anthropic、gpt、beast、gemini、codex、trinity、kimi 和 default 八份。
+跨厂商的适配取舍最终收敛为**给每家模型配置一份独立的 Prompt 文件**——共预置 anthropic、gpt、beast、gemini、codex、trinity、kimi 和 default 八份。
 
 这项设计的核心逻辑在于：同一个 Agent 内核需要适配多家模型，而不同模型对指令风格、工具调用及上下文组织的偏好差异巨大。与其用一套通用 Prompt 导致各模型效果互相折损，不如针对每家模型提供专属指令。
 
