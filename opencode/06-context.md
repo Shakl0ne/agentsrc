@@ -235,7 +235,7 @@ while (current.startsWith(root) && current !== root) {
 
 值得单独点一句的是：OpenCode 没有专门做一个"cache 层"，但它的装配结构自带省钱效果，集中在三点：
 
-- **system prompt 稳定**：每次请求 system 几乎不变（provider 指令 + 环境 + 指令 + skill 清单），重复发送的头部天然命中 provider 侧的 prompt cache。
+- **system prompt 稳定**：每次请求 system 几乎不变，例如 provider 指令、环境、指令与 skill 清单，重复发送的头部天然命中 provider 侧的 prompt cache。
 - **tail 保留重叠**：压缩保留最近若干轮，相邻两次请求间消息末端高度重叠，新增的只是当前轮的工具调用与响应。
 - **prune 截断**：旧工具输出被折叠成 `[Old tool result content cleared]` 这样的占位，让后续每次请求 body 更小、也能让后续压缩传给 compact agent 的输入更轻。
 
@@ -257,7 +257,7 @@ while (current.startsWith(root) && current !== root) {
 
 持久化让跨会话成为可能：下次启动读 SQLite 就能恢复历史。但压缩之后，数据库里消息的物理顺序、与压缩时要保留的两轮内容，跟 LLM 该看到的自洽顺序未必一致。`filterCompacted`（详见第四章）在序列化给 LLM 前重排，使输出成为 `[compaction-user][summary-assistant][tail][后续]` 的自洽序列。
 
-它的重点在于"**重排而不是删**"：压缩阶段只打标记、更新 `tail_start_id`，数据库里的旧消息仍在；LLM 看到的是摘要 + 保留尾巴 + 后续，顺序对得上，仿佛上下文没断。这一层和第三章对照着看：**会话历史走数据库，持久知识走文件系统——两条持久化轨道**。知识（指令/skill/reference）住在文件的字面里，历史（说了什么、改了什么）住在数据库的行里，二者在装配时汇合进窗口。
+它的重点在于"**重排而不是删**"：压缩阶段只打标记、更新 `tail_start_id`，数据库里的旧消息仍在；LLM 看到的是摘要 + 保留尾巴 + 后续，顺序对得上，仿佛上下文没断。这一层和第三章对照着看：**会话历史走数据库，持久知识走文件系统——两条持久化轨道**。指令/skill/reference 这些知识住在文件的字面里，"说了什么、改了什么"这些历史住在数据库的行里，二者在装配时汇合进窗口。
 
 ## 七、取舍收束：不建记忆层、不用 RAG
 
