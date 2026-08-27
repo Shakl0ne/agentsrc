@@ -246,7 +246,7 @@ function backgroundOutput(sessionID) {
 }
 ```
 
-foreground 完成 → `state="completed"`；后台启动 → `state="running"`；后台失败 → `state="error"`（内容包在 `task_error` 里）。这样 LLM 能从工具输出解析任务状态，决定"要不要继续、要不要等、要不要看错误"。回收到的是一段**带状态的契约**，父 agent 通过"读 state + 读正文"就能接管一个子任务的命运。
+foreground 完成 → `state="completed"`；后台启动 → `state="running"`；后台失败 → `state="error"`（内容包在 `task_error` 里）。这样 LLM 能从工具输出解析任务状态，决定"要不要继续、要不要等、要不要看错误"。回到父 Agent 手里的是一段带状态的契约，父 Agent 只需要**"读取 state + 提取内容"，就能完全控制和调度该子任务的后续流程**。
 
 ## 五、调度取舍：tasks.pop() 串行 vs coordinator 并行
 
