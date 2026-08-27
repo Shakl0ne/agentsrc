@@ -164,10 +164,10 @@ export function deriveSubagentSessionPermission(input) {
 
 四条策略的判定依据与设计意图：
 
-- ① 继承父 **Agent** 的 edit deny 规则：Plan Mode 的“禁止编辑”约束挂载于 Agent Ruleset 而非 Session 层。若子 Agent 仅继承父级 Session 权限，将静默绕过父级的编辑禁令（如注释 #26514 所指）。因此，父级 Agent 的编辑禁令必须显式下发。
+- ① 继承父 **Agent** 的 edit deny 规则：Plan Mode 的“禁止编辑”约束挂载于 Agent Ruleset 而非 Session 层。若子 Agent 仅继承父级 Session 权限，将静默绕过父级的编辑禁令。因此，父级 Agent 的编辑禁令必须显式下发。
 - ② 继承父 **Session** 的 deny 与 external_directory 规则：属于基础权限透传，确保父级 Session 明确拒绝的访问权限，子 Session 同样继承并拒绝。
 - ③ 默认禁用 `todowrite`：若子 Agent 的 Ruleset 未显式开启 Todo 权限，则默认关闭，防止其随意修改 Todo 列表并污染父级流程。
-- ④ **默认禁用 `task`**：禁止子 Agent 再次调用 task 工具（即创建孙 Agent），直接从源头切断“子 Agent 无限递归派生”的隐患。
+- ④ **默认禁用 `task`**：禁止子 Agent 再次调用 task 工具，直接从源头切断“子 Agent 无限递归派生”的隐患。
 
 ### 3.2 防递归有三层兜底
 
