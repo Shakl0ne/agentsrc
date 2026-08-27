@@ -419,53 +419,17 @@ return [
 
 ## 八、横向取舍：OpenCode 2 级 vs Claude Code 5 级
 
-把 OpenCode 整条链放回生态对比一次。Claude Code 的压缩是 5 级阶梯，OpenCode 是 2 级。看图再展开。
+把 OpenCode 整条链放回生态对比一次。Claude Code 的压缩是 5 级阶梯，OpenCode 是 2 级；一个是"能不调 LLM 就不调、靠服务端缓存压成本"，一个走"简单 + 数据可逆"。一张表看全：
 
-
-### 8.1 CC 前 4 级零 LLM，第 5 级才调
-
-Claude Code 按查询循环的执行顺序有 5 个层级：
-
-| 层级 | 机制 | 调用 LLM | 触发条件 |
-|------|------|---------|----------|
-| Level 1 | Tool Result Budget | 否 | 单条 tool result 超 50K 字符，落盘留 2KB 预览 |
-| Level 2 | Snip Compact  | 否 | token 超阈值 + 13K |
-| Level 3 | Microcompact  | 否 | 每次 API 调用前 |
-| Level 4 | Context Collapse | 否 | ~90% 利用率 |
-| Level 5 | Auto-compact | **是** | 前 4 级不足时 |
-
-前 4 级都是纯数据结构操作：截断、占位符替换、读缓存感知——不碰 LLM。多数会话的回收压力在这些层级就被消化掉，走到 Auto-compact 的少。它的深度依赖 Anthropic 的服务端缓存删除机制 `cache_edits`，把"替换为占位符"和缓存失效绑在一起，让改动尽量便宜。
-
-### 8.2 OpenCode 的 2 级
-
-| 层级 | 机制 | 调用 LLM | 触发条件 |
-|------|------|---------|----------|
-| Level 1 | Prune | 否 | runLoop 退出后异步 fork |
-| Level 2 | Compact | **是** | `isOverflow()`=true |
-
-只有 2 级，Compact 级必调 LLM。Prune 不调 LLM但只覆盖工具输出；对话历史一律交给 LLM 摘要。这背后藏着一个代价：OpenCode 每次压缩都要付一次 LLM 调用费，少了一批 CC 里靠"占位符 + cache"换来的低成本。
-
-### 8.3 两种哲学：省复杂度 vs 省成本
-
-差异落在两处关键：`cache_edits` 依赖，以及源码规模。
-
-CC 的第 5 级之所以便宜，是因为 Microcompact 与 cache_edits 都在 Claude 服务端上，且前 4 级零 LLM 的回收只在它的生态里做得到。它的哲学是"能不调 LLM 就不调"，用缓存感知和大量占位符去压成本，代价是 5 级之间的协同、特性开关与 cache 集成都烧进工程里——对应源码约 3,960 行。
-
-OpenCode 只有 `compaction.ts` 639 行 + `overflow.ts` 32 行。它不依赖 Anthropic 的内建缓存，所以可以跨多家模型厂商跑，`model.cache` 自己有 prompt cache，但没有 CC 那套 cache_edits。它的哲学是"简单 + 数据可逆"：用时间戳标记替代物理删除，把可逆性做进机制；代价是每次压缩都要付一次 LLM 调用的费用。
-
-两家的保护窗口表面看近似——OpenCode 是 40K + 最近 2 轮，CC 是 40K + 最近 3-5 个 tool result。面对"上下文压到哪、还得保留最近哪些"同一类问题，两套代码给出了相近的护栏答案，这是工程经验的趋同。
-
-### 8.4 DOOM 取舍表
-
-| 维度 | CC 占优 | OpenCode 占优 |
-|------|---------|--------------|
-| 高频长对话成本 | ✅ cache_edits + 低 LLM 频次 | |
-| 中小型会话简单 | | ✅ 2 级 |
-| 数据可逆性 | | ✅ 时间戳标记 |
-| 跨模型厂商 | | ✅ 不依赖 Anthropic |
-| 代码可读性 | | ✅ 639 行 vs 3960 行 |
-
-这套取舍的价值不在"多少行"，而在于每个 agent 系统都想清楚两件事：**在哪个维度值得投入复杂度，在哪个维度值得靠"简单 + 可逆"兜住**。CC 把精度压到服务端缓存，OpenCode 把精度压在"别删数据"上，得失都清楚。
+| 维度 | Claude Code（5 级） | OpenCode（2 级） |
+|------|--------------------|------------------|
+| 层级 | 5 级（Tool budget/Snip/Micro/Context collapse/Auto-compact） | 2 级（Prune / Compact） |
+| 调 LLM | 前 4 级零 LLM，仅第 5 级 Auto-compact 调 | Prune 不调，Compact 必调 |
+| 低成本的来源 | 服务端 cache_edits + 占位符，把替换与缓存失效绑定 | 每次压缩付一次 LLM 调用费 |
+| 依赖 | 强依赖 Anthropic 服务端 | 不依赖，可跨多家厂商，model.cache 自带 prompt cache |
+| 源码规模 | 约 3,960 行（5 级协同 + 特性开关 + cache 集成） | compaction.ts 639 行 + overflow.ts 32 行 |
+| 数据可逆 | — | 时间戳标记而非删除，DB 可回溯 |
+| 保护窗口 | 40K + 最近 3-5 个 tool result | 40K + 最近 2 轮（趋同） |
 
 ## 九、收束：设计要点回收
 
