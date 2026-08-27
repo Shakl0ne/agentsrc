@@ -212,7 +212,7 @@ return yield* Effect.acquireUseRelease(
 
 `acquireUseRelease` 分三段：acquire 注册 abort 监听，use 跑 `runTask()`，release 清理监听。信号在"取消传播"上同样打通：如果父 agent 被打断，`ctx.abort` 触发 `onAbort` → `runCancel` → `cancel`，子 agent 也被取消。父没完成的任务，子不会悬在半途占着状态。
 
-### 4.2 background：异步拆走、完成回灌
+### 4.2 background：异步拆走、完成回流
 
 前台模式会阻塞父 agent 直到子任务返回。`background: true` 则把子任务 fork 到后台 fiber，父 agent 立刻继续（`task.ts`）：
 
@@ -230,7 +230,7 @@ if (runInBackground) {
 }
 ```
 
-`background.start` 把 `runTask` fork 到后台 fiber，完成后 `inject("completed", text)` 把结果以合成 user 消息回灌父 session，父 agent 是被"通知完成"而不是轮等。这个分离让父 agent 在等子的时候仍能做它自己的主线。后台分支需要 `experimentalBackgroundSubagents` flag，默认关。
+`background.start` 把 `runTask` fork 到后台 fiber，完成后 `inject("completed", text)` 把结果以合成 user 消息回流父 session，父 agent 是被"通知完成"而不是轮等。这个分离让父 agent 在等子的时候仍能做它自己的主线。后台分支需要 `experimentalBackgroundSubagents` flag，默认关。
 
 ### 4.3 XML 契约：结构化状态让父接管
 
@@ -277,7 +277,7 @@ Coordinator (主 agent)
 |------|---------------------|----------------|
 | 执行 | 单队列 + pop（一次一个） | 多 worker 并行 |
 | 调度复杂度 | 低（一个队列 + pop） | 高（协调 + 合成） |
-| 上下文共享 | 通过 XML 回灌父 session | coordinator 上下文合成 |
+| 上下文共享 | 通过 XML 回流父 session | coordinator 上下文合成 |
 | 成本 | 低（一次一个 LLM 调用） | 高（并发调用） |
 | 响应时间 | 慢（一次一个） | 并行更快 |
 
