@@ -138,7 +138,7 @@ if (!Flag.OPENCODE_DISABLE_PROJECT_CONFIG) {
 }
 ```
 
-`instructionFiles` 是 `["AGENTS.md", ...(disableClaudeCodePrompt ? [] : ["CLAUDE.md"]), "CONTEXT.md"]`——CLAUDE.md 仅在未禁用时加载（用于兼容 Claude Code），CONTEXT.md 标为 deprecated。查找分两路：全局（`~/.config/opencode/AGENTS.md`，以及 `~/.claude/CLAUDE.md`）与项目（从 CWD 向上 `findUp`）。`systemPaths` 的注释点明了关键取舍：**取首个匹配就停，不叠加各级父目录里的 AGENTS.md**——不把工作目录到根之间所有 AGENTS.md 全摞起来，避免多层互相覆盖时的不可预期。这是"简单可预测 vs 多层叠加"之间的明确选择：宁可丢失一些祖先层约定，也要保证行为确定。内容拼成 `Instructions from: {filepath}\n{content}` 注入，`config.instructions` 里还能挂本地/远程指令 URL。
+`instructionFiles` 是 `["AGENTS.md", ...(disableClaudeCodePrompt ? [] : ["CLAUDE.md"]), "CONTEXT.md"]`——CLAUDE.md 仅在未禁用时加载（用于兼容 Claude Code），CONTEXT.md 标为 deprecated。查找分两路：全局（`~/.config/opencode/AGENTS.md`，以及 `~/.claude/CLAUDE.md`）与项目（从 CWD 向上 `findUp`）。`systemPaths` 的注释点明了关键取舍：**取首个匹配就停，不叠加各级父目录里的 AGENTS.md**——不把工作目录到根之间所有 AGENTS.md 全摞起来，避免多层互相覆盖时的不可预期。这是"简单可预测 vs 多层叠加"之间的明确选择：宁可丢失一些父级目录里的约定，也要保证行为确定。内容拼成 `Instructions from: {filepath}\n{content}` 注入，`config.instructions` 里还能挂本地/远程指令 URL。
 
 ### 3.2 Skill（skill/index.ts）：描述轻、内容贵、按需取
 
@@ -162,7 +162,7 @@ skills: Effect.fn("SystemPrompt.skills")(function* (agent) {
 
 **技能的具体实现与完整指令（`content`）并不随 System Prompt 预加载**。System Prompt 仅注入轻量级的"技能名片"；只有当 LLM 匹配到对应需求时，才会通过 `skill` 工具把具体的 `content` 动态拉取并注入到 Messages 对话流中。
 
-这种**"System 存高密度摘要，工具按需载入全文"**的分级加载策略，避免了将所有 Skill 全文一次性塞入上下文的 Token 浪费，是典型的"描述轻、内容贵、按需调"。
+这种**System 存高密度摘要，工具按需载入全文**的分级加载策略，避免了将所有 Skill 全文一次性塞入上下文的 Token 浪费，是典型的"描述轻、内容贵、按需调"。
 
 ### 3.3 Reference（reference.ts）：元数据注入，正文靠工具
 
@@ -190,7 +190,9 @@ text: [
 
 ### 4.1 Read 读文件 → 从该文件目录向上找 nearby 指令
 
-每当 LLM 用 Read 工具读一个文件，`Instruction.resolve`（`src/session/instruction.ts:178`）以那个文件的目录为起点向上走到工作区根，发现 nearby 指令文件就把它们注入。它注入到 **tool result 的 `<system-reminder>`** 而非 system prompt——这段指令只出现在"我读了 src/auth 下某个文件"这条消息的上下文里：
+每当 LLM 使用 `Read` 工具读取文件时，`Instruction.resolve`（`src/session/instruction.ts:178`）会以该文件的当前目录为起点向上递归查找至工作区根目录。在此过程中，一旦发现附近（Nearby）存在指令文件，就会将其动态注入。
+
+值得注意的是，这些指令并非注入到全局 System Prompt 中，而是拼接到工具返回结果（Tool Result）的 `<system-reminder>` 节点内——这意味着该指令仅在当前文件读取操作对应的上下文消息中生效：
 
 ```ts
 let current = path.dirname(target)
@@ -286,7 +288,7 @@ OpenCode 也没有单开"记忆抽象层"（如 CC 的 memdir）。理由同样�
 |------|----------|-------------|
 | 记忆抽象层 | 无（用装配替代） | 有（memdir，4 种类型 + LLM 检索） |
 | 供应商 | 跨厂商（provider 路由多份 prompt） | 单 Anthropic |
-| 指令文件 | AGENTS.md/CLAUDE.md（首个匹配，不叠加祖先） | CLAUDE.md（多层 + @include + rules） |
+| 指令文件 | AGENTS.md/CLAUDE.md（首个匹配，不叠加各级父目录） | CLAUDE.md（多层 + @include + rules） |
 | Skill | `**/SKILL.md` 多渠道 + 两阶段（描述/工具加载） | 有 skills |
 | 引用 | Reference（local/git，元数据注入 + 工具访问） | 无对应层 |
 | 会话持久 | SQLite（级联、分页、实时写） | JSONL |
@@ -299,10 +301,10 @@ OpenCode 也没有单开"记忆抽象层"（如 CC 的 memdir）。理由同样�
 <script setup>
 const q = [
   {
-    question: 'OpenCode 指令文件用「findUp 取首个匹配、不叠加祖先目录」，而不是把从工作目录到根的所有 AGENTS.md 都注入。这样设计的主要取舍是什么？',
-    options: ['首匹配丢弃祖先约定换实现成本更低但牺牲可嵌套', '取全部祖先可获更全约束但不叠加会丢深层指令', '首匹配保证行为确定可预测代价是丢弃部分祖先约定', '只加载项目根单个文件以简化权限与缓存逻辑'],
+    question: 'OpenCode 指令文件用「findUp 取首个匹配、不叠加各级父目录」，而不是把从工作目录到根的所有 AGENTS.md 都注入。这样设计的主要取舍是什么？',
+    options: ['首匹配丢弃父级约定换实现成本更低但牺牲可嵌套', '取全部父级目录可获更全约束但不叠加会丢深层指令', '首匹配保证行为确定可预测代价是丢弃部分父级约定', '只加载项目根单个文件以简化权限与缓存逻辑'],
     correct: 2,
-    explanation: '源码注释明确「first project-level match wins so we don\'t stack...」。取首个匹配保证行为可预期，代价是祖先目录里可能更有用的约定被丢弃。轮换成「全部叠加」则行为不可预测、覆盖规则复杂——这是简单可预测 vs 多层叠加的取舍。',
+    explanation: '源码注释明确「first project-level match wins so we don\'t stack...」。取首个匹配保证行为可预期，代价是父级目录里可能更有用的约定被丢弃。轮换成「全部叠加」则行为不可预测、覆盖规则复杂——这是简单可预测 vs 多层叠加的取舍。',
   },
   {
     question: 'Skill 系统把完整内容留在磁盘，system prompt 里只放 name+description。这个「两阶段加载」对上下文装配的意义是什么？',
