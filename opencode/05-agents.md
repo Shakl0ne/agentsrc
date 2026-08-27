@@ -135,7 +135,7 @@ const result = yield* taskTool.execute(taskArgs, {
 
 它先建 assistant 消息 + 标记 `running` 的 tool part（这样 LLM 看到子 agent 在跑），再用 `taskTool.execute` 执行真子 agent，并优先采取 task 指定的 model。`bypassAgentCheck: true` 说明"权限已在 runLoop 那次判过"，task 内部不重复问。执行完，`result` 把 part 状态更新为 `completed` 并把输出写回。
 
-这套"占位 + 下一轮派发"与第四章压缩的 create/process 两段式同源。它让 runLoop 主循环保持"纯轮询 + 分发"：每只做"弹一个 task → 交给对应 handler"，重活由各分支扛走。无论子 agent 内部多复杂，都挤不进主循环结构，runLoop 不会被子任务的复杂度撑变形——这正是"占位式分发"带来的收益。
+这套"占位 + 下一轮派发"与第四章压缩的 create/process 两段式同源。它让 runLoop 主循环保持"纯轮询 + 分发"：每只做"弹一个 task → 交给对应 handler"，重活交由各分支消化。无论子 agent 内部多复杂，都挤不进主循环结构，runLoop 不会被子任务的复杂度撑变形——这正是"占位式分发"带来的收益。
 
 ## 三、边界隔离：子 agent 被限制在父级收窄的权限范围内
 

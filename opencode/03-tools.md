@@ -22,7 +22,7 @@ title: OpenCode 工具系统：定义、执行与权限三道设计关口
 
 先给工具一个定位。对 LLM 而言，工具是它的"手"——它只能靠函数调用来动文件、跑命令、查网络，所以工具的描述与参数 schema 决定了模型怎么选、怎么填。对引擎而言，工具是它的"门"——每次调用都要过参数校验、越权检查、输出截断、死循环检测这一连串闸，否则一个不可控的工具会把整个 agent 拖垮。
 
-这两套需求看似要拆成两套系统，OpenCode 用同一个 `Tool.Def` 接口扛了下来。往下走，正文会依次回答几个设计问题：
+这两套需求看似要拆成两套系统，OpenCode 用同一个 `Tool.Def` 接口承接了下来。往下走，正文会依次回答几个设计问题：
 
 - 一个工具怎么定义，才能让 LLM 发来的 JSON 参数安全地变成强类型对象？
 - 参数校验和输出截断，为什么能自动加到每个工具上，而不必每个工具自己写？
@@ -215,7 +215,7 @@ rulesets
 
 ### 6.3 ask() 的 Deferred 异步等待
 
-`ask()` 把"问用户"实现成异步等待（`src/permission/index.ts`）。它遍历 `patterns`，任何一条命中 `deny` 就抛 `DeniedError`；全 `allow` 就静默通过；有 `ask` 则扛一个 `Deferred` 挂到 pending，同时 publish 事件，然后 `Deferred.await` 阻塞在用户回复上：
+`ask()` 把"问用户"实现成异步等待（`src/permission/index.ts`）。它遍历 `patterns`，任何一条命中 `deny` 就抛 `DeniedError`；全 `allow` 就静默通过；有 `ask` 则新建一个 `Deferred` 挂到 pending，同时 publish 事件，然后 `Deferred.await` 阻塞在用户回复上：
 
 ```ts
 const deferred = yield* Deferred.make<void, RejectedError | CorrectedError>()
