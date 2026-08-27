@@ -288,7 +288,7 @@ yield* permission.ask({ permission: "doom_loop", patterns: [value.name], ... })
 - **不可控风险靠统一规则机**：ask/allow/deny + findLast + 复用，Doom Loop、External Directory 都搭在同一条管道上。
 - **体验靠默认放开 + 风险兜底**：默认通配 `allow`，靠 `doom_loop`/目录边界与少数敏感工具的显式限制兜底。
 
-OpenCode 用 656 行 tool.ts + registry.ts、711 行 edit.ts、312 行 permission 实现了很多 CC 需要更多 hooks 与独立工具才做得到的事。简化的代价是放弃 PreToolUse hooks 的一部分自由度，换来的是统一的权限模型和内建的 Doom Loop 检测。取舍清楚之后，无论是调试上下文还是自己扩工具，都可以沿这条抽象链对号入座。下篇我们进 agent 系统。
+OpenCode 用 656 行 tool.ts + registry.ts、711 行 edit.ts、312 行 permission 实现了很多 CC 需要更多 hooks 与独立工具才做得到的事。简化的代价是放弃 PreToolUse hooks 的一部分自由度，换来的是统一的权限模型和内建的 Doom Loop 检测。取舍清楚之后，无论是调试上下文还是自己扩工具，都可以沿这条抽象链对号入座。下篇我们探讨会话压缩机制。
 
 ## 章节小测
 
