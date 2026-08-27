@@ -86,7 +86,11 @@ export function provider(model) {
 }
 ```
 
-跨厂商的取舍在这里收敛成"给每家模型一份独立 prompt 文件"——anthropic/gpt/beast/gemini/codex/trinity/kimi/default 八份。这背后的设计点是：**同一个 Agent 内核要跑多家模型，模型对指令风格、工具使用、信息组织方式的偏好不同，与其在运行时互踩，不如让每家都有一份专职指令**。路由是纯字符串匹配、无外部依赖，于是"换模型只换 prompt"成为可能，内核不必为此分叉；个别 agent（如 explore、compaction）还可用自己的 `agent.prompt` 覆盖 provider 文案。
+跨厂商的适配取舍最终收敛为**"给每家模型配置一份独立的 Prompt 文件"**——共预置 anthropic、gpt、beast、gemini、codex、trinity、kimi 和 default 八份。
+
+这项设计的核心逻辑在于：同一个 Agent 内核需要适配多家模型，而不同模型对指令风格、工具调用及上下文组织的偏好差异巨大。与其用一套通用 Prompt 导致各模型效果互相折损，不如针对每家模型提供专属指令。
+
+该机制通过无外部依赖的纯字符串匹配完成路由，实现了"更换模型仅需切换 Prompt"，使得 Agent 内核无需为此分叉；此外，特定 Agent（如 explore、compaction）还可配置自身的 `agent.prompt` 来覆盖默认的 Provider 文案。
 
 ### 2.3 环境注入 `<env>`：位置与状态的快照
 
