@@ -241,8 +241,8 @@ OpenCode 原生提供了三样拼装这套编排所需的底层：**工具白名
 <script setup>
 const q = [
   {
-    question: '范围蔓延的本质是「决策权与执行权不分开」。plan-execute-verify 编排是怎么在 Plan 阶段堵住这个风险的？',
-    options: ['让规划师直接实现以最快暴露范围边界', '给规划师只读工具加 hook 硬 reject 非 .omo 写入', '把执行调度权集中到规划师一人避免范围不定', '用更强模型让规划师一次想清楚以消除漂移'],
+    question: '范围蔓延的本质是「决策权与执行权未做分离」。plan-execute-verify 编排机制是如何在 Plan（规划）阶段堵住这一风险的？',
+    options: ['让规划师直接进行代码实现，以最快速度明确任务边界', '给规划师仅配置只读工具，并设置 Hook 硬性拒绝非 .omo 文件的写入', '将执行调度权集中在规划师一人手中，以避免范围不定', '换用更强的模型让规划师一次性思考到位，从而消除范围蔓延'],
     correct: 1,
     explanation: 'Plan 阶段把决策权（规划师）用只读硬边界隔离——allowed-tools 白名单只放行 .omo/*.md，prometheus-md-only 钩子在 tool.execute.before 上拒绝其余写入。这样规划师无法越界实现，范围蔓延在源头被堵。',
   },
