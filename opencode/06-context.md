@@ -138,7 +138,7 @@ if (!Flag.OPENCODE_DISABLE_PROJECT_CONFIG) {
 }
 ```
 
-`instructionFiles` 是 `["AGENTS.md", ...(disableClaudeCodePrompt ? [] : ["CLAUDE.md"]), "CONTEXT.md"]`——CLAUDE.md 仅在未禁用时加载（用于兼容 Claude Code），CONTEXT.md 标为 deprecated。查找分两路：全局（`~/.config/opencode/AGENTS.md`，以及 `~/.claude/CLAUDE.md`）与项目（从 CWD 向上 `findUp`）。`systemPaths` 的注释点明了关键取舍：**取首个匹配就停，不叠加祖先目录**——不把工作目录到根之间所有 AGENTS.md 全摞起来，避免多层互相覆盖时的不可预期。这是"简单可预测 vs 多层叠加"之间的明确选择：宁可丢失一些祖先层约定，也要保证行为确定。内容拼成 `Instructions from: {filepath}\n{content}` 注入，`config.instructions` 里还能挂本地/远程指令 URL。
+`instructionFiles` 是 `["AGENTS.md", ...(disableClaudeCodePrompt ? [] : ["CLAUDE.md"]), "CONTEXT.md"]`——CLAUDE.md 仅在未禁用时加载（用于兼容 Claude Code），CONTEXT.md 标为 deprecated。查找分两路：全局（`~/.config/opencode/AGENTS.md`，以及 `~/.claude/CLAUDE.md`）与项目（从 CWD 向上 `findUp`）。`systemPaths` 的注释点明了关键取舍：**取首个匹配就停，不叠加各级父目录里的 AGENTS.md**——不把工作目录到根之间所有 AGENTS.md 全摞起来，避免多层互相覆盖时的不可预期。这是"简单可预测 vs 多层叠加"之间的明确选择：宁可丢失一些祖先层约定，也要保证行为确定。内容拼成 `Instructions from: {filepath}\n{content}` 注入，`config.instructions` 里还能挂本地/远程指令 URL。
 
 ### 3.2 Skill（skill/index.ts）：描述轻、内容贵、按需取
 
@@ -158,7 +158,11 @@ skills: Effect.fn("SystemPrompt.skills")(function* (agent) {
 })
 ```
 
-`Skill.fmt(list, { verbose: true })` 输出 `<available_skills>` 清单（name + description + location）。源码注释里那句"the agents seem to ingest the information about skills a bit better if we present a more verbose version"解释了为什么 system 里用详版、工具描述里用简版。**完整内容（content）不走 system**——LLM 判断某个 skill 匹配任务时，再调 `skill` 工具把 `content` 按需载入对话。这避免了"所有 skill 全文都塞进 prompt"的浪费，是典型的"描述轻、内容贵、按需取"。
+`Skill.fmt(list, { verbose: true })` 用于输出包含 `name`、`description` 和 `location` 的 `<available_skills>` 清单。源码注释解释了其设计初衷：在 System Prompt 中提供详尽的技能清单，能让 Agent 更准确地识别技能。
+
+**技能的具体实现与完整指令（`content`）并不随 System Prompt 预加载**。System Prompt 仅注入轻量级的"技能名片"；只有当 LLM 匹配到对应需求时，才会通过 `skill` 工具把具体的 `content` 动态拉取并注入到 Messages 对话流中。
+
+这种**"System 存高密度摘要，工具按需载入全文"**的分级加载策略，避免了将所有 Skill 全文一次性塞入上下文的 Token 浪费，是典型的"描述轻、内容贵、按需调"。
 
 ### 3.3 Reference（reference.ts）：元数据注入，正文靠工具
 
