@@ -81,7 +81,7 @@ core 与运行时两份 schema 共有的委派核心字段是一致的——`mod
 
 ## 二、委派入口：task 工具 + runLoop 的"占位式"分发
 
-委派请求从哪发出？LLM 调一次 `task` 工具。但 `task` 工具不立刻去跑子 agent——它先往消息流里立一条 `subtask` 标记，真正执行要等 runLoop 的下一轮从头派发。这两步不由同一次调用完成，是"占位 + 下一轮派发"的两段式。这与第四章压缩的 create/process 同构思路一致：先落占位，再由主循环分派。
+委派请求从哪发出？LLM 调一次 `task` 工具。但 `task` 工具不立刻去跑子 agent——它先往消息流里立一条 `subtask` 标记，真正执行要等 runLoop 的下一轮从头派发。这两步不由同一次调用完成，是"占位 + 下一轮派发"的两段式。这与第四章压缩的 create/process 同源思路一致：先落占位，再由主循环分派。
 
 ### 2.1 task 是委派契约
 
@@ -98,7 +98,7 @@ const BaseParameterFields = {
 export const Parameters = Schema.Struct({ ...BaseParameterFields, background: Schema.optional(Schema.Boolean) })
 ```
 
-三个必填（`description`/`prompt`/`subagent_type`）是委派的"合同"：要做什么、给谁做。`task_id` 允许续用之前的子会话，`command` 可选地支持命令触发，`background` 决定走异步分支。一个子 agent 的"任务描述"和它的"执行者"都被压进这一小段 schema。
+三个必填（`description`/`prompt`/`subagent_type`）是委派的"合同"：要做什么、给谁做。`task_id` 允许续用之前的子会话，`command` 记录触发本次任务的那条命令，`background` 决定走异步分支。一个子 agent 的"任务描述"和它的"执行者"都被压进这一小段 schema。
 
 ### 2.2 占位式分发：subtask part → runLoop 弹队列
 
@@ -135,7 +135,7 @@ const result = yield* taskTool.execute(taskArgs, {
 
 它先建 assistant 消息 + 标记 `running` 的 tool part（这样 LLM 看到子 agent 在跑），再用 `taskTool.execute` 执行真子 agent，并优先采取 task 指定的 model。`bypassAgentCheck: true` 说明"权限已在 runLoop 那次判过"，task 内部不重复问。执行完，`result` 把 part 状态更新为 `completed` 并把输出写回。
 
-这套"占位 + 下一轮派发"与第四章压缩的 create/process 两段式同构。它让 runLoop 主循环保持"纯轮询 + 分发"：每只做"弹一个 task → 交给对应 handler"，重活由各分支扛走。无论子 agent 内部多复杂，都挤不进主循环结构，runLoop 不会被子任务的复杂度撑变形——这正是"占位式分发"守住的收益。
+这套"占位 + 下一轮派发"与第四章压缩的 create/process 两段式同源。它让 runLoop 主循环保持"纯轮询 + 分发"：每只做"弹一个 task → 交给对应 handler"，重活由各分支扛走。无论子 agent 内部多复杂，都挤不进主循环结构，runLoop 不会被子任务的复杂度撑变形——这正是"占位式分发"守住的收益。
 
 ## 三、边界隔离：子 agent 被塞进"被父锁死"的领地
 
@@ -162,12 +162,12 @@ export function deriveSubagentSessionPermission(input) {
 }
 ```
 
-四条产物，理由各不同：
+四条策略的判定依据与设计意图：
 
-- ① 父 **agent** 的 edit deny。Plan Mode 的"禁编辑"挂在 agent ruleset 上，而不在 session 上；若子 agent 只继承父 session 的权限会**静默绕过父的编辑禁令**（这段代码的注释 #26514 正是为此）。所以父 agent 的 edit deny 必须显式传下。
-- ② 父 **session** 的 deny 与 external_directory：基础转发，父 session 拒绝的，子 session 也拒绝。
-- ③ 默认禁 `todowrite`：子 agent 的 ruleset 没开 todo，就默认关掉，避免它乱改 todo 列表污染父流程。
-- ④ **默认禁 `task`**：子 agent 默认不能再调 task（递归生孙 agent）。这一条直接切断"子 agent 再生 → 递归爆炸"的递归口。
+- ① 继承父 **Agent** 的 edit deny 规则：Plan Mode 的“禁止编辑”约束挂载于 Agent Ruleset 而非 Session 层。若子 Agent 仅继承父级 Session 权限，将静默绕过父级的编辑禁令（如注释 #26514 所指）。因此，父级 Agent 的编辑禁令必须显式下发。
+- ② 继承父 **Session** 的 deny 与 external_directory 规则：属于基础权限透传，确保父级 Session 明确拒绝的访问权限，子 Session 同样继承并拒绝。
+- ③ 默认禁用 `todowrite`：若子 Agent 的 Ruleset 未显式开启 Todo 权限，则默认关闭，防止其随意修改 Todo 列表并污染父级流程。
+- ④ **默认禁用 `task`**：禁止子 Agent 再次调用 task 工具（即创建孙 Agent），直接从源头切断“子 Agent 无限递归派生”的隐患。
 
 ### 3.2 防递归有三层兜底
 
