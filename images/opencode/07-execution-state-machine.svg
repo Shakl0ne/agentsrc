@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-label="Execution State Machine">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 32px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 18px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 13px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 14px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.3); stroke-width: 1.5; }
+    .card-async { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.3); stroke-width: 1.5; stroke-dasharray: 4 4; }
+    .card-warn { fill: rgba(239,68,68,0.08); stroke: rgba(239,68,68,0.3); stroke-width: 1.5; }
+    .card-core { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.4); stroke-width: 2; }
+
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-async { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-warn { fill: none; stroke: rgba(239,68,68,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-async" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(63,185,80,0.8)"/>
+    </marker>
+    <marker id="arrow-warn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(239,68,68,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="60" text-anchor="middle" class="title">EXECUTION STATE MACHINE</text>
+  <text x="500" y="90" text-anchor="middle" class="subtitle">Worker must advance state by writing to the plan file</text>
+
+  <!-- Top Node: Execute Worker -->
+  <rect x="350" y="180" width="300" height="80" rx="12" class="card-highlight"/>
+  <text x="500" y="220" class="card-title">EXECUTE WORKER</text>
+  <text x="500" y="245" class="inner-text">Active Session</text>
+
+  <!-- Bottom Node: Plan File & Boulder -->
+  <rect x="350" y="400" width="300" height="80" rx="12" class="card-core"/>
+  <text x="500" y="440" class="card-title">PLAN FILE &amp; BOULDER</text>
+  <text x="500" y="465" class="inner-text">Persistent State (Truth)</text>
+
+  <!-- Center Gate -->
+  <rect x="380" y="310" width="240" height="40" rx="6" class="card-warn"/>
+  <text x="500" y="335" class="inner-text" fill="#ef4444">COMPLETION GATE</text>
+
+  <!-- Right Path: Edit (Worker -> Plan) -->
+  <path d="M 650 220 L 780 220 L 780 440 L 650 440" class="spine" marker-end="url(#arrow)"/>
+  <text x="870" y="325" class="arrow-text">1. Edit: Change [ ] to [x]</text>
+  <text x="870" y="345" class="inner-sub">(Write action)</text>
+
+  <!-- Left Path: Read (Plan -> Worker) -->
+  <path d="M 350 440 L 220 440 L 220 220 L 350 220" class="spine-async" marker-end="url(#arrow-async)"/>
+  <text x="130" y="325" class="arrow-text" style="fill: #3fb950;">2. Read: Verify count</text>
+  <text x="130" y="345" class="inner-sub">(Read action)</text>
+
+</svg>

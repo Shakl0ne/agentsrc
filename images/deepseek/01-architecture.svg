@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1320" width="900" height="1320" role="img" aria-label="DSH profile and bundle assembly flow">
+<style>
+  text { font-family: "Inter", -apple-system, "Helvetica Neue", Arial, "PingFang SC", sans-serif; }
+</style>
+<defs>
+  <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#0d1117"/>
+    <stop offset="50%" stop-color="#161b22"/>
+    <stop offset="100%" stop-color="#0d1117"/>
+  </linearGradient>
+  <linearGradient id="text-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#58a6ff"/>
+    <stop offset="100%" stop-color="#bc8cff"/>
+  </linearGradient>
+  <marker id="arrow-blue" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#58a6ff"/>
+  </marker>
+  <marker id="arrow-green" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#3fb950"/>
+  </marker>
+</defs>
+<rect width="900" height="1320" fill="url(#bg)"/>
+
+<!-- Title -->
+<text x="450" y="58" text-anchor="middle" font-size="36" font-weight="700" fill="url(#text-grad)">DSH — Profile / Bundle Assembly</text>
+<text x="450" y="96" text-anchor="middle" font-size="19" fill="#8b949e">empty root -&gt; bundle -&gt; patch overlay -&gt; plugin tree: every piece is a swappable plugin</text>
+
+<!-- ===== STAGE 1: EMPTY ROOT ===== -->
+<text x="230" y="150" font-size="18" font-weight="700" fill="#58a6ff" letter-spacing="0.08em">STAGE 1 · ROOT</text>
+<rect x="230" y="168" width="440" height="104" rx="20" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="450" y="224" text-anchor="middle" font-size="32" font-weight="700" fill="#f0f6fc">EMPTY ROOT</text>
+<text x="450" y="256" text-anchor="middle" font-size="18" fill="#8b949e">every profile starts blank</text>
+
+<line x1="450" y1="272" x2="450" y2="326" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- ===== STAGE 2: dsh-base ===== -->
+<text x="230" y="368" font-size="18" font-weight="700" fill="#58a6ff" letter-spacing="0.08em">STAGE 2 · BUNDLE</text>
+<rect x="230" y="386" width="440" height="104" rx="20" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="450" y="442" text-anchor="middle" font-size="32" font-weight="700" fill="#f0f6fc">dsh-base</text>
+<text x="450" y="474" text-anchor="middle" font-size="18" fill="#8b949e">common core bundle</text>
+
+<line x1="450" y1="490" x2="450" y2="544" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- ===== STAGE 3: PRODUCT SHELLS (two below the fork) ===== -->
+<text x="230" y="570" font-size="18" font-weight="700" fill="#58a6ff" letter-spacing="0.08em">STAGE 3 · SHELLS</text>
+<rect x="230" y="588" width="208" height="112" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="334" y="648" text-anchor="middle" font-size="24" font-weight="700" fill="#f0f6fc">dsh-web-app</text>
+<text x="334" y="684" text-anchor="middle" font-size="17" fill="#8b949e">browser / headless</text>
+<rect x="462" y="588" width="208" height="112" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="566" y="648" text-anchor="middle" font-size="24" font-weight="700" fill="#f0f6fc">dsh-headless</text>
+<text x="566" y="684" text-anchor="middle" font-size="17" fill="#8b949e">one-shot runner</text>
+
+<line x1="450" y1="700" x2="450" y2="754" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- ===== STAGE 4: PATCH LAYER ===== -->
+<text x="230" y="786" font-size="18" font-weight="700" fill="#bc8cff" letter-spacing="0.08em">STAGE 4 · PATCH OVERRIDE</text>
+<rect x="230" y="804" width="440" height="148" rx="20" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="450" y="856" text-anchor="middle" font-size="30" font-weight="700" fill="#f0f6fc">cordis.patch.yml</text>
+<text x="450" y="896" text-anchor="middle" font-size="18" fill="#8b949e">profile -&gt; home -&gt; --patch</text>
+<text x="450" y="924" text-anchor="middle" font-size="17" fill="#8b949e">applied in order, upper layer wins</text>
+
+<line x1="450" y1="952" x2="450" y2="1006" stroke="#3fb950" stroke-width="4" marker-end="url(#arrow-green)"/>
+
+<!-- ===== STAGE 5: PLUGIN TREE ===== -->
+<text x="230" y="1038" font-size="18" font-weight="700" fill="#3fb950" letter-spacing="0.08em">STAGE 5 · PLUGIN TREE</text>
+<rect x="230" y="1056" width="208" height="140" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="334" y="1106" text-anchor="middle" font-size="22" font-weight="700" fill="#f0f6fc">ctx.agents</text>
+<text x="334" y="1140" text-anchor="middle" font-size="16" fill="#8b949e">agent-loop</text>
+<text x="334" y="1168" text-anchor="middle" font-size="16" fill="#8b949e">swappable driver</text>
+<rect x="462" y="1056" width="208" height="140" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.4)" stroke-width="4"/>
+<text x="566" y="1106" text-anchor="middle" font-size="22" font-weight="700" fill="#f0f6fc">seams</text>
+<text x="566" y="1140" text-anchor="middle" font-size="16" fill="#8b949e">tools / shell</text>
+<text x="566" y="1168" text-anchor="middle" font-size="16" fill="#8b949e">fs / session</text>
+
+<!-- Legend -->
+<g transform="translate(230, 1236)">
+  <line x1="0" y1="10" x2="34" y2="10" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+  <text x="44" y="16" font-size="17" fill="#8b949e">assembly flow (ordered)</text>
+  <line x1="330" y1="10" x2="364" y2="10" stroke="#3fb950" stroke-width="4" stroke-dasharray="8,5" marker-end="url(#arrow-green)"/>
+  <text x="374" y="16" font-size="17" fill="#8b949e">product shells / ext</text>
+</g>
+</svg>

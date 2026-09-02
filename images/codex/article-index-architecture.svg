@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1120" width="900" height="1120" role="img" aria-label="Codex reactor architecture: submission loop dispatches Ops and run_turn drives a turn">
+<style>
+  text { font-family: "Inter", -apple-system, "Helvetica Neue", Arial, "PingFang SC", sans-serif; }
+  .step { fill: rgba(255,255,255,0.04); stroke: rgba(255,255,255,0.4); }
+</style>
+<defs>
+  <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#0d1117"/>
+    <stop offset="50%" stop-color="#161b22"/>
+    <stop offset="100%" stop-color="#0d1117"/>
+  </linearGradient>
+  <linearGradient id="text-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#58a6ff"/>
+    <stop offset="100%" stop-color="#3fb950"/>
+  </linearGradient>
+  <marker id="arrow-blue" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#58a6ff"/>
+  </marker>
+  <marker id="arrow-green" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#3fb950"/>
+  </marker>
+  <marker id="arrow-purple" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#bc8cff"/>
+  </marker>
+  <marker id="arrow-orange" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#f77f00"/>
+  </marker>
+</defs>
+
+<rect width="900" height="1120" fill="url(#bg)"/>
+
+<text x="450" y="46" text-anchor="middle" font-size="34" font-weight="700" fill="url(#text-grad)">Codex - reactor + run_turn</text>
+<text x="450" y="80" text-anchor="middle" font-size="17" fill="#8b949e">event-driven submission_loop dispatches Ops; run_turn drives one model turn</text>
+
+<!-- ===== submission_loop ===== -->
+<rect x="250" y="106" width="400" height="104" rx="16" fill="rgba(88,166,255,0.10)" stroke="#58a6ff" stroke-width="4"/>
+<text x="450" y="152" text-anchor="middle" font-size="26" font-weight="700" fill="#f0f6fc">submission_loop</text>
+<text x="450" y="182" text-anchor="middle" font-size="15" fill="#8b949e">async_channel</text>
+
+<!-- fan-out -->
+<line x1="255" y1="210" x2="255" y2="276" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+<line x1="450" y1="210" x2="450" y2="276" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+<line x1="645" y1="210" x2="645" y2="276" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- ops row -->
+<rect x="155" y="282" width="200" height="92" rx="14" class="step"/>
+<text x="255" y="322" text-anchor="middle" font-size="18" font-weight="700" fill="#f0f6fc">Op UserTurn</text>
+<text x="255" y="351" text-anchor="middle" font-size="14" fill="#8b949e">run a turn</text>
+
+<rect x="350" y="282" width="200" height="92" rx="14" class="step"/>
+<text x="450" y="322" text-anchor="middle" font-size="18" font-weight="700" fill="#f0f6fc">Op Compact</text>
+<text x="450" y="351" text-anchor="middle" font-size="14" fill="#8b949e">project / row</text>
+
+<rect x="545" y="282" width="200" height="92" rx="14" class="step"/>
+<text x="645" y="322" text-anchor="middle" font-size="18" font-weight="700" fill="#f0f6fc">Op Interrupt</text>
+<text x="645" y="351" text-anchor="middle" font-size="14" fill="#8b949e">abort a task</text>
+
+<!-- main flow (center op -> run_turn) -->
+<line x1="450" y1="374" x2="450" y2="426" stroke="#bc8cff" stroke-width="4" marker-end="url(#arrow-purple)"/>
+
+<rect x="170" y="432" width="560" height="76" rx="16" fill="rgba(188,140,255,0.10)" stroke="#bc8cff" stroke-width="4"/>
+<text x="450" y="466" text-anchor="middle" font-size="24" font-weight="700" fill="#f0f6fc">run_turn</text>
+<text x="450" y="494" text-anchor="middle" font-size="15" fill="#8b949e">build initial context</text>
+
+<line x1="450" y1="512" x2="450" y2="556" stroke="#bc8cff" stroke-width="4" marker-end="url(#arrow-purple)"/>
+
+<!-- token check -->
+<rect x="140" y="556" width="620" height="82" rx="14" class="step"/>
+<text x="262" y="592" text-anchor="middle" font-size="23" font-weight="700" fill="#f0f6fc">token check</text>
+<text x="520" y="592" text-anchor="middle" font-size="16" fill="#8b949e">· within budget?</text>
+<text x="520" y="620" text-anchor="middle" font-size="15" fill="#f77f00">over -&gt; auto compact -&gt; rebuild</text>
+
+<!-- ok down to LLM -->
+<line x1="450" y1="645" x2="450" y2="672" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- LLM sampling -->
+<rect x="250" y="678" width="400" height="74" rx="16" fill="rgba(88,166,255,0.08)" stroke="#58a6ff" stroke-width="4"/>
+<text x="450" y="708" text-anchor="middle" font-size="23" font-weight="700" fill="#f0f6fc">LLM sampling</text>
+<text x="450" y="736" text-anchor="middle" font-size="14" fill="#8b949e">tokio + ratatui stream</text>
+
+<line x1="450" y1="766" x2="450" y2="802" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- tool dispatch -->
+<rect x="110" y="808" width="680" height="120" rx="16" class="step"/>
+<text x="450" y="838" text-anchor="middle" font-size="22" font-weight="700" fill="#f0f6fc">tool dispatch pipeline</text>
+<text x="450" y="874" text-anchor="middle" font-size="15" fill="#8b949e">pre-hook -&gt; ExecPolicy · sandbox (Seatbelt / Landlock)</text>
+<text x="450" y="900" text-anchor="middle" font-size="15" fill="#8b949e">post-hook -&gt; result written back</text>
+
+<line x1="450" y1="928" x2="450" y2="970" stroke="#3fb950" stroke-width="4" marker-end="url(#arrow-green)"/>
+
+<!-- response -->
+<rect x="250" y="976" width="400" height="74" rx="18" fill="rgba(63,185,80,0.12)" stroke="#3fb950" stroke-width="4"/>
+<text x="450" y="1010" text-anchor="middle" font-size="25" font-weight="700" fill="#3fb950">response</text>
+<text x="450" y="1036" text-anchor="middle" font-size="15" fill="#8b949e">stop -&gt; turn ends</text>
+
+</svg>
