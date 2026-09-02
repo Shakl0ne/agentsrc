@@ -81,6 +81,8 @@ core 与运行时两份 schema 共有的委派核心字段是一致的——`mod
 
 ## 二、委派入口：task 工具 + runLoop 的"占位式"分发
 
+![OpenCode 占位式任务分发模型](/images/opencode/05-subtask-dispatch.svg)
+
 当 LLM 调用 `task` 工具时，`task` 工具不会立刻执行子 agent——它先往消息流里立一条 `subtask` 标记，真正执行要等 runLoop 的下一轮从头派发。这两步不由同一次调用完成，是"占位 + 下一轮派发"的两段式。这与第四章压缩的 create/process 同源思路一致：先落占位，再由主循环分派。
 
 ### 2.1 task 是委派契约
@@ -138,6 +140,8 @@ const result = yield* taskTool.execute(taskArgs, {
 这套"占位 + 下一轮派发"与第四章压缩的 create/process 两段式同源。它让 runLoop 主循环保持"纯轮询 + 分发"：每只做"弹一个 task → 交给对应 handler"，重活交由各分支消化。无论子 agent 内部多复杂，都挤不进主循环结构，runLoop 不会被子任务的复杂度撑变形——这正是"占位式分发"带来的收益。
 
 ## 三、边界隔离：子 agent 被限制在父级收窄的权限范围内
+
+![子会话的四重隔离边界](/images/opencode/05-subagent-isolation.svg)
 
 子 Agent 的委派并不意味着天然安全。如果让一个全权限的子 Agent 进入只读状态的父会话，极易造成误修改；而一旦父级的拦截规则无法传递给子级，隔离机制就会形同虚设。OpenCode 的解法是 `deriveSubagentSessionPermission`：子会话的权限统一由父级派生——不仅父 Agent 的拒绝规则（deny）必须向下传递，默认权限还会进一步收紧。
 
