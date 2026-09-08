@@ -1,31 +1,66 @@
-# 主循环：Submission 驱动的 Turn 系统
+---
+title: Codex 主循环图解：一条消息是如何在 Reactor 中流转的？
+---
 
-## 〇、引言
+# Codex 主循环图解：一条消息是如何在 Reactor 中流转的？
 
-上一篇文章我们从宏观上俯瞰了 Codex 的整体架构：三个二进制入口、100+ 个 crate、Rust 工程哲学。但你可能会问——**用户敲下 `codex` 之后到底发生了什么？**
+想象 Agent 正在执行一个耗时 3 分钟的编译工具，此时你按下了 `Ctrl+C` 想打断，或者后台发现 Token 快爆了需要立刻触发上下文压缩。如果主循环是一个简单的 `while(true) { 请求模型 -> 执行工具 }`，系统此时是阻塞的，无法响应这些突发事件。
 
-这篇文章深入 Codex 的主循环，回答三个问题：
+当 Agent 需要同时处理用户输入、UI 渲染、系统中断和后台任务时，线性的执行流该怎么破局？
 
-1. **Codex 的主循环长什么样？**——不是轮询，是事件驱动的 reactor
-2. **一次 Turn 的生命周期是什么？**——从 User Input 到模型回复，经过了哪些阶段
-3. **和 CC 的主循环比有什么区别？**——两种工程哲学的碰撞
+Codex 的解法是采用基于 Channel 的 Reactor（反应器）模式。本文将拆解 Codex 核心引擎的任务调度机制。具体来说，我们将回答四个核心问题：
 
-![Codex 事件驱动 Reactor：submission_loop + 4 个 Op 生产者](/images/codex/02-hero.png)
+1. 外部输入和内部事件是如何被统一抽象并路由的？
+2. 当用户在模型生成中途追加输入时，系统是直接强杀任务还是平滑介入（Steering 机制）？
+3. 任务的取消为什么采用“协作式取消 + 兜底强杀”的三段式设计？
+4. 相比 Claude Code 的 async generator，Codex 选择 Reactor 模式的工程考量是什么？
 
-## 一、Codex 没有「主循环」
+具体的上下文组装和工具执行细节留给下一篇，本文只聚焦任务的调度、并发控制与生命周期。
 
-### 1.1 这不是一个玩笑
+## 一、问题：被打破的线性执行幻觉
 
-这是一个有点反直觉的说法，但我先说出来：**Codex 没有一个类似 CC 中 `queryLoop()` 那样的函数**。
+在单端输入的纯 CLI 脚本里，`while` 循环没有问题：系统等待用户输入，发给大模型，拿到结果，再等下一次输入。
 
-CC 的主循环在 `query.ts` 的第 200-1677 行，是一个约 1,477 行的巨型 `async function* queryLoop()`。它用 while-true 驱动一切——等待用户输入、调模型、执行工具、压缩上下文，全都在同一个函数里按顺序跑。
+但在 Codex 的架构里，输入来源是多端的。它不仅要处理终端的键盘事件，还要响应 App Server 传来的 IDE 并发 RPC 请求。如果沿用线性循环，一旦主线程卡在 `await llm_generate()` 或某个耗时的本地工具执行上，整个 Agent 就会失去响应能力。此时用户在 VS Code 里点击“停止生成”，系统根本无暇顾及。
 
-Codex 完全不是这样。
+要解决多端并发响应，必须把“等待模型”和“响应事件”解耦。主循环不再主动死等 LLM 结果，而是变成一个专门监听事件的调度中心；LLM 推理和工具执行被剥离为后台子任务。
 
-它的「主循环」严格来说不是一个循环，而是一个**事件分发器**：`submission_loop`（`handlers.rs:738`）。
+## 二、核心抽象 A：Reactor 模式与 Op 消息总线
+
+### 2.1 万物皆事件：`Op` 枚举
+
+Codex 把所有的“动作”数据化。无论是用户说话、沙箱请求审批，还是系统要求压缩上下文，全部被打包成统一的消息。
+
+对应到源码，这是一个叫 `Op` 的枚举（位于 `codex-rs/protocol/src/protocol.rs`）：
 
 ```rust
-// handlers.rs:738-887（简化）
+// codex-rs/protocol/src/protocol.rs
+pub enum Op {
+    UserInput {
+        items: Vec<UserTurnItem>,
+        environments: Vec<EnvironmentIdentifier>,
+        thread_settings: Option<ThreadSettings>,
+        // ...
+    },
+    Compact,
+    Interrupt,
+    ExecApproval {
+        id: String,
+        turn_id: String,
+        decision: ExecApprovalDecision,
+    },
+    // ...
+}
+```
+
+这个设计将系统的意图与执行彻底剥离。UI 层或网络层不需要知道怎么调用模型，它们只需要构造一个 `Op::UserInput` 并发送到 Channel 中。
+
+### 2.2 `submission_loop`：永不阻塞的监听者
+
+接住这些消息的，是 `submission_loop` 函数：
+
+```rust
+// core/src/session/handlers.rs
 pub(super) async fn submission_loop(
     sess: Arc<Session>,
     config: Arc<Config>,
@@ -33,347 +68,179 @@ pub(super) async fn submission_loop(
 ) {
     while let Ok(sub) = rx_sub.recv().await {
         match sub.op {
-            Op::UserInput { .. } => user_input_or_turn(&sess, ...).await,
-            Op::Compact => compact(&sess, ...).await,
-            Op::Interrupt => interrupt(&sess).await,
-            Op::Shutdown => shutdown(&sess, ...).await,
-            // ... 共 20+ 种 Op 类型
+            Op::UserInput { items, .. } => {
+                user_input_or_turn(&sess, items, ...).await;
+            }
+            Op::Compact => run_compact_task(&sess).await,
+            Op::Interrupt => handle_interrupt(&sess).await,
+            // ...
         }
     }
 }
 ```
 
-它不主动"拉"工作，而是被动响应 `Receiver<Submission>` 上的消息。每个 `Submission` 包装了一个 `Op` 枚举值，告诉分发器"该干什么"。
+主循环阻塞在 `rx_sub.recv().await` 上。这是一个单消费者的 Channel 接收端。
 
-有 20+ 种 Op 类型：
+Codex 能及时响应中断，核心原因并不是 `Op::Interrupt` 在队列里有特权，而是因为耗时的长任务都被扔进了后台 spawned task 里。主循环在分发完事件后会立刻回到 `recv().await` 等待下一条消息，从而保持了极高的响应吞吐率。
 
-| Op 类型 | 用途 |
-|---------|------|
-| `UserInput` | 用户发消息，启动一轮对话 |
-| `Compact` | 触发上下文压缩 |
-| `Interrupt` | 中断当前任务 |
-| `ExecApproval` | 执行策略审批 |
-| `PatchApproval` | 代码修改审批 |
-| `ThreadRollback` | 回滚对话 |
-| `ThreadSettings` | 运行时设置变更 |
-| `Shutdown` | 关闭会话 |
-| `RunUserShellCommand` | 执行 shell 命令 |
-| `RealtimeConversationStart/Audio/Text/Close` | 实时语音对话控制 |
-| `InterAgentCommunication` | 子 Agent 消息传递 |
-| 等等 | |
+## 三、核心抽象 B：Steering 介入与三段式取消
 
-### 1.2 消息从哪来
+### 3.1 活跃任务中收到新输入：Steer 还是 Abort？
 
-Codex 的 Submission 通过 `async_channel`（Tokio 的 MPSC 变体）发送。这意味着：
+如果模型正在生成回复，用户突然又发了一条新消息（比如“等等，顺便把测试也写了”），系统该怎么处理？
 
-- Producer 可以在任意协程中发送 Submission
-- Consumer（`submission_loop`）在单协程中串行处理
-
-产生 Submission 的场景包括：
-
-- **用户输入**：TUI 或 App Server 收到用户消息，发送 `Op::UserInput`
-- **子 Agent 通信**：Agent 需要给父/子 Agent 发消息，通过 `Op::InterAgentCommunication`
-- **自动触发的任务**：定时检查 token 超限，自动发送 `Op::Compact`
-- **审批响应**：用户批准/拒绝一个 shell 命令执行，通过 `Op::ExecApproval`
-
-每个 Submission 的完整结构（`protocol.rs:127`）：
+直觉上可能会认为系统会直接强杀旧任务，然后带上新输入重新请求。但 Codex 的处理更加细腻，它引入了 Steering（介入）机制：
 
 ```rust
-pub struct Submission {
-    pub id: String,              // 关联事件 ID
-    pub op: Op,                  // 干什么
-    pub client_user_message_id: Option<String>,  // 客户端消息 ID
-    pub trace: Option<W3cTraceContext>,          // 分布式追踪
+// 伪代码逻辑：user_input_or_turn 的流转
+async fn user_input_or_turn(...) {
+    // 1. 尝试介入当前活跃的 Turn
+    match steer_input(sess, new_input).await {
+        Ok(_) => return, // 成功将输入追加到 pending input，当前任务继续
+        Err(SteerInputError::NoActiveTurn) => {
+            // 2. 如果没有活跃任务，才启动新任务
+            spawn_task(RegularTask::new()).await;
+        }
+    }
 }
 ```
 
-复用同一个 channel 让所有操作自然地排队——用户输入不会打断审批，审批不会打断压缩。串行化是自动的，不需要锁。
+如果当前有活跃的 `RegularTask`，新输入会被追加到当前 turn 的待处理队列中，模型在下一次工具循环间隙会感知到这个新指令。只有在没有活跃任务时，系统才会调用 `spawn_task` 启动新一轮对话。
 
+### 3.2 协作式取消加兜底 Abort
 
-## 二、一次性 Turn 的生命周期
-
-当 `submission_loop` 收到 `Op::UserInput` 时，它调用 `user_input_or_turn`（`handlers.rs:88`），最终触发 `run_turn`（`turn.rs:136`）。
-
-`run_turn` 的完整签名：
+当确实需要启动新任务（或收到 `Op::Interrupt`）时，系统会调用 `abort_all_tasks`。Codex 的任务取消采用了严谨的三段式设计：
 
 ```rust
-pub(crate) async fn run_turn(
-    sess: Arc<Session>,
-    turn_context: Arc<TurnContext>,
-    turn_extension_data: Arc<codex_extension_api::ExtensionData>,
-    input: Vec<TurnInput>,
-    prewarmed_client_session: Option<ModelClientSession>,
-    cancellation_token: CancellationToken,
-) -> Option<String>
-```
-
-一次 Turn 的生命周期可以概括为 8 个阶段：
-
-![Turn 生命周期 8 阶段瀑布图](/images/codex/02-lifecycle.png)
-
-```
-pre-sampling compact
-  ↓
-记录上下文更新 + 注入 skills/plugins/hooks
-  ↓
-set_previous_turn_settings
-  ↓
-↓ → 检查 pending_input（用户在中途发的新消息）
-↓ → clone_history() 组装 prompt
-↓ → run_sampling_request() 调模型
-↓ → 判断 token_limit_reached && needs_follow_up
-↓ →   是 → run_auto_compact() → back to loop
-↓ →   否 → 返回结果
-  ↓  ← loop
-工具执行 + 结果回写
-  ↓
-stop hooks
-  ↓
-结束
-```
-
-### 2.1 Pre-sampling Compact
-
-每次 sampling 前（`turn.rs:150`），Codex 会先检查是否需要压缩上下文。如果当前 token 使用量超过阈值，会先触发 compact 再采样。
-
-这里调用的函数是 `run_pre_sampling_compact`（`turn.rs:784`），它会检查 `auto_compact_token_status()` 返回的 token 状态，决定是否以及用什么方式压缩（Local / Remote v1 / Remote v2）。
-
-```rust
-// turn.rs:150
-if let Err(err) = run_pre_sampling_compact(&sess, &turn_context, &mut client_session).await {
-    // 如果 usage limit 超了，返回 None
-    return None;
-}
-```
-
-### 2.2 上下文注入
-
-压缩检查通过后，Codex 记录上下文变更并构建注入：
-
-```rust
-// turn.rs:167
-sess.record_context_updates_and_set_reference_context_item(turn_context.as_ref()).await;
-
-let (injection_items, explicitly_enabled_connectors) =
-    build_skills_and_plugins(&sess, turn_context.as_ref(), &input, &cancellation_token).await?;
-```
-
-这个过程包括：
-- 上下文 diffing（仅发送变更段，复用 prompt cache）
-- Skills/Plugins 注入
-- Hooks 执行（`run_pending_session_start_hooks`）
-
-### 2.3 Sampling 请求
-
-提交给模型的 prompt 通过 `clone_history().for_prompt()` 组装（`turn.rs:237`）：
-
-```rust
-let sampling_request_input: Vec<ResponseItem> = {
-    sess.clone_history()
-        .await
-        .for_prompt(&turn_context.model_info.input_modalities)
-};
-```
-
-然后调用 `run_sampling_request`，这对应实际的模型 API 调用：
-
-```rust
-match run_sampling_request(
-    Arc::clone(&sess), Arc::clone(&turn_context),
-    Arc::clone(&turn_extension_data), Arc::clone(&turn_diff_tracker),
-    &mut client_session, turn_metadata_header.as_deref(),
-    sampling_request_input.clone(), cancellation_token.child_token(),
-)
-```
-
-### 2.4 Mid-turn Compact
-
-Sampling 返回后（`turn.rs:259`），Codex 进入一个判断逻辑：
-
-```rust
-if token_limit_reached && needs_follow_up {
-    if let Err(err) = run_auto_compact(
-        &sess, &turn_context, &mut client_session,
-        InitialContextInjection::BeforeLastUserMessage,
-        CompactionReason::ContextLimit,
-        CompactionPhase::MidTurn,
-    )
-```
-
-这是 mid-turn compact：模型本轮返回时说"我还要继续调用工具"，但 token 已经超限了，那就在工具执行前先压缩。压缩完成后回到 loop 顶部重新 sampling。
-
-前一篇说过 Compact 的细节，这里不展开——第四篇会单独讲。
-
-![Mid-Turn Token Check 决策树](/images/codex/02-token.png)
-
-### 2.5 Loop + Stop Hooks
-
-```
-loop {
-    检查 pending_input（用户中途发的新消息）
-    执行 hooks + 记录输入
-    clone_history() 组装 prompt
-    run_sampling_request() 调模型
-    判断是否需要 mid-turn compact
-    需要 → compact → continue
-    不需要 → break
-}
-执行 stop hooks
-返回最终消息
-```
-
-Stop hooks（`run_turn_stop_hooks`）在 turn 结束前执行，和 CC 的 stop hooks 概念类似——允许用户注册在对话结束后运行的逻辑。
-
-
-## 三、SessionTask 抽象
-
-Codex 有不同的任务类型。不是每一次"模型回复"都是标准的用户对话：
-
-| Task 类型 | 定义位置 | 用途 | 触发器 |
-|-----------|---------|------|--------|
-| `RegularTask` | `tasks/regular.rs` | 标准用户-模型对话 | `Op::UserInput` |
-| `CompactTask` | `tasks/compact.rs` | 上下文压缩 | `Op::Compact` |
-| `ReviewTask` | `tasks/review.rs` | Code Review | `review()` 在 handlers.rs:702 |
-| `UserShellCommandTask` | `tasks/user_shell.rs` | `codex exec` 一次性命令 | `Op::RunUserShellCommand` |
-
-它们都实现 `SessionTask` trait（`tasks/mod.rs:207`）：
-
-```rust
+// core/src/tasks/mod.rs
 pub(crate) trait SessionTask: Send + Sync + 'static {
-    fn kind(&self) -> TaskKind;
-    fn span_name(&self) -> &'static str;
-    fn run(
-        self: Arc<Self>,
-        session: Arc<SessionTaskContext>,
-        ctx: Arc<TurnContext>,
-        input: Vec<TurnInput>,
-        cancellation_token: CancellationToken,
-    ) -> impl Future<Output = Option<String>> + Send;
-    fn abort(
-        &self,
-        session: Arc<SessionTaskContext>,
-        ctx: Arc<TurnContext>,
-    ) -> impl Future<Output = ()> + Send;
+    fn run(...) -> impl Future<Output = Option<String>> + Send;
+    
+    // 任务可以覆写 abort 做额外清理，默认是 no-op
+    fn abort(&self, ...) -> impl Future<Output = ()> + Send {
+        async {}
+    }
 }
 ```
 
-`Session::spawn_task`（`tasks/mod.rs:305`）会先 abort 所有之前的任务，再 spawn 新任务。任何时候只有一个活跃的 `SessionTask`。
+取消动作并不是简单粗暴的 `kill -9`，而是：
+1. **协作式取消**：先调用 Tokio 的 `cancellation_token.cancel()`，向下游（网络请求、工具进程）广播取消信号。
+2. **优雅等待**：等待一段 graceful timeout，期望任务自行清理并退出。
+3. **兜底强杀与清理**：如果超时仍未退出，调用 `task.handle.abort()` 强杀底层协程，最后调用 task 的 `abort` hook 执行业务层的状态回滚。
 
-![SessionTask trait 层次：4 种实现](/images/codex/02-tasks.png)
+这种机制保证了即使在极端情况下打断工具执行，也不会留下僵尸进程或损坏的数据库状态。
 
-## 四、Session 状态的并发访问
+## 四、下潜到微观：run_turn 的真实流转
 
-Codex 的所有会话状态存储在 `Session` 结构体中，内部通过 `Arc<Mutex<SessionState>>` 保护：
+宏观上，Codex 靠事件驱动解耦了并发；但进入 `RegularTask::run` 后，微观的单次对话依然有一条清晰的执行链。
+
+真实的 `run_turn` 流程比直觉中的“组装上下文 -> 调模型”要复杂得多：
 
 ```rust
-// session.rs（简化）
-pub struct Session {
-    state: Arc<tokio::sync::Mutex<SessionState>>,
-    // ...
+// 伪代码逻辑：run_turn 的真实流转顺序
+pub(crate) async fn run_turn(...) -> Result<()> {
+    // 1. 采样前压缩：如果历史太长，先压一波
+    run_pre_sampling_compact(sess).await?;
+    
+    // 2. 状态记录与上下文组装
+    record_context_updates_and_set_reference_context_item(sess).await?;
+    build_skills_and_plugins(sess).await?;
+    
+    // 3. 采样循环 (Sampling Loop)
+    loop {
+        let response = run_sampling_request(sess).await?;
+        
+        // 采样后压缩检查：如果单轮生成导致 Token 暴涨
+        run_auto_compact(sess).await?;
+        
+        if response.has_tool_calls() {
+            execute_tools(sess, response.tool_calls).await?;
+            continue;
+        } else {
+            break;
+        }
+    }
 }
 ```
 
-关键点：
+注意压缩机制的位置：它不仅在采样前（`run_pre_sampling_compact`）有一道防线，在每次模型返回后（`run_auto_compact`）还有一道防线。微观循环被严密地包裹在 Token 预算的监控之下。
 
-1. **短锁持有**：访问 state 的操作都非常短，拿到锁 → 读/写 → 释放
-2. **事件是异步的**：`Session::send_event()` 不会等 UI 渲染完，只发到 event channel
-3. **历史是集成的**：`Session` 内部持有关联的 `HistoryManager`，通过 `clone_history()` 获取快照
+## 五、关键决策：Reactor vs Continuation-driven
 
-这意味着 `submission_loop` 虽然是单协程处理，但协程内部通过 `.await` 暂停时，其他协程（如 UI 线程或监控协程）有机会执行。
+把 Codex 的主循环和 Claude Code 放在一起看，能明显感受到两种工程哲学的碰撞。
 
+Claude Code 使用了 `async generator`（通过 `yield` 让出控制权），整个主循环写在一个巨大的函数里。代码像一条直线，直观易读。
 
-## 五、Tool Calling 的处理
+Codex 为什么要把流程切碎成松散的事件和 Task？
 
-Tool calling 在 Codex 中不单独属于一个文件。它分散在几个层面：
+首先是**并发架构的需求**。Codex 的 App Server 需要处理 IDE 发来的并发 JSON-RPC 请求。松散的事件总线天然适合多生产者（Multi-Producer）场景。UI 线程、网络线程、定时器线程都可以作为 Producer，向同一个 Channel 投递 `Op` 消息。
 
-1. **Sampling 阶段**（`run_sampling_request`）：模型返回 tool call，由 `stream_events_utils` 解析
-2. **Tool 路由**（`tools/` 模块）：`ToolRouter` 根据 tool name 分派到具体 handler
-3. **结果回写**：工具结果写回 history，然后 loop 判断是否继续
+其次，这也更贴合 Rust/Tokio 的**工程惯性**。在 Rust 中，将复杂的会话状态跨越多个 `await` 甚至 `yield` 传递，需要处理繁琐的生命周期和借用关系；而基于 Channel 的 Actor/Reactor 模式，通过消息传递转移所有权，是 Rust 并发生态中更成熟、更稳健的解法。
 
-这与 CC 的 tool calling 机制结构上是相似的（模型发 tool_call → 执行 → 结果写回），但 Codex 的抽象层级更多：
+## 六、总结：收拢控制流复杂度
 
-- Tool 定义和路由在独立的 `codex-tools` crate
-- MCP 连接由 `codex-mcp` 管理
-- 执行权限由 `codex-execpolicy` 控制
-- 沙箱由 `codex-sandboxing` 隔离
+把控制权交还给事件循环，LLM 推理只是众多可以被随时掐断的子任务之一。引入 Reactor 模式、Steering 介入机制和三段式取消，是 Codex 应对多端并发和复杂状态管理的核心手段。
 
-不过这些不在本文的范围内，第六篇会专门讲工具系统。
+既然任务调度的骨架已经理顺了，那送给模型的上下文是怎么组装的？几十种系统指令、环境变量、历史记录如何拼接才不会乱？下一篇，我们将进入 Codex 的上下文管线，拆解 `build_initial_context`。
 
-
-## 六、Codex vs Claude Code：主循环对比
-
-### 6.1 核心差异
-
-| 维度 | Codex | Claude Code |
-|------|-----------|-------------|
-| **主循环文件** | `handlers.rs:738`（~220 行） | `query.ts:200-1677`（~1,477 行） |
-| **模式** | 事件驱动 reactor | continuation-driven polling |
-| **并发** | tokio channel + 协程 | 单线程 async generator |
-| **状态结构** | `Arc<Mutex<SessionState>>` | 显式 `State` 对象 + mutable |
-| **Task 抽象** | 4 种 SessionTask trait | 无（都塞在主循环里） |
-| **Op 枚举** | 20+ 种，enum dispatch | implicit（通过 yield/return 控制流） |
-| **Tool 循环** | 嵌在 run_turn 的 loop 里 | 嵌在 queryLoop 的 while true 里 |
-
-### 6.2 为什么 Codex 选 reactor？
-
-这和工程语言直接相关。
-
-Rust 的所有权模型让显式状态管理更安全：`Arc<Mutex<SessionState>>` 在 Rust 里是惯用模式，编译器保证你不会误用。而在 TypeScript 里，同样的显式锁就需要更小心。
-
-CC 的 queryLoop 选择 continuation-driven 是 TypeScript 自然的选择——async generator 让状态隐式保持在函数栈帧里，用 `yield` 退出再 `next()` 恢复，不需要额外的状态机。
-
-两种模式没有绝对的优劣。但有一个观察：**Codex 能天然支持并行子 Agent 和后台任务，因为它有 channel + 多协程的基础设施；CC 的 queryLoop 想要加并行子 Agent 就需要大规模重构。** 这就是架构决策的长期影响。
-
-### 6.3 一个有趣的类比
-
-CC 的 queryLoop ≈ 单线程 event loop（如 Node.js 的事件循环）
-Codex 的 submission_loop ≈ 单消费者消息队列（如 Kafka consumer）
-
-两者都串行处理，但串行的方式不同：
-- CC：同协程内 cede control（yield），由外部调度器决定何时恢复
-- Codex：总在新协程中处理每个 Op，channel 保证顺序
-
-
-## 七、小结
-
-| 你学到什么 | 对应文件 |
-|-----------|---------|
-| submission_loop 事件分发 | `handlers.rs:738-887` |
-| Op 枚举（20+ 种操作） | `protocol.rs:498` |
-| Submission 结构 | `protocol.rs:127` |
-| run_turn 生命周期（8 阶段） | `turn.rs:136` |
-| Pre-sampling compact | `turn.rs:150` + `turn.rs:784` |
-| Mid-turn auto compact | `turn.rs:292-301` |
-| SessionTask trait | `tasks/mod.rs:207` |
-| 4 种 Task 实现 | `tasks/regular.rs`, `compact.rs`, `review.rs`, `user_shell.rs` |
-
-## 章节小测
+## 七、章节小测
 
 <script setup>
 const q = [
   {
-    question: 'Codex 的 submission_loop 与 Claude Code 的 queryLoop 核心设计差异是什么？',
-    options: ['Codex 通过 while-true 轮询方式检查事件并同步执行回调', 'submission_loop 基于 channel 事件驱动分发 Op 消息到各 Handler', 'Codex 使用多线程并行并行处理用户请求与后台压缩任务', '两套系统架构设计完全相同仅底层编程语言实现存在差异'],
+    question: '在 Codex 的架构中，submission_loop 函数在没有事件输入时，处于什么状态？',
+    options: [
+      '阻塞在对 LLM 推理 API 的网络请求回调上，等待模型返回生成的文本',
+      '阻塞在 async_channel 的 recv() 方法上，等待接收新的 Submission 消息',
+      '处于高频的 while-true 自旋轮询状态，不断检查各个工具的执行进度',
+      '阻塞在终端标准输入的 read_line 方法上，等待用户敲击键盘输入字符'
+    ],
     correct: 1,
-    explanation: 'submission_loop 通过 async_channel 接收 Submission（包装 Op 枚举），被动响应消息分派到不同 handler；queryLoop 是一个 1,477 行的 async generator，用 while-true 驱动一切——等待输入、调模型、执行工具、压缩全在同一个函数里。'
+    explanation: 'submission_loop 是一个单消费者接收端，它通过 rx_sub.recv().await 阻塞等待。这种设计使得它能在等待期间随时被其他来源（如系统定时器、IDE 请求）的消息唤醒。'
   },
   {
-    question: 'Codex 的 SessionTask trait 为什么设计了 abort 方法？',
-    options: ['提供程序退出时统一清理后台会话资源的关闭入口', '确保 spawn 新任务前终止当前活跃任务避免并发冲突', '允许用户在运行时手动中断正在执行的长时间任务', '配合 Rust Drop 语义在 SessionTask 析构时自动回收资源'],
-    correct: 1,
-    explanation: 'Session::spawn_task 会先 abort 所有之前的任务再 spawn 新任务，确保任何时候只有一个活跃的 task。这种设计避免了并发冲突，简化了状态管理。'
+    question: '当 Codex 正在执行一个耗时的代码生成任务时，用户突然输入了新指令，系统默认会如何处理？',
+    options: [
+      '将新指令加入待处理队列，等当前代码生成任务完全结束后再按顺序启动新任务',
+      '直接在当前线程中同步执行新指令，阻塞后续的所有模型请求和本地工具调用',
+      '通过 steer_input 尝试介入当前活跃任务，将新输入追加到当前 Turn 的待处理队列',
+      '调用当前 SessionTask 的 abort 方法强制终止旧任务，然后立刻清空历史并重启'
+    ],
+    correct: 2,
+    explanation: 'Codex 引入了 Steering（介入）机制。如果当前有活跃的 RegularTask，新输入会被追加到当前 turn 的 pending input 中，模型在下一次工具循环间隙会感知到这个新指令，而不是直接强杀。'
   },
   {
-    question: 'Mid-turn compact 的触发条件是什么？',
-    options: ['只要上下文 token 达到设定的自动压缩阈值即触发压缩', 'token 超限且模型要求继续执行未完成工具调用时触发', '由用户通过 TUI 界面或 API 接口手动触发上下文压缩', '每轮对话的 sampling 阶段结束后自动无条件触发压缩'],
+    question: '在 Codex 的任务取消机制中，系统是如何安全地掐断正在进行的网络请求或工具进程的？',
+    options: [
+      '通过操作系统的 kill -9 信号直接杀死后台运行的 Tokio 工作线程以释放内存',
+      '采用协作式取消（CancellationToken）、优雅等待超时，最后兜底强杀与清理',
+      '修改数据库中的 Session 状态位，让底层的工具进程自行轮询并决定是否退出',
+      '断开与 App Server 的 WebSocket 连接，强制引发底层的网络读写异常来中断'
+    ],
     correct: 1,
-    explanation: '两个条件必须同时满足：token 超限（token_limit_reached）且模型要求继续（needs_follow_up，如还有未执行完的 tool call）。如果模型已返回 final message 但 token 超限，不 compact——下一轮 pre-turn compact 会处理。'
+    explanation: 'Codex 的取消是三段式的：先触发 CancellationToken 广播取消信号，等待一段 graceful timeout 期望任务自行清理，如果超时仍未退出，再调用 task.handle.abort() 强杀并执行 abort hook。'
   },
   {
-    question: 'Codex 选择事件驱动 reactor 模式而非 CC 的 continuation-driven polling，带来了什么长期影响？',
-    options: ['通过减少异步状态转换显著降低核心循环的整体代码行数', 'channel 多协程基础设施天然支持并行子 Agent 与后台任务', '牺牲部分运行时吞吐性能换取更严格的内存安全保证', '利用 tokio 零成本抽象缩短每次模型调用的响应延迟'],
-    correct: 1,
-    explanation: 'Codex 的 channel + 多协程基础设施让并行子 Agent 和后台任务成为自然能力；CC 的 queryLoop 是单线程 async generator，要加并行子 Agent 需对核心循环进行大规模重构。这就是架构决策的长期影响。'
+    question: '对比 Claude Code，Codex 选择 Reactor 模式而非 async generator 的核心工程考量是什么？',
+    options: [
+      'async generator 在处理海量上下文时会导致严重的内存泄漏和系统性能衰退',
+      'Reactor 模式能显著降低 LLM 推理的延迟，提升首字响应速度与用户体验',
+      '适配多端并发输入需求，并更贴合 Rust/Tokio 生态中基于消息传递的工程惯性',
+      'async generator 无法支持动态工具注册和 MCP 协议的双向集成与权限拦截'
+    ],
+    correct: 2,
+    explanation: 'Reactor 模式天然适合 App Server 处理 IDE 并发请求的多生产者场景。同时，通过 Channel 传递消息转移所有权，比在 Rust 中跨 yield 维护复杂借用关系更符合工程惯性。'
+  },
+  {
+    question: '在 run_turn 的真实流转中，上下文压缩（Compaction）发生在什么时机？',
+    options: [
+      '仅在用户手动发送 Op::Compact 消息时，才会暂停当前任务执行上下文压缩',
+      '仅在模型返回 tool_calls 之前，系统会统一对历史工具结果进行一次压缩',
+      '在采样循环开始前有一道防线，在每次模型返回后（自动压缩）还有一道防线',
+      '仅在整个 run_turn 彻底结束后，系统会在后台起一个独立线程进行异步压缩'
+    ],
+    correct: 2,
+    explanation: 'run_turn 流程中，首先会执行 run_pre_sampling_compact，然后在采样循环内部，每次模型返回后还会执行 run_auto_compact，微观循环被严密地包裹在 Token 预算监控之下。'
   }
 ]
 </script>

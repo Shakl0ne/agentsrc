@@ -1,528 +1,190 @@
-# Compact 系统：3 种压缩机制
+---
+title: Codex 压缩机制图解：为什么核心压缩路径要依赖 LLM？
+---
 
-## 〇、引言
+# Codex 压缩机制图解：为什么核心压缩路径要依赖 LLM？
 
-第一篇我们说过 Codex 的压缩策略和 CC 截然相反——**所有压缩都涉及 LLM 调用**。这一篇展开讲清楚。
+想象 Agent 正在处理一个复杂的 Bug，历史对话已经累积了 20 轮，包含了数百行代码和报错日志。当上下文长度不可避免地撞上模型窗口上限时，系统该如何“丢弃”信息，才能既保住 Token 预算，又不让模型丢失关键的早期需求？
 
-Codex 的 Compact 系统有 3 个核心维度：
+Codex 的解法是：核心压缩产物依赖 LLM 语义摘要，辅以本地截断作为工程兜底。本文将拆解 Codex 核心引擎中的 `compact` 机制。具体来说，我们将回答四个核心问题：
 
-1. **3 种实现**：Local / Remote v1 / Remote v2，运行时根据 provider 选择
-2. **3 种触发时机**：Pre-turn / Mid-turn / Manual
-3. **2 种初始上下文注入策略**：BeforeLastUserMessage / DoNotInject
+1. 压缩任务是如何在 `run_turn` 中被自动触发的？
+2. 为什么 Codex 要实现 Local、Remote v1、Remote v2 三套不同的压缩机制？
+3. 压缩后的历史结构是如何组装的？
+4. 相比 Claude Code 的多级纯文本降级策略，Codex 的压缩哲学有什么不同？
 
-读完这篇你能回答：
+本文只讨论 Token 超限后的“压缩”策略。关于工具调用结果本身的截断策略，将留到下一篇工具系统拆解。
 
-- Codex 怎么决定用哪种压缩实现？
-- 三种实现在调用链路上有什么区别？
-- 为什么 Mid-turn 必须注入完整初始上下文，而 Pre-turn 不能注入？
-- 和 CC 的 5 级压缩对比，谁的策略更聪明？
+## 一、问题：被撑爆的 Token 预算
 
+如果采用简单的 FIFO（先进先出）截断，直接丢弃最老的对话，模型会丢失早期的关键上下文（如用户的初始需求、早期的架构决策）。一旦这些信息丢失，模型的后续推理就会缺乏支撑。
 
-![Codex 3 种 Compact 实现选择树](/images/codex/04-hero.png)
+因此，必须把长篇大论的“对话过程”变成精炼的“状态摘要”。但这个过程不能仅靠字符串截取，需要 LLM 的语义理解能力。
 
-## 一、Compact 实现选择
+## 二、核心抽象 A：压缩的触发时机
 
-### 1.1 三种实现的文件位置
+在 Codex 中，压缩不是一个被动等待报错的补救措施，而是主动防御的常规管线。
 
-```
-codex-rs/core/src/
-├── compact.rs             # Local 实现（617 行）
-├── compact_remote.rs      # Remote v1 实现（485 行）
-└── compact_remote_v2.rs   # Remote v2 实现（819 行）
-```
+### 2.1 `run_turn` 中的两道防线
 
-三种实现都有同样的对外接口（每个文件都有 `run_inline_auto_compact_task` 和 `run_remote_compact_task` 两个公开函数），但内部实现差异很大。
-
-### 1.2 选择逻辑：run_auto_compact
-
-dispatcher 在 `turn.rs:862`：
+在 `core/src/session/turn.rs` 中，Codex 设置了两道防线：
 
 ```rust
-async fn run_auto_compact(
-    sess: &Arc<Session>,
-    turn_context: &Arc<TurnContext>,
-    client_session: &mut ModelClientSession,
-    initial_context_injection: InitialContextInjection,
-    reason: CompactionReason,
-    phase: CompactionPhase,
-) -> CodexResult<()> {
-    if should_use_remote_compact_task(turn_context.provider.info()) {
-        if turn_context.features.enabled(Feature::RemoteCompactionV2) {
-            emit_compact_metric(&sess.services.session_telemetry, "remote_v2", false);
-            run_inline_remote_auto_compact_task_v2(
-                Arc::clone(sess), Arc::clone(turn_context), client_session,
-                initial_context_injection, reason, phase,
-            ).await?;
-            return Ok(());
-        }
-        emit_compact_metric(&sess.services.session_telemetry, "remote", false);
-        run_inline_remote_auto_compact_task(
-            Arc::clone(sess), Arc::clone(turn_context),
-            initial_context_injection, reason, phase,
-        ).await?;
-    } else {
-        emit_compact_metric(&sess.services.session_telemetry, "local", false);
-        run_inline_auto_compact_task(
-            Arc::clone(sess), Arc::clone(turn_context),
-            initial_context_injection, reason, phase,
-        ).await?;
-    }
-    Ok(())
-}
-```
-
-选择规则：
-
-1. **`should_use_remote_compact_task(provider.info())`** —— 如果 provider 支持 remote compaction，走 remote
-2. **`Feature::RemoteCompactionV2`** —— 如果 V2 feature 开启，走 v2；否则走 v1
-3. **fallback** —— 都不满足，走 local
-
-OpenAI 官方 provider（如 ChatGPT 订阅、OpenAI API）支持 remote compaction；Ollama、LM Studio 这类本地 provider 走 local。
-
-### 1.3 三种实现的对比表
-
-| 实现 | 文件 | 调 LLM | 调用方式 | 适用 provider |
-|------|------|--------|---------|--------------|
-| Local | `compact.rs:70` | ✅ 是 | 同一个模型 stream | 所有（Ollama / LM Studio / OpenAI 兜底） |
-| Remote v1 | `compact_remote.rs:45` | ✅ 是 | Responses API compact endpoint | OpenAI 官方 |
-| Remote v2 | `compact_remote_v2.rs:56` | ✅ 是 | 改进版 endpoint，支持更多配置 | OpenAI 官方 + Feature flag |
-
-**所有三种都调用 LLM**——这就是和 CC 最大的不同。CC 的前 4 级压缩都是纯数据结构操作（截断 tool result、Snip、Microcompact、Context Collapse），只有第 5 级才调 LLM。
-
-
-## 二、Local 实现详解
-
-Local 是最通用的兜底实现。原理：把整个历史发给模型，要求生成摘要。
-
-### 2.1 入口
-
-`compact.rs:70`：
-
-```rust
-pub(crate) async fn run_inline_auto_compact_task(
-    sess: Arc<Session>,
-    turn_context: Arc<TurnContext>,
-    initial_context_injection: InitialContextInjection,
-    reason: CompactionReason,
-    phase: CompactionPhase,
-) -> CodexResult<()> {
-    let prompt = turn_context.compact_prompt().to_string();
-    let input = vec![UserInput::Text {
-        text: prompt,
-        text_elements: Vec::new(),
-    }];
-    run_compact_task_inner(
-        sess, turn_context, input,
-        initial_context_injection,
-        CompactionTrigger::Auto, reason, phase,
-    ).await?;
-    Ok(())
-}
-```
-
-注意：**input 不是用户的原始消息，而是 compact prompt**。也就是说 Codex 把"压缩请求"作为一个新的 user message 加到 history 末尾，让模型回复一个 summary。
-
-### 2.2 核心循环
-
-`run_compact_task_inner_impl` 在 `compact.rs:194`，关键流程：
-
-```rust
-async fn run_compact_task_inner_impl(...) -> CodexResult<String> {
-    let compaction_item = TurnItem::ContextCompaction(ContextCompactionItem::new());
-    sess.emit_turn_item_started(&turn_context, &compaction_item).await;
+// 伪代码逻辑：core/src/session/turn.rs
+pub(crate) async fn run_turn(...) -> Result<()> {
+    // 防线一：采样前压缩
+    run_pre_sampling_compact(sess).await?;
     
-    let mut history = sess.clone_history().await;
-    history.record_items(&[initial_input_for_turn.into()], turn_context.truncation_policy);
-    
-    let mut retries = 0;
-    let mut client_session = sess.services.model_client.new_session();
+    // ... 组装上下文 ...
     
     loop {
-        let turn_input = history.clone().for_prompt(&turn_context.model_info.input_modalities);
-        let prompt = Prompt {
-            input: turn_input,
-            base_instructions: sess.get_base_instructions().await,
-            personality: turn_context.personality,
-            ..Default::default()
-        };
-        let attempt_result = drain_to_completed(
-            &sess, turn_context.as_ref(), &mut client_session,
-            turn_metadata_header.as_deref(), &prompt,
-        ).await;
+        let response = run_sampling_request(sess).await?;
         
-        match attempt_result {
-            Ok(()) => break,
-            Err(CodexErr::ContextWindowExceeded) => {
-                if turn_input_len > 1 {
-                    // 砍掉最旧的一条，保留 prefix cache
-                    history.remove_first_item();
-                    retries = 0;
-                    continue;
-                }
-                // 砍到只剩一条还不够，报错
-                return Err(e);
-            }
-            Err(e) => {
-                if retries < max_retries {
-                    retries += 1;
-                    let delay = backoff(retries);
-                    // 等待重试
-                } else {
-                    return Err(e);
-                }
-            }
-        }
+        // 防线二：自动压缩（采样后/Mid-turn）
+        run_auto_compact(sess).await?;
+        
+        // ... 处理工具调用 ...
     }
-    // 构建摘要 + 替换 history
 }
 ```
 
-![Local Compact 内循环：ContextWindowExceeded → remove_first_item](/images/codex/04-loop.png)
+- **Pre-sampling（防线一）**：在每次调用模型前，系统会调用 `auto_compact_token_status` 检查当前 Token 状态。如果达到限制（受模型配置的 limit 影响），则触发压缩。
+- **Mid-turn Auto-compact（防线二）**：在单轮生成结束后，如果满足 `token_limit_reached && needs_follow_up`（即 Token 爆了，且模型还要继续调用工具或有待处理输入），则触发压缩。
 
-### 2.3 摘要的构造
+### 2.2 手动触发与模型降级 (Downshift)
 
-模型返回 summary 后（`compact.rs:289-323`）：
+除了自动触发，用户也可以发送 `Op::Compact` 手动压缩。
+
+此外，当系统发生模型切换（例如从 128K 窗口的模型切到 32K 窗口的模型）时，旧的上下文可能直接塞不进新模型。此时系统会走独立的 `maybe_run_previous_model_inline_compact` 路径，强制用旧模型先做一次压缩。
+
+## 三、核心抽象 B：三种压缩实现的分派
+
+Codex 根据 Provider 的支持情况和 Feature Flag，将压缩任务分派给三种不同的实现。
+
+### 3.1 Local (Inline) 压缩
+
+这是最基础的本地压缩（`core/src/compact.rs`）。
+
+它的原理是：把整个历史发给模型，加上 `SUMMARIZATION_PROMPT`，要求生成摘要。如果历史太长导致压缩请求本身也报 `ContextWindowExceeded`，它会通过 `remove_first_item` 截断最早的消息并重试（这是截断机制作为兜底的体现）。
+
+### 3.2 Remote v1 压缩
+
+如果 Provider（如 ChatGPT）支持 `remote_compaction`，系统会走 Remote v1 路径。
+
+它调用专门的 `compact_conversation_history` API endpoint。系统在请求前会调用 `trim_function_call_history_to_fit_context_window` 裁剪冗长的工具输出，保证请求能发出去。API 返回的直接是新的、已压缩的 transcript。
+
+### 3.3 Remote v2 压缩 (Under Development)
+
+Remote v2 是一个正在开发中的新机制。
+
+它不再调用专用的 compact endpoint，而是往普通的 Responses stream 里加入一个 `CompactionTrigger`。服务端处理后，会在流中返回一个特殊的 `ResponseItem::Compaction` 节点。客户端收集到这个节点后，再在本地构造新的历史。
+
+## 四、核心抽象 C：替换历史的结构组装
+
+压缩完成后，旧的冗长历史会被替换。不同的实现，替换后的结构有所不同。
+
+以 Remote v2 的 `build_v2_compacted_history` 为例：
 
 ```rust
-let history_snapshot = sess.clone_history().await;
-let history_items = history_snapshot.raw_items();
-let summary_suffix = get_last_assistant_message_from_turn(history_items).unwrap_or_default();
-let summary_text = format!("{SUMMARY_PREFIX}\n{summary_suffix}");
-let user_messages = collect_user_messages(history_items);
-
-let mut new_history = build_compacted_history(Vec::new(), &user_messages, &summary_text);
-```
-
-几个关键点：
-
-1. **`SUMMARY_PREFIX`** 是一个常量前缀，从 `codex_prompts` crate 导入（`compact.rs:48`）
-2. **`summary_suffix`** = 模型返回的最后一条 assistant message
-3. **`user_messages`** = 历史中所有 user message（被保留下来）
-4. **`new_history`** = user messages + summary message
-
-### 2.4 ContextWindowExceeded 处理
-
-一个非常有趣的细节——如果 compact 自己也超了 context window：
-
-```rust
-Err(e @ CodexErr::ContextWindowExceeded) => {
-    if turn_input_len > 1 {
-        // 砍掉最旧的一条，保留 prefix cache
-        history.remove_first_item();
-        retries = 0;
-        continue;
+// 伪代码逻辑：展示 Remote v2 压缩后的历史结构
+fn build_v2_compacted_history(...) -> Vec<ResponseItem> {
+    let mut history = Vec::new();
+    
+    // 1. 保留特定消息并按 Token 预算截断
+    let retained_messages = truncate_retained_messages_for_remote_compaction(...);
+    for item in retained_messages {
+        history.push(item);
     }
-    // ...
+    
+    // 2. 将 LLM 生成的摘要节点追加到末尾
+    history.push(compaction_output);
+    
+    history
 }
 ```
 
-砍掉最旧的一条再试。注释是 "Trim from the beginning to preserve cache (prefix-based) and keep recent messages intact"。
+注意这里的结构：它是**先保留部分原始消息（按预算截断），然后再把 `Compaction` 节点（摘要）放在最后**。
 
-注意这里的 "preserve cache" 容易被误解。实际上 `history.remove_first_item()` 删除的是 `history.items[0]`——即整个会话历史中最早的那条记录（通常是最初的 developer message / system prompt）。删掉 items[0] 会让整个 prompt 序列改变，**prefix cache 会完全失效**，而不是保留。
+而 Local 压缩的结构则是：保留最近的用户消息子集，再追加一个包含了系统生成的摘要文本的 User Message。
 
-注释的真正意图是**保新不保旧**：既然因为 ContextWindowExceeded 必须砍一些内容，那砍掉最早的消息（而不是 compact prompt 或最近的对话）能让 compact 生成的摘要质量更高。后面的 "keep recent messages intact" 才是核心。
+无论哪种实现，Codex 都没有把所有历史全压成摘要，而是采用了“保留部分原始消息 + 摘要”的混合结构。这保证了模型既能获取早期的全局共识，又不会丢失最近的短期上下文。
 
-### 2.5 COMPACT_USER_MESSAGE_MAX_TOKENS 限制
+## 五、关键决策：语义摘要为主，截断为辅
 
-`compact.rs:49`：
+把 Codex 的压缩机制和 Claude Code 放在一起看，能发现不同的工程侧重。
 
-```rust
-const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 20_000;
-```
+Claude Code 采用了 5 级降级策略。前 4 级全是纯数据结构操作：截断工具输出、Snip 掉中间对话、Context Collapse。直到第 5 级，才调用 LLM 生成摘要。
 
-这是单次 user message 的 token 上限。超过这个长度的 user message 会被 truncate。
+Codex 的核心压缩产物（无论是 Local 还是 Remote）都依赖 LLM 生成语义摘要。纯文本截断（如 `trim_function_call_history` 或 `remove_first_item`）在 Codex 中主要作为**保障 Compact 请求本身能够成功发送的工程兜底**，而不是首选的压缩手段。
 
+这种设计反映了 Codex 对长会话逻辑连贯性的侧重：宁可消耗 Token 调用 LLM 做语义压缩，也要尽量避免纯文本截断带来的信息断层。
 
-## 三、Remote v1/v2 实现
+## 六、总结：收拢长会话复杂度
 
-### 3.1 Remote v1 入口
+压缩不是简单的字符串截断。
 
-`compact_remote.rs:45`：
+通过 Pre-turn 与 Mid-turn 的触发防线、Local/Remote 的多路实现分派，以及“保留部分原始消息 + 摘要”的混合结构，Codex 将长会话的复杂度收拢在了一套严密的管线中。
 
-```rust
-pub(crate) async fn run_inline_remote_auto_compact_task(
-    sess: Arc<Session>,
-    turn_context: Arc<TurnContext>,
-    initial_context_injection: InitialContextInjection,
-    reason: CompactionReason,
-    phase: CompactionPhase,
-) -> CodexResult<()> {
-    run_remote_compact_task_inner(
-        &sess, &turn_context,
-        initial_context_injection,
-        CompactionTrigger::Auto, reason, phase,
-    ).await?;
-    Ok(())
-}
-```
+到这里，主循环和上下文管线都已经拆解完毕。Agent 已经有了大脑和记忆，接下来它需要手和脚。下一篇，我们将进入 Codex 的工具系统，看看它是如何动态发现并执行工具的。
 
-内部调用 `run_remote_compact_task_inner`（`compact_remote.rs:89`），关键的实现标记：
-
-```rust
-let compaction_metadata = CompactionTurnMetadata::new(
-    trigger, reason,
-    CompactionImplementation::ResponsesCompact,  // ← 标记实现类型
-    phase,
-);
-```
-
-`ResponsesCompact` 表示调用的是 Responses API 的专用 compact endpoint。
-
-### 3.2 Remote v2
-
-`compact_remote_v2.rs:56` 是改进版，主要差异：
-
-1. 支持更多元数据（如 trace context）
-2. 改进的失败日志（`log_remote_compaction_request_failure` 在 `:389`）
-3. 增强的 compaction output 收集（`collect_compaction_output` 在 `:406`）
-4. 通过 `Feature::RemoteCompactionV2` feature flag 开关
-
-实际调用 endpoint 的实现在 `run_remote_compaction_request_v2`（`compact_remote_v2.rs:332`）。
-
-### 3.3 Remote vs Local 的本质区别
-
-| 维度 | Local | Remote |
-|------|-------|--------|
-| 调用谁 | 当前 session 的同一个模型 | OpenAI 服务端 compact 服务 |
-| 是否占用模型配额 | 是（用户配额） | 是（API 服务） |
-| Latency | 取决于模型速度（可能很慢） | 服务端优化（更快） |
-| 摘要质量 | 取决于模型能力 | 服务端优化（更高） |
-| 适用场景 | 本地模型 / 兜底 | OpenAI 官方 |
-
-Local 实现的最大问题：**用同一个模型压缩自己的对话历史**——大模型压缩自己的上下文，token 成本翻倍。Remote 实现把压缩交给服务端，可能有专门的轻量模型。
-
-
-## 四、InitialContextInjection 策略
-
-`compact.rs:61` 定义了一个关键的枚举：
-
-```rust
-/// Controls whether compaction replacement history must include initial context.
-///
-/// Pre-turn/manual compaction variants use `DoNotInject`: they replace history with a summary and
-/// clear `reference_context_item`, so the next regular turn will fully reinject initial context
-/// after compaction.
-///
-/// Mid-turn compaction must use `BeforeLastUserMessage` because the model is trained to see the
-/// compaction summary as the last item in history after mid-turn compaction; we therefore inject
-/// initial context into the replacement history just above the last real user message.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum InitialContextInjection {
-    BeforeLastUserMessage,
-    DoNotInject,
-}
-```
-
-### 4.1 两种策略的区别
-
-**Pre-turn / Manual compaction** 使用 `DoNotInject`：
-
-- 替换 history 为 summary
-- 清空 `reference_context_item`
-- 下一次正常 turn 时，因为 reference 是 None，会触发 `build_initial_context` 全量注入
-
-**Mid-turn compaction** 使用 `BeforeLastUserMessage`：
-
-- 替换 history 为 summary + 初始上下文
-- 把初始上下文插入到最后一条真实 user message 之前
-- 保留 `reference_context_item`
-
-### 4.2 为什么 Mid-turn 必须注入完整初始上下文？
-
-注释说："the model is trained to see the compaction summary as the last item in history after mid-turn compaction"——模型被训练成看到 summary 在历史末尾。
-
-Mid-turn 场景下，模型正在调用工具循环中，压缩完还要继续 sampling。如果不注入初始上下文，模型会丢失 developer instructions / permissions / environment 等关键信息，导致后续 sampling 行为异常。
-
-Pre-turn 场景下，压缩完整个 turn 就结束了，下一个 turn 会重新走 `record_context_updates_and_set_reference_context_item` 的逻辑，自然全量注入。
-
-![BeforeLastUserMessage vs DoNotInject 注入策略](/images/codex/04-inject.png)
-
-### 4.3 注入实现
-
-`compact.rs:297-308`：
-
-```rust
-if matches!(
-    initial_context_injection,
-    InitialContextInjection::BeforeLastUserMessage
-) {
-    let initial_context = sess.build_initial_context(turn_context.as_ref()).await;
-    new_history =
-        insert_initial_context_before_last_real_user_or_summary(new_history, initial_context);
-}
-let reference_context_item = match initial_context_injection {
-    InitialContextInjection::DoNotInject => None,
-    InitialContextInjection::BeforeLastUserMessage => Some(turn_context.to_turn_context_item()),
-};
-```
-
-注意：调用的就是第三篇讲的 `build_initial_context`——**Compact 是 reference_context_item 重置的两个路径之一**（另一个是新会话/fork）。
-
-
-## 五、Compact 的触发时机
-
-回顾第一篇的 3 种触发时机，现在补全代码位置：
-
-| 时机 | 位置 | 调用栈 |
-|------|------|--------|
-| Pre-turn | `turn.rs:150` → `run_pre_sampling_compact` (`turn.rs:784`) | 在第一次 sampling 之前检查 token budget |
-| Mid-turn | `turn.rs:293` → `run_auto_compact` (`turn.rs:862`) | 一轮对话中，sampling 返回后 token 超限且模型要求 follow-up |
-| Manual | `handlers.rs:834` → `compact()` → `run_compact_task` (`compact.rs:97`) | 用户主动 `Op::Compact` |
-
-### 5.1 Pre-turn 触发条件
-
-```rust
-// turn.rs:150
-if let Err(err) = run_pre_sampling_compact(&sess, &turn_context, &mut client_session).await {
-    let error = err.to_codex_protocol_error();
-    sess.emit_turn_error_lifecycle(turn_context.as_ref(), error.clone()).await;
-    if error == CodexErrorInfo::UsageLimitExceeded {
-        // ... 处理 usage limit
-    }
-    return None;
-}
-```
-
-`run_pre_sampling_compact` 内部检查 `auto_compact_token_status` 返回的 token 状态。如果 `token_limit_reached`，调用 `run_auto_compact`，使用 `InitialContextInjection::DoNotInject` + `CompactionPhase::PreTurn`。
-
-### 5.2 Mid-turn 触发条件
-
-```rust
-// turn.rs:293
-if token_limit_reached && needs_follow_up {
-    if let Err(err) = run_auto_compact(
-        &sess, &turn_context, &mut client_session,
-        InitialContextInjection::BeforeLastUserMessage,  // ← 关键差异
-        CompactionReason::ContextLimit,
-        CompactionPhase::MidTurn,
-    ).await
-```
-
-**两个条件都满足**才会 mid-turn compact：
-
-1. `token_limit_reached` —— token 超限
-2. `needs_follow_up` —— 模型要求继续（如返回 tool call 还没执行完）
-
-如果模型本轮已经返回 final message 但 token 超限，不 compact——因为下一轮 pre-turn compact 会处理。
-
-### 5.3 Manual 触发
-
-用户通过 TUI 或 API 主动触发压缩：
-
-```rust
-// handlers.rs:834
-Op::Compact => {
-    compact(&sess, sub.id.clone()).await;
-    false
-}
-```
-
-调用 `CompactTask`（`tasks/compact.rs`），最终走 `run_compact_task`（`compact.rs:97`），使用 `CompactionTrigger::Manual` + `CompactionReason::UserRequested` + `CompactionPhase::StandaloneTurn`。
-
-
-## 六、Compact 后的 Warning
-
-`compact.rs:319` 在 compact 完成后发一个 warning：
-
-```rust
-let warning = EventMsg::Warning(WarningEvent {
-    message: "Heads up: Long threads and multiple compactions can cause the model to be less accurate. Start a new thread when possible to keep threads small and targeted.".to_string(),
-});
-sess.send_event(&turn_context, warning).await;
-```
-
-这是个有意思的细节——Codex 在 compact 后**主动建议用户开新会话**。这反映了 LLM 工程的真相：**任何压缩都是有损的**，多次 compact 后模型行为可能变怪。
-
-
-## 七、Codex vs CC：压缩哲学对比
-
-### 7.1 完整对比表
-
-| 维度 | Codex | Claude Code |
-|------|-------|-------------|
-| **压缩层级数** | 3 种实现 | 5 级 |
-| **Local 调 LLM** | ✅ 是（同模型） | ❌ 前 4 级不调 |
-| **远程压缩** | ✅ Responses API | ❌ 无 |
-| **触发时机** | Pre-turn / Mid-turn / Manual | 每次调用前 / 超限时 |
-| **触发条件** | token_limit_reached | 阈值 + 13K / 90% 利用率等 |
-| **摘要生成** | 都用 LLM | 仅第 5 级 |
-| **prefix cache 保护** | ✅（remove_first_item） | ✅（Snip 砍中间） |
-| **初始上下文注入** | 2 种策略（BeforeLastUserMessage / DoNotInject） | 隐式（每轮都注入） |
-| **完成后 warning** | ✅ 主动建议开新会话 | ❌ 无 |
-
-### 7.2 设计哲学差异
-
-**CC 的"5 级渐进式"哲学**：
-- 优先用便宜的操作（数据结构变换）省空间
-- 只有迫不得已才调 LLM
-- 大多数会话走不到第 5 级
-
-**Codex 的"3 种 LLM 调用"哲学**：
-- 任何压缩都涉及 LLM（保证摘要质量）
-- 选择 LLM 调用方式（本地/远程）优化成本
-- 通过 InitialContextInjection 控制是否需要重注入
-
-两种哲学各有道理：
-
-- CC 的策略对**长会话**更经济——前 4 级把空间省出来，避免反复调 LLM
-- Codex 的策略对**短会话**更简单——直接压缩，没有多级判断的复杂度
-
-### 7.3 一个 Codex 的独特点：InitialContextInjection
-
-CC 没有 `InitialContextInjection` 这个概念——它每次 turn 都重新构造 system prompt，所以 compact 后不需要担心初始上下文丢失。
-
-Codex 用 diffing 优化（见第三篇），所以 compact 后必须显式决定"是否需要重注入"。`BeforeLastUserMessage` vs `DoNotInject` 就是这个决策的体现。
-
-这是一个二阶复杂度——**优化（diffing）带来了新的约束（compact 后必须重注入）**。CC 用不优化换来了简单性。
-
-![Codex vs Claude Code：压缩哲学对比](/images/codex/04-vs.png)
-
-
-## 八、小结
-
-| 你学到什么 | 对应源码 |
-|-----------|---------|
-| 3 种压缩实现选择 | `turn.rs:862-917` (`run_auto_compact`) |
-| `should_use_remote_compact_task` 判断 | `compact.rs:66` |
-| Local 实现 | `compact.rs:70` + `compact.rs:194-324` |
-| Remote v1 实现 | `compact_remote.rs:45` |
-| Remote v2 实现 | `compact_remote_v2.rs:56` |
-| `SUMMARY_PREFIX` / `SUMMARIZATION_PROMPT` | `codex_prompts` crate |
-| `COMPACT_USER_MESSAGE_MAX_TOKENS = 20_000` | `compact.rs:49` |
-| `InitialContextInjection` 枚举 | `compact.rs:61-64` |
-| Pre-turn 触发 | `turn.rs:150` → `turn.rs:784` |
-| Mid-turn 触发 | `turn.rs:293-301` |
-| Manual 触发 | `handlers.rs:834` |
-| Compact 后 warning | `compact.rs:319` |
-| ContextWindowExceeded 时砍最旧 | `compact.rs:251-260` |
-
-## 章节小测
+## 七、章节小测
 
 <script setup>
 const q = [
   {
-    question: 'Codex 选择哪种压缩实现时，核心判断依据是什么？',
-    options: ['默认优先使用 Local 实现在本地由当前会话模型执行压缩', '依据 provider 是否支持 remote 选择走远端还是本地压缩', '根据当前上下文历史长度自动匹配对应压缩实现策略', '用户在启动时通过命令行参数或配置文件手动指定压缩方式'],
+    question: '为什么简单的 FIFO（先进先出）截断策略不适合作为 Agent 上下文压缩的首选手段？',
+    options: [
+      '因为 FIFO 截断会导致 Rust 编译器的字符串生命周期检查失败，引发内存泄漏',
+      '因为 FIFO 截断会直接丢弃最老的对话，导致模型丢失早期的关键需求和架构决策',
+      '因为 FIFO 截断无法处理多模态数据，遇到图片或二进制文件时会直接崩溃',
+      '因为 FIFO 截断会破坏大模型的前缀缓存机制，导致 API 调用成本大幅飙升'
+    ],
     correct: 1,
-    explanation: '先判断 provider 是否支持 remote compaction（OpenAI 官方 provider 支持），支持再检查 Feature::RemoteCompactionV2 是否开启决定走 V2 还是 V1，都不满足则 fallback 到 Local。Ollama/LM Studio 这类本地 provider 走 Local。'
+    explanation: '如果直接丢弃最老的对话，模型会丢失早期的关键上下文（如用户的初始需求、早期的架构决策）。一旦这些信息丢失，模型的后续推理就会缺乏支撑，因此需要语义摘要。'
   },
   {
-    question: 'InitialContextInjection 枚举的两种策略（BeforeLastUserMessage vs DoNotInject）分别对应什么场景？',
-    options: ['BeforeLastUserMessage 用于 pre-turn DoNotInject 用于 manual', 'BeforeLastUserMessage 用于 mid-turn DoNotInject 用于 pre-turn', '两策略之间不存在本质差异仅命名约定不同', 'DoNotInject 用作默认适用于全部压缩触发时机'],
+    question: '在 run_turn 流程中，Mid-turn 的 run_auto_compact 触发条件是什么？',
+    options: [
+      '当单轮生成结束后，只要系统发现模型吐出了超过 1000 个 Token 的内容就会立刻触发',
+      '当系统检测到 token_limit_reached 并且 needs_follow_up（模型还要继续工具或有待处理输入）时触发',
+      '当模型连续三次返回相同的工具调用（Doom Loop），系统会强制触发以打破循环',
+      '当用户在终端手动输入 /compact 命令时，系统会暂停当前任务并触发'
+    ],
     correct: 1,
-    explanation: 'Mid-turn 场景下模型正在工具循环中，压缩后必须继续 sampling，如果不注入初始上下文模型会丢失 developer instructions 等关键信息。Pre-turn/manual 场景压缩完整个 turn 结束，下次 turn 自然走 record_context_updates 全量注入。'
+    explanation: 'Mid-turn 压缩并不是单轮生成长了就压，而是必须同时满足 Token 爆了（token_limit_reached）且任务还需要继续（needs_follow_up），才会触发压缩以保证后续流程能走下去。'
   },
   {
-    question: 'Local compact 实现中，当 compact 自身也超过 context window 时，Codex 做了什么处理？',
-    options: ['抛出上下文超限错误并终止当前压缩任务执行流程', '移除历史中最旧的消息后重试以保留近期关键对话内容', '自动降级切换到 remote compact 实现绕过本地窗口限制', '降低摘要内容精度标准来缩减单次压缩所需 token 数量'],
+    question: '在 Codex 的压缩管线中，纯文本截断（如 trim_function_call_history）主要扮演什么角色？',
+    options: [
+      '作为首选的压缩手段，以避免调用 LLM 生成摘要带来的昂贵 API 成本',
+      '作为保障 Compact 请求本身能够成功发送给 LLM 的工程兜底机制',
+      '作为专门用于处理图片和多模态二进制数据的预处理步骤',
+      '作为在 TUI 界面上渲染对话历史时的显示截断逻辑，不影响发给模型的数据'
+    ],
     correct: 1,
-    explanation: '砍掉 history.items[0]（最早的那条记录）再重试。这样会破坏 prefix cache，但目的是"保新不保旧"——保留最近的对话和 compact prompt，让生成的摘要质量更高。'
+    explanation: 'Codex 的核心压缩产物依赖 LLM。纯文本截断（如裁剪冗长的工具输出或移除最早的消息）主要是在历史太长导致压缩请求本身都发不出去时，作为兜底机制使用。'
   },
   {
-    question: 'Claude Code 的 5 级压缩与 Codex 的 3 种 LLM 调用压缩，两种设计哲学的根本差异是什么？',
-    options: ['Codex 压缩质量更高而 CC 压缩执行速度更快整体延迟更低', 'CC 采用成本优先前四级仅操作数据结构而 Codex 采用质量优先', 'CC 压缩层级更多功能覆盖面更广因此设计上优于 Codex 方案', '两套压缩体系在底层原理和实现效果上没有任何本质区别'],
+    question: '在 Remote v2 的 build_v2_compacted_history 中，压缩后的历史结构是如何组装的？',
+    options: [
+      '先将 LLM 生成的摘要节点放在最前面，然后再追加最近 N 轮的原始消息',
+      '完全丢弃所有原始消息，只保留一个包含了全局摘要的 System Prompt',
+      '先保留部分原始消息（按预算截断），然后再把 Compaction 节点（摘要）放在最后',
+      '将摘要节点与原始消息交替穿插，以保持对话的时间线顺序'
+    ],
+    correct: 2,
+    explanation: '在 Remote v2 的实现中，系统会先保留部分原始消息（retained_messages），然后再把 LLM 生成的 Compaction 节点追加到末尾，这与 Local 压缩的结构有所不同。'
+  },
+  {
+    question: '对比 Claude Code 的 5 级降级策略，Codex 在压缩策略上的核心差异是什么？',
+    options: [
+      'Codex 追求“成本优先”，尽量使用纯数据结构操作来避免昂贵的 LLM 调用',
+      'Codex 的核心压缩产物依赖 LLM 语义摘要，而 Claude Code 前 4 级全是纯数据结构操作',
+      'Codex 采用多线程并发压缩技术，将压缩延迟降到最低，而 Claude Code 是单线程',
+      'Codex 在压缩前会强制进行敏感词过滤和沙箱权限检查，而 Claude Code 不会'
+    ],
     correct: 1,
-    explanation: 'CC 的哲学是优先用便宜操作（数据结构变换）省空间，只有迫不得已才调 LLM，大多数会话走不到第 5 级。Codex 的哲学是任何压缩都涉及 LLM 保证质量，通过选择本地/远程 LLM 来优化成本。CC 策略对长会话更经济，Codex 策略对短会话更简单直接。'
+    explanation: 'Claude Code 倾向于纯文本截断和折叠（成本优先），直到最后才调 LLM；而 Codex 的三种实现（Local, Remote v1, v2）的核心产物都是 LLM 摘要，侧重逻辑连贯性。'
   }
 ]
 </script>

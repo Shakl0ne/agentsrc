@@ -1,368 +1,133 @@
-# Codex 全景：架构与定位
+# Codex 全景：系统级 Agent 的架构与分层
 
-## 〇、前言
+想象你要写一个能接管终端、能和 IDE 通信，同时还要绝对防止 AI 幻觉导致“删库跑路”的本地 Agent。当 Agent 的定位从一个“轻量级的 Node.js 聊天脚本”变成一个“高危的系统级进程”时，架构该怎么变？Codex 给出的答案是：用 Rust 重写，做系统级的物理隔离与事件驱动。本文的任务，就是先搭起 Codex 的这张总地图。读完这篇，你会建立以下认知：
 
-看完 OpenCode 和 Claude Code（以下简称 CC），还有一个我们绕不开的名字：**Codex**。
+- 第一，它为什么不做一个单体应用，而是拆成了三个独立的二进制？
+- 第二，高达 100+ 个 Rust Crates（包）是如何分层协作的？
+- 第三，它的核心主链路和常见的轮询代理有什么本质不同？
 
-Codex 是 OpenAI 官方出品的本地编程代理。它在 2025 年 5 月开源（Apache-2.0），和 OpenAI 的 ChatGPT Codex Web（云端版）不同，CLI 版跑在你本地机器上，使用你的 ChatGPT 订阅配额或 API key。
+具体的沙箱拦截机制和主循环源码留给后续文章，这一篇我们只看骨架。
 
-这篇文章作为 Codex 系列的开篇，先不深入细节，而是先用一张全景地图把 Codex 的架构看清楚：
+## 一、定位与形态：三个二进制入口
 
-- 它用什么语言写的？为什么选 Rust？
-- 它由哪几大部分组成？
-- 入口在哪里？各模块各司什么职？
-- 和 Claude Code 宏观上有什么不同？
+用户在终端通过 `npm install -g @openai/codex` 安装 Codex。但这个 npm 包只是一个薄薄的 JavaScript 壳（入口在 `codex-cli/bin/codex.js`）。它的作用不是在运行时下载代码，而是检测当前操作系统架构，定位到由 optional dependencies 提前安装好的、预编译的 native `codex` 二进制文件，然后将其 `spawn` 起来。
 
-后面的文章再逐一深入每个子系统。
+Codex 的所有核心逻辑都在 `codex-rs` 这个 Rust 工作区里。它没有把所有功能塞进一个单一的执行流，而是拆分成了三个核心入口：
 
-## 整体架构速览
-
-下面是 Codex 核心引擎 `codex-core` 的反应器 + turn 流程，本文会围绕它展开：
-
-![Codex 反应器架构：submission_loop 分发 Ops，run_turn 驱动采样与工具](/images/codex/article-index-architecture.svg)
-
-## 一、Codex 自顶向下看
-
-### 1.1 一句话定位
-
-Codex = **一个运行在本地的 AI 编程代理**，通过 `codex` 命令启动，提供交互式终端（TUI）、非交互式执行（`codex exec`）、后台守护进程（App Server）三种使用方式。
-
-它支持的功能包括：
-
-- 交互式对话编程（TUI 模式）
-- 非交互式命令执行（`codex exec`"一次性"任务）
-- IDE 集成（通过 App Server + WebSocket 连接 VS Code 等编辑器）
-- MCP 服务器模式（`codex mcp-server`，作为其他 MCP 客户端的工具提供者）
-- Plugins 扩展系统
-- 沙箱执行（macOS Seatbelt / Linux Landlock / Windows sandbox）
-- 多 Agent 编排（Agent A 可递归地 spawn Agent B）
-- 状态持久化与恢复（resume/fork 会话）
-
-### 1.2 源码布局
-
-项目根目录结构：
-
-```
-codex/
-├── codex-cli/          # npm 包 (@openai/codex) — 用户安装入口
-├── codex-rs/           # Rust Cargo 工作区 — 核心实现
-├── sdk/                # SDK（Python / TypeScript）
-├── docs/               # 用户文档（15 个 markdown 文件）
-├── scripts/            # 构建与发布脚本
-└── ...
-```
-
-**关键点**：最终用户安装的是 npm 包 `@openai/codex`，但这个包只是一个薄薄的 JavaScript 壳，检测平台后 spawn 对应的 Rust 二进制。所有实际代码在 `codex-rs/` 这个 Rust Cargo 工作区里。
-
-工作区有约 **100+ 个 crate**（全部以 `codex-` 前缀命名），核心 crate 的分组如下：
-
-![Codex 三个二进制入口：codex / codex-tui / codex-app-server](/images/codex/01-triple.png)
-
-| 分组 | 关键 crate | 作用 |
-|------|-----------|------|
-| **入口** | `codex-cli` | 子命令分发器 |
-| **核心引擎** | `codex-core` | 主循环、会话管理、上下文、工具调度、沙箱、安全、技能 |
-| **TUI** | `codex-tui` | 交互式终端界面（ratatui 框架） |
-| **非交互模式** | `codex-exec` | `codex exec` 一次性执行 |
-| **工具系统** | `codex-tools` | 工具定义、发现、执行、MCP 集成 |
-| **模型** | `codex-model-provider` + `codex-models-manager` | 多后端模型抽象（OpenAI / Ollama / LM Studio / ChatGPT） |
-| **后端守护** | `codex-app-server` → `codex-app-server-daemon` | IDE 集成的后台服务 |
-| **沙箱** | `codex-sandboxing` + `codex-linux-sandbox` + `codex-windows-sandbox-rs` | 跨平台沙箱抽象 |
-| **安全** | `codex-process-hardening` + `codex-execpolicy` | 进程加固和指令策略 |
-| **多 Agent** | `agent-graph-store` + `codex-core` 内的 agent 模块 | 子 Agent 生命周期管理 |
-
-### 1.3 三个二进制入口
-
-Codex 不只有一个二进制，而是三个：
-
-```
+```text
 codex-rs/
-├── cli/src/main.rs     → codex（主 CLI）
-├── tui/src/main.rs     → codex-tui（TUI 会话进程，由主 CLI fork）
+├── cli/src/main.rs        → codex（主 CLI 分发器）
+├── tui/src/main.rs        → codex-tui（交互式终端）
 ├── app-server/src/main.rs → codex-app-server（后台守护进程）
 ```
 
-- **`codex`**（主 CLI）：用户在终端敲 `codex` 时运行的入口。它是一个 clap 子命令分发器（`cli/src/main.rs:90-205`），支持 20+ 个子命令：`exec`、`login`、`logout`、`mcp`、`plugin`、`app-server`、`resume`、`fork`、`archive` 等等。如果不带子命令，则启动 TUI 交互模式。
-- **`codex-tui`**（TUI 二进制）：被主 CLI fork 的子进程，运行 `ratatui` 框架的终端 UI。
-- **`codex-app-server`**（守护进程）：后台持续运行的 JSON-RPC 服务，通过 stdio / Unix socket / WebSocket 与 IDE 通信。支持 V2 协议（`app-server-protocol/src/protocol/v2.rs`）。
-
-![Codex 全景架构：核心引擎 + 工具 + 沙箱 + TUI + 多 Agent](/images/codex/01-hero.png)
-
-## 二、核心引擎架构（codex-core）
-
-`codex-core` 是整个系统的中枢，约 118 个源文件。它的核心模块拓扑：
-
-```
-                      ┌─────────────┐
-                      │    CLI 入口   │
-                      │  cli/main.rs │
-                      └──────┬──────┘
-                             │
-                      ┌──────▼──────┐
-                      │  submission_loop │  ← 事件循环
-                      │ handlers.rs:738  │
-                      └──────┬──────┘
-                             │  Op::UserTurn / Op::Compact / Op::Interrupt / ...
-                      ┌──────▼──────┐
-                      │  run_turn()  │  ← 每一次"轮到模型回答"
-                      │  turn.rs:136 │
-                      └──────┬──────┘
-                             │
-         ┌───────────────────┼────────────────────┐
-         ▼                   ▼                    ▼
-  ┌─────────────┐    ┌──────────────┐    ┌──────────────┐
-  │ 上下文组合   │    │  Compaction  │    │  工具执行    │
-   │ build_initial│    │  compact.rs │    │  tools/      │
-   │ _context    │    │  (3种实现)   │    │              │
-   │ mod.rs:2725 │    └──────────────┘    └──────────────┘
-   └─────────────┘
-```
-
-![Codex 核心引擎拓扑：submission_loop → run_turn → Context + Compact + Tools](/images/codex/01-engine.png)
-
-### 2.1 主循环不是轮询循环
-
-和直觉相反，Codex 的主循环**不是**一个 while-true 的轮询 loop。它是一个事件驱动的 reactor，核心是 `submission_loop`（`session/handlers.rs:738`）：
-
-```rust
-// handlers.rs:738-887（简化）
-async fn submission_loop(sess: &Session, mut rx_sub: Receiver<Submission>) {
-    while let Some(sub) = rx_sub.recv().await {
-        match sub.op {
-            Op::UserTurn { ... } => user_input_or_turn(sess, ...).await,
-            Op::Compact => run_compact_task(sess).await,
-            Op::Interrupt => handle_interrupt(sess).await,
-            Op::Shutdown => break,
-            // ...
-        }
-    }
-}
-```
+主 CLI `codex` 负责解析命令行参数（如 `codex exec` 或 `codex login`），执行完一次性任务就退出。如果用户不带子命令直接回车，主 CLI 会调用 `codex_tui::run_main` 接管屏幕渲染（基于 Ratatui 框架）。
 
-这个 loop 等待 `async_channel::Receiver<Submission>` 上的消息。每个 `Submission` 包装了一个 `Op` 枚举——`UserTurn`、`Compact`、`Interrupt`、`Shutdown`、`ExecApproval`、`ThreadRollback` 等。消息可以由用户输入触发，也可以由系统内部发送（如自动 compaction 触发）。
+而 `codex-app-server` 则是完全独立的后台常驻守护进程。如果用户在 VS Code 里使用 Codex，IDE 会拉起这个 Server。这种物理隔离的设计意图很明确：**生命周期解耦**。UI 渲染的生命周期、一次性脚本执行的生命周期，以及后台常驻服务的生命周期完全不同，拆分能保证核心服务的稳定性。
 
-这是一个常见的设计模式，不过和 CC 是不同思路：CC 用协程 + continuation 驱动的单线程 polling loop，Codex 用 tokio 的多线程 reactor + channel 通信。
+## 二、总体分层：100+ Crates 的庞大工程
 
-第二章会专门深入这个 message-passing 主循环。
+进入 `codex-rs` 目录，你会看到 100 多个以 `codex-` 开头的 crate（注：下文统一使用 crate name，实际源码目录名可能略有不同，例如 `core/` 目录对应 `codex-core`）。为了不迷失在包海里，我们可以把它们归拢为四个核心层：
 
-### 2.2 SessionTask 生命周期
+### 核心中枢层
+包含 `codex-core`、`codex-api` 等。这里是系统的主干，负责维护对话会话、组装上下文、管理 Token 预算，以及调度模型请求。
 
-每个"任务"（一次模型交互）被抽象为 `SessionTask` trait（`tasks/mod.rs:207-245`）：
+### 工具与扩展层
+包含 `codex-tools`、`codex-mcp` 等。它不仅定义了内置的文件读写、Bash 执行工具，还实现了一套完整的 MCP（Model Context Protocol）双向集成机制。
 
-```rust
-pub(crate) trait SessionTask: Send + Sync + 'static {
-    fn kind(&self) -> TaskKind;
-    fn span_name(&self) -> &'static str;
-    fn run(
-        self: Arc<Self>,
-        session: Arc<SessionTaskContext>,
-        ctx: Arc<TurnContext>,
-        input: Vec<TurnInput>,
-        cancellation_token: CancellationToken,
-    ) -> impl Future<Output = Option<String>> + Send;
-    fn abort(
-        &self,
-        session: Arc<SessionTaskContext>,
-        ctx: Arc<TurnContext>,
-    ) -> impl Future<Output = ()> + Send;
-}
-```
+### 安全与沙箱层
+包含 `codex-sandboxing`、`codex-execpolicy`、`codex-process-hardening`。这是 Codex 区别于其他 Agent 的核心壁垒。它直接调用操作系统底层的 Landlock（Linux）或 Seatbelt（macOS）机制，把 Agent 的执行环境锁死在安全边界内。
 
-四种实现：
+### IDE 协议层
+包含 `codex-app-server`、`app-server-protocol` 等。这一层将核心引擎的能力包装成标准的 JSON-RPC 2.0 服务，通过 stdio 或 Unix Socket 与外部编辑器通信。
 
-| Task 类型 | 文件 | 用途 |
-|-----------|------|------|
-| `RegularTask` | `tasks/regular.rs` | 正常的用户-模型对话轮次 |
-| `CompactTask` | `tasks/compact.rs` | 手动触发上下文压缩 |
-| `ReviewTask` | — | Code Review 任务 |
-| `UserShellCommandTask` | — | `codex exec` 类命令 |
+## 三、主链路：核心引擎的流转骨架
 
-`Session::spawn_task`（`tasks/mod.rs:305-314`）会先 abort 掉所有之前的任务，再 spawn 新任务。这意味着任何时候只有一个活跃的 task，但 task 内部可以有多个子协程。
+把视线拉回 `codex-core`，看看一次对话是怎么流转的。
 
-### 2.3 build_initial_context：10+ 个上下文段
+和 Claude Code 依靠 `async generator` 驱动的单线程轮询循环不同，Codex 的主循环是一个基于 Channel 消息传递的 **Reactor（反应器）模式**。
 
-`build_initial_context`（`session/mod.rs:2725`）是整个系统中函数体最长的之一。它构造发送给模型的所有上下文，分为三类：
+1. **入口接收**：CLI 或 TUI 将用户的输入打包成一个 `Op::UserInput` 消息，扔进 Channel。
+2. **事件分发**：中枢函数 `submission_loop`（位于 `core/src/session/handlers.rs`）在后台持续监听这个 Channel。匹配到 `Op::UserInput` 后，流程进入 `user_input_or_turn` 函数。
+3. **任务互斥**：系统会先终止当前可能正在运行的旧任务，然后通过 `spawn_task(RegularTask::new())` 启动一个新的任务。
+4. **执行轮次**：任务进入 `RegularTask::run`，最终驱动 `run_turn` 流程。系统依次执行上下文组装（`build_initial_context`）、压缩检查，最后调用模型并执行工具。
 
-1. **Developer sections**（合并为 1 条 developer 消息）：模型切换指令、权限指令、协作模式指令、Personality 说明、Apps 指令、技能说明、Plugin 能力说明、扩展片段。
+这种基于事件驱动的设计，让 Codex 能够从容应对后台自动压缩、用户随时 Ctrl+C 中断等复杂的并发场景。
 
-2. **Contextual user sections**（合并为 1 条 user 消息）：用户自定义指令（来自 AGENTS.md）、环境上下文（shell info / cwd / OS / subagents）、扩展的用户片段。
+## 四、外围补齐：系统级能力
 
-3. **Separate developer sections**（独立 developer 消息）：请求了 `PromptSlot::SeparateDeveloper` 的扩展片段，每条独立。
+在核心引擎之外，Codex 搭载了三套让它区别于轻量级脚本的系统级能力：
 
-第三章会详细展开 context diffing（增量注入）和 prompt caching 优化。
+- **OS 级沙箱**：不依赖 Prompt 警告，而是用操作系统底层的权限控制，从物理层面阻断恶意工具调用。
+- **多 Agent 编排**：支持 Agent Tree 树状结构。遇到复杂任务，父 Agent 可以派生出多个子 Agent 并行处理，并通过 `AgentPath`（如 `/root/worker`）进行路由寻址和通信。
+- **MCP 双向集成**：Codex 既可以作为客户端连接外部 MCP 服务器获取能力，也可以作为服务端（`codex mcp-server`）通过 MCP 暴露 Codex 会话能力，底层仍由 Codex 的审批与沙箱管线兜底。
 
-### 2.4 Compact 系统：3 种压缩机制
+## 五、总结构论：设计假设与后续路线
 
-Codex 有三种压缩方式（`compact.rs` + `compact_remote.rs` + `compact_remote_v2.rs`）：
+Codex 的架构完全建立在**“不信任”**的假设上。
 
-| 实现 | 位置 | 原理 | 调用模型？ |
-|------|------|------|-----------|
-| **Local（Inline）** | `compact.rs:70` | 把整个历史发给模型，要求生成摘要 | **是** |
-| **Remote v1** | `compact_remote.rs` | 调用 Responses API 的专用 compact endpoint | 是（API 后台） |
-| **Remote v2** | `compact_remote_v2.rs` | 改进版的远程 compact | 是（API 后台） |
+它不信任模型，所以要用 OS 级沙箱和指令策略拦截高危操作；它不信任单一进程的稳定性，所以要把 UI、引擎和后台服务拆分成独立的二进制逻辑。这是一种典型的“系统级软件”思维，也是它采用 Rust 重写的根本原因。
 
-触发时机也有三种：
+这张总地图搭好后，接下来的文章我们将逐一下潜，拆解这些机制的具体实现。下一篇，我们先从系统的心脏跳动开始——看看 Codex 是如何用 Reactor 模式重构 Agent 主循环的。
 
-- **Pre-turn**（`turn.rs:784`）：每次 turn 开始前检查 token budget
-- **Mid-turn**（`turn.rs:293`）：一轮对话中多轮 tool call 后，如果 token 超限且还要继续
-- **Manual**：用户手动触发（Op::Compact → CompactTask）
-
-对比 CC 的 5 级压缩（前 4 级纯数据结构操作，第 5 级才调 LLM），Codex 的压缩策略可以说完全相反：它的所有压缩都涉及 LLM 调用。这个发现在第四篇会详细展开。
-
-## 三、工具系统与 MCP
-
-工具系统在 `codex-tools` crate 中，包含：
-
-- **Tool 定义与 Schema**：每个工具实现为一个 JSON Schema + Rust handler
-- **MCP 集成**：`codex-mcp` crate 负责管理 MCP 连接（McpConnectionManager），支持外部 MCP 服务器作为工具源
-- **动态工具**：Codex 可以在运行时动态加载新的工具定义
-
-工具调用的流程大致是：
-
-1. 模型返回一个 tool_call
-2. Tool Run Loop 解析、执行、收集结果
-3. 结果追加回 history
-4. 如果需要继续（模型要求更多工具调用），循环回来
-
-这一点和 CC 的 tool calling 机制结构相似，但 Codex 的抽象层级更多（MCP connection manager、exec policy、sandboxing 等）。
-
-## 四、沙箱和安全模型
-
-Codex 在安全上投入很大：它有完整的跨平台沙箱系统。
-
-| 平台 | 沙箱机制 |
-|------|---------|
-| macOS | Seatbelt（`/usr/bin/sandbox-exec`） |
-| Linux | Landlock + seccomp + Bubblewrap（可选） |
-| Windows | Windows 沙箱 |
-
-抽象层在 `codex-sandboxing`，平台实现在 `codex-linux-sandbox`、`codex-windows-sandbox-rs` 等。
-
-除此之外还有：
-
-- **Process Hardening**（`codex-process-hardening`）：进程级别加固
-- **Exec Policy**（`codex-execpolicy`）：执行策略引擎，控制什么命令可以/不可以执行
-
-
-## 五、多 Agent 编排（Codex vs CC 两种哲学）
-
-Codex 拥有完整的层次化多 Agent 系统：
-
-- **Agent Tree**：Root Agent → 子 Agent → 孙 Agent，形成树结构
-- **Task-path 路由**（V2）：Agent 通过规范路径 `{root}/task1/task_3` 寻址
-- **并行执行**：多个子 Agent 互不阻塞，父 Agent 可以 wait 或持续工作
-- **消息传递**：`send_message` / `followup_task` / `wait_agent` / `close_agent` 体系
-- **批处理模式**：`spawn_agents_on_csv` — 对 CSV 每行 spawn 一个工作 Agent，map-reduce 风格
-- **深度限制**：`exceeds_thread_spawn_depth_limit()` 防止递归失控
-
-第五篇会深入这个系统。
-
-
-## 六、模型管理的 Provider 抽象
-
-Codex 使用 Provider 模式抽象模型后端：
-
-| Provider | 后端 | 用途 |
-|----------|------|------|
-| `codex-model-provider` | — | 统一抽象层 |
-| `codex-models-manager` | — | 模型目录、选择、迁移 |
-| `codex-ollama` | Ollama | 本地模型 |
-| `codex-lmstudio` | LM Studio | 本地模型 |
-| `codex-chatgpt` | ChatGPT 云 | ChatGPT 订阅用户 |
-| `codex-realtime-webrtc` | WebRTC | 实时语音对话 |
-
-模型切换时，Codex 会自动触发 compaction（`maybe_run_previous_model_inline_compact`，`turn.rs:810`），因为不同模型的上下文窗口不同。
-
-
-## 七、Codex vs Claude Code：宏观对比
-
-![Codex vs Claude Code 宏观对比](/images/codex/01-vs.png)
-
-### 7.1 工程语言：Rust vs TypeScript
-
-| 维度 | Codex | Claude Code |
-|------|-----------|-------------|
-| **主语言** | Rust（~100+ crates） | TypeScript（主包） + Rust（tectonic DB） |
-| **构建系统** | Bazel + Cargo | esbuild |
-| **包管理** | npm wrapper 发布 | npm 纯 Node.js |
-| **并发模型** | tokio async + channels | async generator + 协程 |
-| **启动方式** | 多二进制入口 | 单 Node.js 进程 |
-| **内存管理** | 零成本抽象 + 所有权 | V8 GC |
-
-Rust 的选择让 Codex 天然具备了更激进的沙箱和安全能力（Landlock、seccomp、Seatbelt 都依赖系统级调用）。CC 在 Rust 方面只使用了 tectonic DB。
-
-### 7.2 架构哲学
-
-| 维度 | Codex | Claude Code |
-|------|-----------|-------------|
-| **主循环模式** | 事件驱动 reactor（channel） | continuation-driven polling |
-| **压缩策略** | 所有压缩调 LLM（3 种实现） | 5 级压缩，前 4 级纯数据结构操作 |
-| **多 Agent** | ✅ 原生支持（Agent Tree） | ✅ Swarm（跨进程）+ AgentTool（同进程） |
-| **沙箱** | ✅ 完整跨平台沙箱 | ❌ 无沙箱 |
-| **认证** | ChatGPT OAuth + API key | 仅 API key |
-| **IDE 集成** | App Server 守护进程 | 终端内使用 |
-| **扩展系统** | Plugins + MCP + Skills | Skills + Hooks |
-| **代码定位** | 开源引擎 + 闭云服务 | 完全开源 |
-
-### 7.3 一个有趣的细节：Build
-
-Codex 项目的构建依赖 Bazel，是一个相当重量级的构建系统：
-
-```
-MODULE.bazel  BUILD.bazel  defs.bzl  rbe.bzl  .bazelversion
-```
-
-而 CC 就是标准的 npm 项目，`tsup` 打包。这个差异反映了两个项目的工程规模和团队偏好——Codex 的 crate 数量 ~100+，CC 的 TypeScript 源文件约 120+。规模相当但构建哲学不同。
-
-### 7.4 为什么要注意这些差异
-
-这些差异不是随机的。它们反映了两个团队的核心设计假设：
-
-- **CC 假设**：代理工作在单一进程内，以 RESTful 方式与外部工具交互。安全由用户自己保证。
-- **Codex 假设**：代理可能被滥用，需要进程隔离（沙箱）、策略控制（exec policy）、多 Agent 拆分复杂问题。
-
-这个设计哲学差异贯穿了整个系列。最后一篇会专门讨论。
-
-
-## 八、小结
-
-| 了解什么 | 对应源码 | 后续文章 |
-|---------|---------|---------|
-| 主循环与消息传递 | `handlers.rs:738` | 第 2 篇 |
-| 上下文组合与增量注入 | `mod.rs:2725` | 第 3 篇 |
-| Compact 3 种压缩机制 | `compact.rs` | 第 4 篇 |
-| 多 Agent 编排 | `agent/control.rs` | 第 5 篇 |
-| 工具系统与沙箱 | `tools/` + `sandboxing/` | 第 6 篇 |
-| 模型管理 | `model-provider/` | 第 7 篇 |
-| 设计哲学对比总结 | 全系列 | 第 8 篇 |
-
-## 章节小测
+## 六、章节小测
 
 <script setup>
 const q = [
   {
-    question: 'Codex 为什么选择 Rust 作为主要实现语言，而 Claude Code 使用 TypeScript？',
-    options: ['利用 Rust 所有权模型降低运行时内存安全风险', '依赖 Rust 系统级能力实现沙箱与进程级安全加固', '借助 TypeScript 异步生态加速 Agent 循环迭代效率', '为 WebAssembly 跨平台分发保留统一的编译目标'],
+    question: '用户通过 npm 安装的 @openai/codex 包，其在系统架构中的真实角色是什么？',
+    options: [
+      '包含所有业务逻辑的 Node.js 核心引擎，直接负责调度模型',
+      '一个 JavaScript 壳，检测平台并 spawn 预安装的 native 二进制',
+      '通过 WebAssembly 编译的 Rust 运行时，在 V8 引擎内执行',
+      '负责与 VS Code 插件通信的中间件，处理所有的 JSON-RPC'
+    ],
     correct: 1,
-    explanation: 'Rust 的选择源于 Codex 的"系统级软件"定位——沙箱、进程加固、WebSocket 都需要系统级能力。CC 选 TypeScript 则是因为开发速度快、与 npm 生态无缝集成、async generator 天然适合 agent 循环抽象。'
+    explanation: 'npm 包只是一个分发渠道和启动壳。它的作用是检测当前操作系统架构，定位到由 optional dependencies 提前安装好的 native 二进制文件并启动它，所有核心逻辑都在 Rust 侧。'
   },
   {
-    question: 'Codex 的 npm 包 @openai/codex 的本质是什么？',
-    options: ['将 Rust 核心逻辑编译为跨平台 Node.js 原生模块分发', '一个轻量 JavaScript 入口壳按平台下载并启动 Rust 二进制', '通过 WebAssembly 在 Node.js 运行时内执行全部 Rust 逻辑', '全部功能由纯 JavaScript 实现通过 npm 包直接分发执行'],
+    question: 'Codex 的主循环（submission_loop）采用了哪种并发设计模式？',
+    options: [
+      '基于 async generator 的单线程轮询模式，按顺序让出控制权',
+      '基于 Channel 消息传递的 Reactor 模式，事件驱动任务流转',
+      '基于多进程共享内存的轮询模式，通过锁机制同步状态数据',
+      '基于定时器的定时轮询模式，每隔固定时间检查是否有新输入'
+    ],
     correct: 1,
-    explanation: '用户安装的是 npm 包，但这是一个薄薄的 JS 壳，实际所有代码在 codex-rs/ 这个 Rust Cargo 工作区里，npm 包只负责检测平台并启动对应的 Rust 二进制。'
+    explanation: 'Codex 采用了基于 Channel 的 Reactor 模式。外部输入被打包成 Op 消息放入 Channel，submission_loop 在后台监听并分发事件，这与 Claude Code 的 async generator 轮询模式有本质区别。'
   },
   {
-    question: 'Codex 的主循环与 Claude Code 的主循环在设计模式上的本质区别是什么？',
-    options: ['Codex 使用同步 while-true 轮询来等待事件并同步分派', 'Codex 采用事件驱动 reactor 经 channel 异步消息分发', '两套系统均采用事件驱动架构仅编程语言实现不同', 'Codex 全程同步阻塞而 CC 全程采用异步运行时'],
-    correct: 1,
-    explanation: 'Codex 的 submission_loop 是事件驱动的 reactor，通过 async_channel 接收 Submission 消息后再分派；CC 的 queryLoop 是 continuation-driven 的 polling loop，用 async generator 在同一个函数里按顺序驱动一切。'
+    question: '在 Codex 的主链路中，当 submission_loop 接收到 Op::UserInput 消息后，系统是如何处理任务调度的？',
+    options: [
+      '将新任务加入队列，等待当前任务执行完毕后再按顺序执行',
+      '直接在当前线程中同步执行新任务，阻塞后续的所有消息接收',
+      '终止当前可能正在运行的旧任务，然后启动一个新的 SessionTask',
+      '忽略新任务并向用户报错，直到当前对话轮次完全结束'
+    ],
+    correct: 2,
+    explanation: '在 user_input_or_turn 流程中，系统会先 abort 掉当前正在运行的旧任务，然后通过 spawn_task(RegularTask::new()) 启动新任务。这种互斥机制保证了状态的一致性。'
   },
   {
-    question: 'Codex 的压缩策略与 Claude Code 最根本的不同是什么？',
-    options: ['Codex 内置比 CC 更多的上下文压缩级别与触发时机', 'Codex 全部压缩都调 LLM 而 CC 前四级仅操作数据结构', 'Codex 仅在手动触发时执行压缩而 CC 全程自动触发', 'Codex 完全不压缩上下文而 CC 对所有上下文进行压缩'],
-    correct: 1,
-    explanation: 'Codex 的 3 种压缩实现（Local/Remote v1/Remote v2）都调用 LLM，是"质量优先"设计；CC 的 5 级压缩中前 4 级是纯数据结构操作（截断/Snip/Microcompact/Context Collapse），第 5 级才调 LLM，是"成本优先"设计。'
+    question: 'Codex 架构中，负责跨平台 OS 级沙箱（如 Landlock/Seatbelt）和指令策略拦截的模块属于哪个核心分层？',
+    options: [
+      '核心中枢层，与对话上下文组装和 Token 预算管理强耦合在一起',
+      '工具与扩展层，作为动态工具注册和 MCP 协议解析的核心组成部分',
+      '安全与沙箱层，直接调用操作系统底层机制从物理层面阻断恶意操作',
+      'IDE 协议层，通过 JSON-RPC 拦截并过滤编辑器发来的所有执行指令'
+    ],
+    correct: 2,
+    explanation: '沙箱和指令策略（codex-sandboxing, codex-execpolicy）是 Codex 的重武器，独立于核心引擎和工具层，通过 OS 底层机制提供物理级别的安全隔离。'
+  },
+  {
+    question: 'Codex 在整体架构设计上，最底层的核心假设是什么？',
+    options: [
+      '信任模型生成的代码，重点优化单进程内的执行效率与系统资源占用',
+      '假设用户环境是绝对安全的，Agent 仅作为轻量辅助脚本提供代码建议',
+      '建立在不信任的假设上，既不信任模型幻觉也不信任单一进程的稳定性',
+      '假设所有工具都通过远程网络调用，因此将网络并发作为最高优先级'
+    ],
+    correct: 2,
+    explanation: 'Codex 的架构（OS 级沙箱、拆分独立的 CLI/TUI/AppServer 二进制）都是为了防范模型幻觉和进程崩溃，体现了典型的“系统级软件”防范思维。'
   }
 ]
 </script>

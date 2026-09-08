@@ -1,346 +1,192 @@
-# 上下文组合与增量注入
+---
+title: Codex 上下文管线图解：几十种状态片段如何拼装才不会乱？
+---
 
-## 〇、引言
+# Codex 上下文管线图解：几十种状态片段如何拼装才不会乱？
 
-上一篇我们看了 Codex 的主循环——`submission_loop` 事件分发 + `run_turn` 8 阶段生命周期。其中提到一个细节：在 Sampling 之前，Codex 会"记录上下文更新"。
+想象你的 Agent 挂载了 50 个工具、10 个自定义 Skill、连接了外部 MCP 服务器，同时还要感知当前操作系统的沙箱权限、工作目录以及用户的 `AGENTS.md` 指令。如果只是简单地把这些文本 `string.concat` 塞进 System Prompt，大模型不仅会产生严重的幻觉，还会直接击穿 Token 限制。
 
-但这个细节其实非常重要，值得单独写一篇。
+当上下文来源极其复杂，且包含大量动态状态时，如何组织这些信息，才能既让模型严格遵循指令，又最大化利用 Prompt Caching（提示词缓存）？
 
-Codex 的上下文管理有两个核心机制：
+Codex 的解法是构建一条严密的“上下文装配管线”，将所有信息严格分类、分槽（Slot）注入。本文将拆解 Codex 核心引擎中的上下文管线，看看它是如何组装 Prompt 的。具体来说，我们将回答四个核心问题：
 
-1. **10+ 个上下文段的组合**：每次构建 prompt 时，Codex 把 developer instructions、permissions、skills、plugins、environment 等十多个段组装成一条条消息
-2. **Context diffing（增量注入）**：第一次发送完整上下文，之后只发送**变更的段**，最大化复用 prompt cache
+1. 为什么 Codex 要将上下文严格划分为 Developer、Contextual User 等不同的 Slot？
+2. 动态的 Context Fragments（如沙箱状态、环境变量）是如何被注入的？
+3. Codex 的权限说明模板是如何根据运行时策略动态变形的？
+4. 相比 Claude Code，Codex 为什么选择了指令式的装配管线？
 
-这篇文章深入这两个机制，回答：
+本文只讨论上下文的“组装”。当组装好的上下文超过模型窗口上限时，系统如何进行压缩，将留到下一篇拆解。
 
-- Codex 把哪些信息塞进了模型上下文？
-- 它怎么知道哪些段变了？
-- 这个设计对性能和成本有什么影响？
-- 和 CC 的 system prompt 构造对比？
+## 一、问题：被撑爆的 System Prompt
 
+### 1.1 朴素拼接的灾难
 
-![Codex 上下文组装流水线：13+ 段 → 3 个 PromptSlot → ResponseItems](/images/codex/03-hero.png)
+在简单的 Demo 里，上下文通常就是 `System Prompt + History`。但对于一个工业级 Agent，环境状态是高度动态的。
 
-## 一、build_initial_context：10+ 个段的组装
+如果每次对话都把所有动态状态（如当前工作目录、Shell 状态、刚刚开启的 MCP 引导指令）随意拼接到 System Prompt 的末尾，会带来两个致命问题：
 
-### 1.1 入口
+第一是**注意力涣散**。核心的安全约束（“不要执行 rm -rf”）可能被淹没在冗长的环境状态描述中。
+第二是**破坏 Prompt Caching**。现代 LLM 厂商（如 Anthropic、OpenAI）的缓存机制通常依赖前缀的绝对一致性。如果把高频变化的动态状态和静态的系统指令混在一起，会导致缓存命中率极低，API 成本飙升。
 
-入口在 `session/mod.rs:2725` 的 `build_initial_context`：
+### 1.2 Codex 的解题思路
+
+必须对上下文进行结构化分层。
+
+静态的放前面，动态的放后面；系统级的核心指令归一类，用户级的环境状态归另一类。组装 Prompt 不是写作文，而是为大模型设计“内存布局”。
+
+## 二、核心抽象 A：Prompt 的四块来源与 Slot 架构
+
+在 Codex 中，最终发送给模型的 `Prompt` 并不是一个简单的字符串，而是一个结构体。它的来源被严格划分为四块：
+
+1. `Prompt.base_instructions`：最底层的系统指令。
+2. `Prompt.tools`：由 `ToolRouter` 统一管理的工具 Schema 列表。
+3. `Prompt.input`：包含多段消息的输入流。
+4. 动态注入的 Context Updates：通过 `record_context_updates_and_set_reference_context_item` 注入的完整上下文或增量 Diff。
+
+其中，最复杂的是动态注入的上下文。Codex 将其划分为不同的 Slot（槽位），对应源码中的 `PromptSlot` 枚举：
 
 ```rust
-pub(crate) async fn build_initial_context(
-    &self,
-    turn_context: &TurnContext,
-) -> Vec<ResponseItem> {
-    let mut developer_sections = Vec::<String>::with_capacity(8);
-    let mut contextual_user_sections = Vec::<String>::with_capacity(2);
-    let mut separate_developer_sections = Vec::<String>::new();
-    // ... 把 10+ 个段分别 push 到三个 Vec
+// codex-rs/protocol/src/prompts/mod.rs
+pub enum PromptSlot {
+    DeveloperPolicy,
+    DeveloperCapabilities,
+    ContextualUser,
+    SeparateDeveloper,
 }
 ```
 
-它把上下文分成**三个槽位（PromptSlot）**：
+这四个 Slot 构成了 Codex 的“内存布局”：
 
-| 槽位 | 合并方式 | 最终消息类型 |
-|------|---------|-------------|
-| `DeveloperPolicy` / `DeveloperCapabilities` | 全部合并为 1 条 | developer 消息 |
-| `ContextualUser` | 全部合并为 1 条 | user 消息 |
-| `SeparateDeveloper` | 每段独立成 1 条 | developer 消息（独立） |
+- **Developer Slots (Policy & Capabilities)**：存放优先级最高的系统指令。包括沙箱权限说明、协作模式、Apps/Skills/Plugins 的引导指令。这部分内容在一次会话中变化较少。
+- **Contextual User Slot**：存放环境状态和用户偏好。比如当前的工作目录（CWD）、Shell 状态、日期/时区、网络与文件系统状态，以及用户在当前项目根目录写的 `AGENTS.md`。
+- **Separate Developer Slot**：为某些需要绝对独立、防止被其他指令污染的特殊扩展片段预留。它们会被作为独立的 Developer 消息发送给模型。
 
-### 1.2 13 个段
+通过严格的分槽，Codex 保证了核心指令的权重，同时将相对稳定的 sections 聚合在一起，有利于底层模型厂商的 Prefix Caching。
 
-按 `build_initial_context` 的执行顺序，Codex 会注入这些段：
+## 三、核心抽象 B：Context Fragments 与动态注入
 
-#### Developer sections（合并为 1 条 developer 消息）
+### 3.1 什么是 Context Fragment？
 
-| # | 段 | 来源 | 触发条件 |
-|---|---|------|---------|
-| 1 | Model switch message | `updates::build_model_instructions_update_item` | 模型切换时 |
-| 2 | Permissions instructions | `PermissionsInstructions::from_permission_profile` | `include_permissions_instructions` |
-| 3 | Developer instructions | `turn_context.developer_instructions` | 用户/Profile 指令非空 |
-| 4 | Collaboration mode instructions | `CollaborationModeInstructions::from_collaboration_mode` | `include_collaboration_mode_instructions` |
-| 5 | Realtime update | `updates::build_initial_realtime_item` | 实时对话激活 |
-| 6 | Personality spec | `PersonalitySpecInstructions` | Feature::Personality + 未"baked" |
-| 7 | Apps instructions | `AppsInstructions::from_connectors` | `include_apps_instructions` + apps_enabled |
-| 8 | Available skills | `AvailableSkillsInstructions` | `include_skill_instructions` |
-| 9 | Plugin instructions | `AvailablePluginsInstructions::from_plugins` | 总是检查 |
-| 10 | Extension fragments | `context_contributors.contribute()` | 扩展注册了 contributor |
+系统状态是动态的。比如用户中途通过命令行启用了某个 Plugin。这些状态不能硬编码在主循环里，必须插件化。
 
-#### Contextual user sections（合并为 1 条 user 消息）
-
-| # | 段 | 来源 |
-|---|---|------|
-| 11 | User instructions | `turn_context.user_instructions`（来自 AGENTS.md） |
-| 12 | Environment context | `EnvironmentContext::from_turn_context`（shell / cwd / OS / subagents） |
-| 13 | Extension fragments | context_contributors |
-
-#### Separate developer sections（每段独立 1 条 developer 消息）
-
-| # | 段 | 来源 |
-|---|---|------|
-| 14 | Extension fragments | context_contributors |
-| 15 | Multi-agent v2 usage hint | `multi_agents::usage_hint_text` |
-| 16 | Guardian policy prompt | `separate_guardian_developer_message` |
-
-### 1.3 三个 Vec 怎么变成消息
-
-函数末尾（`mod.rs:2912-2950`）：
+Codex 引入了 `ContextContributor` 和 `PromptFragment` 的抽象。
 
 ```rust
-let mut items = Vec::with_capacity(4);
-// 1. 合并的 developer 消息
-if let Some(developer_message) =
-    crate::context_manager::updates::build_developer_update_item(developer_sections)
-{
-    items.push(developer_message);
+// 伪代码逻辑：展示 Fragment 的抽象
+pub trait ContextContributor: Send + Sync {
+    fn get_fragments(&self, sess: &Session) -> Vec<PromptFragment>;
 }
-// 2. 每个单独的 developer 段
-for section in separate_developer_sections {
-    if let Some(developer_message) =
-        crate::context_manager::updates::build_developer_update_item(vec![section])
-    {
-        items.push(developer_message);
-    }
-}
-// 3. multi-agent usage hint（如有）
-// 4. 合并的 contextual user 消息
-if let Some(contextual_user_message) =
-    crate::context_manager::updates::build_contextual_user_message(contextual_user_sections)
-{
-    items.push(contextual_user_message);
-}
-// 5. guardian 单独 developer 消息（如有）
-items
-```
 
-最终 `build_initial_context` 返回一个 `Vec<ResponseItem>`，可能是 0~6 条消息。
-
-
-## 二、Context Diffing：增量注入
-
-### 2.1 为什么需要 diffing
-
-每次 turn 都重新发送 13+ 个段会浪费 token——大多数段在会话过程中不变。Codex 的优化策略：
-
-- **第一次**：发送完整上下文（`build_initial_context`）
-- **之后每次**：只发送**变更的段**（`build_settings_update_items`）
-
-### 2.2 决策点：record_context_updates_and_set_reference_context_item
-
-决策在 `mod.rs:2984` 的 `record_context_updates_and_set_reference_context_item`：
-
-```rust
-pub(crate) async fn record_context_updates_and_set_reference_context_item(
-    &self,
-    turn_context: &TurnContext,
-) {
-    let reference_context_item = {
-        let state = self.state.lock().await;
-        state.reference_context_item()
-    };
-    let should_inject_full_context = reference_context_item.is_none();
-    let context_items = if should_inject_full_context {
-        self.build_initial_context(turn_context).await
-    } else {
-        // Steady-state path: append only context diffs to minimize token overhead.
-        self.build_settings_update_items(reference_context_item.as_ref(), turn_context)
-            .await
-    };
-    // ... 记录到 history 并更新 reference_context_item
+pub struct PromptFragment {
+    pub slot: PromptSlot,
+    pub content: String,
 }
 ```
 
-`reference_context_item` 是上一次 turn 的 `TurnContext` 快照。如果它是 `None`（首次 turn 或者被 compact 清空了），走 full injection；否则走 diff path。
+各个子系统都实现了这个 Trait。在需要更新上下文时，主引擎会遍历所有注册的 Contributor，收集它们产生的 `PromptFragment`，并根据 `slot` 自动追加到对应的槽位中。
 
-### 2.3 Diff 实现：build_settings_update_items
+### 3.2 增量更新与 Reference Context Item
 
-Diff 逻辑在 `context_manager/updates.rs:209`：
+为了进一步优化性能，Codex 并不是每次都全量重新发送所有上下文。
 
-```rust
-pub(crate) fn build_settings_update_items(
-    previous: Option<&TurnContextItem>,
-    previous_turn_settings: Option<&PreviousTurnSettings>,
-    next: &TurnContext,
-    shell: &Shell,
-    exec_policy: &Policy,
-    personality_feature_enabled: bool,
-) -> Vec<ResponseItem> {
-    let contextual_user_message = build_environment_update_item(previous, next, shell);
-    let developer_update_sections = [
-        build_model_instructions_update_item(previous_turn_settings, next),
-        build_permissions_update_item(previous, next, exec_policy),
-        build_collaboration_mode_update_item(previous, next),
-        build_realtime_update_item(previous, previous_turn_settings, next),
-        build_personality_update_item(previous, next, personality_feature_enabled),
-    ]
-    .into_iter().flatten().collect();
-    // ... 合并成 1~2 条消息
-}
-```
+在 `run_turn` 流程中，系统会调用 `record_context_updates_and_set_reference_context_item`。它会对比当前的上下文与上一次的参考点（Reference Context Item），如果只有局部变化（比如 CWD 变了），系统会尝试仅发送 Settings Diff，而不是 Full Initial Context。这种精细的状态管理是维持长会话稳定性的关键。
 
-每个 `build_xxx_update_item` 函数会对比 `previous` 和 `next` 的对应字段，**只有变化时才返回 Some**，否则返回 None 被 `flatten()` 过滤掉。
+## 四、核心抽象 C：权限感知的指令模板
 
-被 diff 的 6 个字段：
+### 4.1 动态变形的权限说明
 
-1. **Environment**（contextual user 消息）：shell / cwd / OS 变化
-2. **Model instructions**：模型切换
-3. **Permissions**：权限 profile / approval policy 变化
-4. **Collaboration mode**：协作模式切换
-5. **Realtime**：实时对话开始/结束
-6. **Personality**：个性设置变化
+Agent 在“只读沙箱”和“全权限沙箱”下的行为准则完全不同。如果权限说明是一段死文本，模型很容易在只读模式下尝试执行写入命令，然后被沙箱拦截，陷入死循环。
 
-注意：**skills 和 plugins 不在 diff 列表里**。它们一旦在 turn 开始时注入就保持不变，只能通过重新发起 turn 改变。这是个权衡——减少 diff 计算的复杂度，代价是 skills/plugins 列表变化需要新 turn。
+Codex 的 Developer Slot 中包含了一棵根据运行时权限动态变形的模板树。
 
-![6 个 Diff 字段：Environment / Model / Permissions / Collaboration / Realtime / Personality](/images/codex/03-fields.png)
+对应到源码，在 `codex-rs/prompts/templates/permissions/` 目录下，维护了不同的 Markdown 模板：
 
-### 2.4 Reference context 何时重置
+- `sandbox_mode/workspace_write.md`：告知模型它可以自由修改文件。
+- `sandbox_mode/read_only.md`：严厉警告模型当前处于只读模式，任何修改尝试都会失败。
+- `approval_policy/unless_trusted.md`：告知模型哪些操作需要用户审批。
 
-`reference_context_item` 会在两种情况下重置为 None，触发下一次 full injection：
+### 4.2 运行时的动态挂载
 
-1. **Mid-turn compaction**：当 `run_auto_compact` 执行时，会重新构建 history，旧的 reference 失效
-2. **新会话/fork**：新会话或 fork 出来的子会话第一次 turn
+在组装 Developer Slot 时，`PermissionsInstructions::from_permission_profile` 会根据当前的 Permission Profile、Approval Policy 和 Exec Policy，动态渲染对应的模板，组合成最终的权限说明。
 
-这意味着：**Compact 之后第一次 turn 总是发完整上下文**——这是合理的，因为压缩后历史已经重建，需要新的 baseline。
+这种设计将安全策略（Rust 代码里的沙箱拦截）与模型认知（Prompt 里的行为准则）对齐，降低了模型因“不知情”而触发安全拦截的概率。
 
-![Full vs Incremental Diff：8K vs 500 tokens](/images/codex/03-diffing.png)
+## 五、关键决策：指令式装配管线
 
+把 Codex 的上下文管线和 Claude Code 放在一起看，能发现不同的工程取舍。
 
-## 三、Prompt Caching 的收益
+Claude Code 在组装 Prompt 时，更偏向函数式的拼装，通过组合不同的纯函数来生成 `systemPrompt` 和 `userContext`。
 
-OpenAI 的 Responses API 支持 prompt caching：相同前缀的 prompt 只需计算一次。Codex 的 context diffing 设计直接利用了这一点。
+而 Codex 的上下文管线是一个典型的指令式（Imperative）长流程。它按顺序一步步查询状态、组装 `PromptFragment`、push 进对应的 `PromptSlot`。
 
-### 3.1 增量注入 vs 全量重发
+指令式管线虽然代码冗长，但拥有极高的**可预测性**和**可调试性**。当 Prompt 出现问题时，工程师可以清晰地打断点，看是哪个 `ContextContributor` 在哪一步 push 错了数据。这也符合 Rust 偏好明确控制流的工程文化。
 
-假设一个 turn 的总上下文是 8000 tokens：
+## 六、总结：上下文是 Agent 的内存布局
 
-| 策略 | 每次发送 tokens | 命中 cache | 增量 |
-|------|----------------|-----------|------|
-| 全量重发 | 8000 | 部分（前缀稳定时） | +0 |
-| Codex 增量 | ~500（只变更段） | 几乎全部 | -7500 |
+组装 Prompt 不是写作文，而是为大模型设计“内存布局”。
 
-对长会话尤其重要——一个 30 轮的会话如果每轮都重发 8000 tokens 上下文，总成本会是 240K tokens；用 diffing 后只有第一轮 8000 + 后面 29×500 = 22.5K，节省 90%+。
+通过 Prompt 的四块来源划分、Slot 分区、Fragment 动态注入，Codex 保证了 Agent 在复杂环境下的稳定性。同时，权限感知的模板树让模型认知与底层沙箱策略保持了一致。
 
-### 3.2 为什么 diff 顺序很重要
+但是，无论内存布局多精妙，物理内存总有上限。当这套庞大的上下文终于击穿了模型的 Token 窗口时，Codex 会怎么做？下一篇，我们将拆解 Codex 独树一帜的压缩机制。
 
-注意 `build_settings_update_items` 里 developer 段的顺序：
-
-```rust
-let developer_update_sections = [
-    build_model_instructions_update_item(...),  // 1. 模型指令
-    build_permissions_update_item(...),         // 2. 权限
-    build_collaboration_mode_update_item(...),  // 3. 协作模式
-    build_realtime_update_item(...),            // 4. 实时
-    build_personality_update_item(...),         // 5. 个性
-]
-```
-
-这个顺序和 `build_initial_context` 中段的顺序一致——保证新增的 diff 段 append 到原有 cache 的尾部，最大化 cache 命中率。
-
-如果某个段在中间变了（比如 permissions），前面的段仍然能命中 cache，只有变更段和它之后的段需要重新计算。但只要 permissions 不变，后面的 realtime/personality 仍然命中。
-
-
-## 四、和 CC 的 system prompt 构造对比
-
-### 4.1 CC 的方式
-
-CC 的 system prompt 构造在 `src/utils/messages.ts`（具体路径因版本而异）。它的策略是：
-
-- **每次 turn 都重建完整 system prompt**
-- 通过 Anthropic API 的 prompt caching 标记（`cache_control`）让 API 自动处理缓存
-
-CC 没有显式的 diff 逻辑——它依赖 API 服务端的 cache 机制。优点是简单，缺点是即使只有一个字符变了，cache 也可能失效（取决于 API 实现）。
-
-### 4.2 Codex 的方式
-
-Codex 的策略是**显式 diff**——只发送变更段，让 API 自然命中前缀 cache。
-
-优点：
-- 主动控制 cache 行为，不依赖 API 实现细节
-- 网络传输量减少（只发增量）
-- 可以 diff 一些 API cache 看不到的东西（如 shell info）
-
-缺点：
-- 代码复杂度高（要维护 reference_context_item 的对比）
-- 某些字段（如 skills）变化需要新 turn
-- 注释中提到（`mod.rs:1615`）："TODO: Make context updates a pure diff of persisted previous/current TurnContextItem state so replay/backtracking is deterministic"——目前 diff 不是完全 deterministic 的
-
-### 4.3 对比表
-
-| 维度 | Codex | Claude Code |
-|------|-------|-------------|
-| **注入策略** | 显式 diff，只发变更段 | 每次重发完整 system prompt |
-| **Cache 依赖** | 客户端控制 | API 服务端控制 |
-| **diff 实现位置** | `context_manager/updates.rs:209` | 无 |
-| **diff 字段数** | 6 个（env/model/perm/collab/realtime/personality） | N/A |
-| **网络传输** | 增量 | 全量 |
-| **代码复杂度** | 高 | 低 |
-| **回滚确定性** | 部分（有 TODO） | N/A |
-
-![Codex vs Claude Code：上下文策略对比](/images/codex/03-vs.png)
-
-
-## 五、为什么这个设计有意思
-
-### 5.1 体现了 Rust 的工程思维
-
-Codex 的 diff 机制本质上是把"什么变了"作为显式状态管理。这和 Rust 的所有权模型很契合——每个字段的变化都要 tracked，编译器帮你发现遗漏。
-
-TypeScript 的 CC 没有这种约束，所以选择更简单的"全量重发 + 依赖 API cache"。
-
-### 5.2 体现了 Codex 的多 Agent 假设
-
-Diff 机制在多 Agent 场景下尤其有用——子 Agent 继承父 Agent 的部分上下文，但只关心自己关心的段。Codex 可以通过 `SeparateDeveloper` 槽位给特定子 Agent 注入额外指令，不影响其他 Agent 的 cache。
-
-CC 有多 Agent 系统（AgentTool + Swarm 跨进程），但它的上下文组合方式和 Codex 不同——CC 每次 turn 重建完整 system prompt，没有 diff 机制，不支持给特定子 agent 独立注入上下文段。因此这个优化场景对它意义不大。
-
-### 5.3 一个小细节：环境上下文
-
-`EnvironmentContext` 段包含 shell / cwd / OS / subagents——subagents 是当前 Agent 已知的所有子 Agent 列表。
-
-这意味着：**当 spawn 一个新子 Agent 后，下一次 turn 的环境上下文会变化**，自动触发 environment update item。
-
-这是一个很巧妙的设计——子 Agent 状态变化通过 diff 机制自然地通知给父 Agent，不需要额外的同步代码。
-
-
-## 六、小结
-
-| 你学到什么 | 对应源码 |
-|-----------|---------|
-| 13+ 个上下文段组装 | `session/mod.rs:2725-2951` |
-| 3 个 PromptSlot（DeveloperPolicy/Capabilities/ContextualUser/SeparateDeveloper） | `session/mod.rs:2872-2883` |
-| Full injection vs Diff 路径选择 | `session/mod.rs:2984-2999` |
-| Diff 6 个字段 | `context_manager/updates.rs:209-243` |
-| Reference context 重置时机 | mid-turn compaction 或新会话 |
-| 13 个段顺序与 cache 命中 | `updates.rs:222-233` |
-| Environment context 的 subagents 字段 | `session/mod.rs:2895-2907` |
-
-## 章节小测
+## 七、章节小测
 
 <script setup>
 const q = [
   {
-    question: 'Codex 为什么选择显式 context diffing（增量注入）策略，而不是像 Claude Code 那样每次重发完整 system prompt？',
-    options: ['Codex 对接的 OpenAI API 不支持服务端 prompt cache 能力', '主动控制 cache 减少传输量代价是代码复杂度更高', '显式 diff 相比全量重发方案实现更简单便利', 'CC 对接的 Anthropic API 强制要求每次发送完整上下文'],
+    question: '为什么 Codex 不能简单地将所有动态状态（如当前工作目录、Shell 状态）直接拼接到 System Prompt 的末尾？',
+    options: [
+      '因为这会导致 Rust 编译器的字符串生命周期检查失败，引发内存泄漏',
+      '因为动态状态的高频变化会破坏大模型的前缀缓存机制，导致成本飙升',
+      '因为 System Prompt 的长度被硬编码限制在 1024 个字符以内，无法容纳',
+      '因为动态状态包含大量不可见的控制字符，会导致大模型解析 JSON 失败'
+    ],
     correct: 1,
-    explanation: 'Codex 只发送变更段来最大化 prefix cache 命中率，优点包括主动控制 cache、减少网络传输、diff API 看不到的信息。代价是代码复杂度高（维护 reference_context_item）、某些字段变化需新 turn。CC 选择每次重发完整 system prompt，依赖 API 服务端 cache。'
+    explanation: '现代 LLM 的 Prompt Caching 通常依赖前缀的绝对一致性。如果将高频变化的动态状态与静态指令混在一起，会导致缓存命中率极低，同时也会造成模型注意力涣散。'
   },
   {
-    question: '为什么 skills 和 plugins 不在 context diff 的字段列表里？',
-    options: ['skills 和 plugins 在会话周期内永远不会发生变化', '为减少 diff 计算复杂度设计为变化时须发起新 turn', '底层模型 API 不支持对 skills 数据段做增量更新机制', 'skills 和 plugins 不属于上下文管理范畴由独立系统管理'],
-    correct: 1,
-    explanation: 'Codex 的注释表明这是一个明确的权衡：skills 和 plugins 不在 diff 的 6 个字段里，它们一旦注入就保持不变。变化时需重新发起 turn，减少了 diff 计算的复杂度。'
+    question: '在 Codex 的 Prompt 组装架构中，工具的 JSON Schema 是如何传递给模型的？',
+    options: [
+      '作为 Contextual User Slot 的一部分，与环境变量一起发送',
+      '作为 Developer Policy Slot 的一部分，放在权限说明的后面',
+      '作为 Separate Developer Slot 的独立消息发送，防止被污染',
+      '由 ToolRouter 统一管理，并直接赋值给 Prompt.tools 字段'
+    ],
+    correct: 3,
+    explanation: '工具 Schema 并不在 Developer Slot 中。当前工具通过 built_tools 构建 ToolRouter，再由 build_prompt 放进 Prompt.tools 字段中，与文本指令分离。'
   },
   {
-    question: 'reference_context_item 在什么情况下重置为 None，触发下一次全量注入？',
-    options: ['每轮 turn 结束后自动重置为 None 以保持状态一致性', 'mid-turn compaction 执行后或新会话或 fork 子会话时', '经过设定的时间间隔如每五分钟自动执行全量注入刷新', '用户通过 TUI 界面手动执行缓存清空命令时触发'],
+    question: 'Codex 引入 ContextContributor 和 PromptFragment 机制的核心设计意图是什么？',
+    options: [
+      '为了将超长的历史对话记录切分成多个小片段，以便在多线程中并行发送给模型',
+      '为了实现动态状态的插件化注入，使得各子系统能在运行时追加特定 Slot 的上下文',
+      '为了绕过操作系统的文件读取权限限制，将敏感文件内容伪装成内存片段传递',
+      '为了在模型生成代码时，将代码片段与普通文本分离，强制模型输出结构化 JSON'
+    ],
     correct: 1,
-    explanation: 'reference_context_item 在两种情况下重置：一是 mid-turn compaction 执行时重建 history 使旧 reference 失效；二是新会话或 fork 出来的子会话第一次 turn。compact 后第一次 turn 总是发完整上下文是因为需要新的 baseline。'
+    explanation: '系统状态是动态的。ContextContributor 允许各个子系统在运行时动态生成 PromptFragment，并根据其定义的 PromptSlot 自动注入到对应的槽位中，实现了高度的解耦。'
   },
   {
-    question: 'EnvironmentContext 段包含 subagents 字段，这个设计妙在哪里？',
-    options: ['在 TUI 界面显示当前活跃子 Agent 数量统计数据', '子 Agent 状态变化经 diff 机制自动通知父 Agent', '运行时检查子 Agent 数量不超过配置上限值', '调试模式下才收集传递子 Agent 状态信息'],
+    question: 'Codex 为什么要根据运行时的沙箱权限（如只读模式 vs 全权限模式）动态渲染不同的权限说明模板？',
+    options: [
+      '为了将安全策略与模型认知对齐，防止模型在不知情的情况下尝试越权操作陷入死循环',
+      '为了减少向模型发送的 Token 数量，只读模式下的模板比全权限模式的模板字数更少',
+      '为了向用户隐藏系统底层的沙箱实现细节，使得 TUI 界面的渲染逻辑更加简洁',
+      '为了兼容不同厂商的大模型，某些开源模型无法理解全权限模式下的复杂系统指令'
+    ],
+    correct: 0,
+    explanation: '如果模型不知道自己处于只读沙箱中，它可能会不断尝试生成写入文件的工具调用，然后被底层沙箱拦截，导致死循环。动态渲染权限说明解决了模型认知与底层物理限制的对齐问题。'
+  },
+  {
+    question: '在 run_turn 流程中，record_context_updates_and_set_reference_context_item 函数的主要作用是什么？',
+    options: [
+      '强制清空所有历史对话记录，仅保留最新的 Reference Context Item 以节省 Token',
+      '对比当前上下文与参考点，如果只有局部变化，则尝试仅发送 Settings Diff 以优化性能',
+      '将所有的 PromptFragment 序列化为 JSON 格式，并写入本地磁盘作为参考备份',
+      '检查当前上下文是否包含恶意指令，如果发现则立即抛出异常并中断 run_turn 流程'
+    ],
     correct: 1,
-    explanation: '当 spawn 新子 Agent 后，环境上下文中的 subagents 字段变化，自动触发 environment update item。这是一个巧妙的设计——子 Agent 状态变化通过 diff 机制自然地传递给父 Agent，无需额外同步代码。'
+    explanation: '为了优化性能，Codex 并不是每次都全量重新发送所有上下文。它会对比当前的上下文与上一次的参考点，尝试仅发送增量的 Settings Diff，这种精细的状态管理是维持长会话稳定性的关键。'
   }
 ]
 </script>
