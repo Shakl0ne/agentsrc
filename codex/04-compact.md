@@ -48,6 +48,8 @@ pub(crate) async fn run_turn(...) -> Result<()> {
 }
 ```
 
+![run_turn 中的双重压缩防线](/images/codex/04-double-defenses.svg)
+
 - **Pre-sampling（防线一）**：在每次调用模型前，系统会调用 `auto_compact_token_status` 检查当前 Token 状态。如果达到限制（受模型配置的 limit 影响），则触发压缩。
 - **Mid-turn Auto-compact（防线二）**：在单轮生成结束后，如果满足 `token_limit_reached && needs_follow_up`（即 Token 爆了，且模型还要继续调用工具或有待处理输入），则触发压缩。
 
@@ -102,6 +104,8 @@ fn build_v2_compacted_history(...) -> Vec<ResponseItem> {
     history
 }
 ```
+
+![混合压缩历史结构](/images/codex/04-hybrid-history.svg)
 
 注意这里的结构：它是**先保留部分原始消息（按预算截断），然后再把 `Compaction` 节点（摘要）放在最后**。
 

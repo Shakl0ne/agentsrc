@@ -53,6 +53,8 @@ pub enum Op {
 }
 ```
 
+![核心引擎 Reactor 事件循环](/images/codex/02-reactor-engine.svg)
+
 这个设计将系统的意图与执行彻底剥离。UI 层或网络层不需要知道怎么调用模型，它们只需要构造一个 `Op::UserInput` 并发送到 Channel 中。
 
 ### 2.2 `submission_loop`：永不阻塞的监听者
@@ -104,6 +106,8 @@ async fn user_input_or_turn(...) {
     }
 }
 ```
+
+![Steering 介入机制：平滑追加而非强杀](/images/codex/02-steering-mechanism.svg)
 
 如果当前有活跃的 `RegularTask`，新输入会被追加到当前 turn 的待处理队列中，模型在下一次工具循环间隙会感知到这个新指令。只有在没有活跃任务时，系统才会调用 `spawn_task` 启动新一轮对话。
 
@@ -162,6 +166,8 @@ pub(crate) async fn run_turn(...) -> Result<()> {
     }
 }
 ```
+
+![run_turn 微观流转与双重压缩防线](/images/codex/02-run-turn-loop.svg)
 
 注意压缩机制的位置：它不仅在采样前（`run_pre_sampling_compact`）有一道防线，在每次模型返回后（`run_auto_compact`）还有一道防线。微观循环被严密地包裹在 Token 预算的监控之下。
 

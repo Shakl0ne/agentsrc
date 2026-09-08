@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-label="Codex Macro Topology">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 32px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 18px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 13px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 14px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.3); stroke-width: 1.5; }
+    .card-async { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.3); stroke-width: 1.5; stroke-dasharray: 4 4; }
+    .card-warn { fill: rgba(239,68,68,0.08); stroke: rgba(239,68,68,0.3); stroke-width: 1.5; }
+    .card-core { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.4); stroke-width: 2; }
+
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-async { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-warn { fill: none; stroke: rgba(239,68,68,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-async" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(63,185,80,0.8)"/>
+    </marker>
+    <marker id="arrow-warn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(239,68,68,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="60" text-anchor="middle" class="title">CODEX MACRO TOPOLOGY</text>
+  <text x="500" y="90" text-anchor="middle" class="subtitle">A thin npm wrapper routing to a heavy, multi-process Rust engine</text>
+
+  <!-- Top: npm wrapper -->
+  <rect x="350" y="130" width="300" height="60" rx="8" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-dasharray="6 6"/>
+  <text x="500" y="158" class="card-title" fill="#8b9eb3">@openai/codex</text>
+  <text x="500" y="178" class="inner-sub">Thin npm wrapper (JS)</text>
+
+  <!-- Middle: 3 Binaries -->
+  <rect x="150" y="250" width="200" height="70" rx="8" class="inner-card"/>
+  <text x="250" y="282" class="card-title">codex</text>
+  <text x="250" y="305" class="inner-sub">Main CLI Dispatcher</text>
+
+  <rect x="400" y="250" width="200" height="70" rx="8" class="card-highlight"/>
+  <text x="500" y="282" class="card-title">codex-tui</text>
+  <text x="500" y="305" class="inner-sub">Interactive UI Process</text>
+
+  <rect x="650" y="250" width="200" height="70" rx="8" class="card-async" style="stroke-dasharray: none;"/>
+  <text x="750" y="282" class="card-title">codex-app-server</text>
+  <text x="750" y="305" class="inner-sub">IDE Daemon Process</text>
+
+  <!-- Arrows from npm to binaries -->
+  <path d="M 500 190 L 500 210 L 250 210 L 250 240" class="spine" marker-end="url(#arrow)"/>
+  <path d="M 500 190 L 500 240" class="spine" marker-end="url(#arrow)"/>
+  <path d="M 500 190 L 500 210 L 750 210 L 750 240" class="spine" marker-end="url(#arrow)"/>
+  
+  <text x="540" y="215" class="arrow-text">Spawns Rust Binaries</text>
+
+  <!-- Bottom: Core Engine -->
+  <rect x="350" y="390" width="300" height="100" rx="16" class="card-core"/>
+  <text x="500" y="435" class="card-title">codex-core</text>
+  <text x="500" y="465" class="inner-text">The Rust Engine</text>
+
+  <!-- Arrows from binaries to core -->
+  <path d="M 250 320 L 250 350 L 500 350 L 500 380" class="spine" marker-end="url(#arrow)"/>
+  <path d="M 500 320 L 500 380" class="spine" marker-end="url(#arrow)"/>
+  <path d="M 750 320 L 750 350 L 500 350 L 500 380" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- Flanks: Sandboxing & Tools -->
+  <!-- Left Flank -->
+  <rect x="80" y="400" width="220" height="80" rx="12" class="card-warn"/>
+  <text x="190" y="435" class="card-title" fill="#ef4444">OS Sandboxing</text>
+  <text x="190" y="460" class="inner-text">Seatbelt / Landlock</text>
+
+  <path d="M 300 440 L 340 440" class="spine-warn" marker-end="url(#arrow-warn)"/>
+  <text x="320" y="430" class="arrow-text" fill="#ef4444">Isolates</text>
+
+  <!-- Right Flank -->
+  <rect x="700" y="400" width="220" height="80" rx="12" class="card"/>
+  <text x="810" y="435" class="card-title">Tools &amp; MCP</text>
+  <text x="810" y="460" class="inner-text">External Capabilities</text>
+
+  <path d="M 700 440 L 660 440" class="spine" marker-end="url(#arrow)"/>
+  <text x="680" y="430" class="arrow-text">Provides</text>
+
+</svg>

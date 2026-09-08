@@ -21,6 +21,8 @@ codex-rs/
 ├── app-server/src/main.rs → codex-app-server（后台守护进程）
 ```
 
+![Codex 宏观拓扑结构：npm 壳与底层 Rust 引擎](/images/codex/01-macro-topology.svg)
+
 主 CLI `codex` 负责解析命令行参数（如 `codex exec` 或 `codex login`），执行完一次性任务就退出。如果用户不带子命令直接回车，主 CLI 会调用 `codex_tui::run_main` 接管屏幕渲染（基于 Ratatui 框架）。
 
 而 `codex-app-server` 则是完全独立的后台常驻守护进程。如果用户在 VS Code 里使用 Codex，IDE 会拉起这个 Server。这种物理隔离的设计意图很明确：**生命周期解耦**。UI 渲染的生命周期、一次性脚本执行的生命周期，以及后台常驻服务的生命周期完全不同，拆分能保证核心服务的稳定性。

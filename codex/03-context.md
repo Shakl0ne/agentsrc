@@ -55,11 +55,15 @@ pub enum PromptSlot {
 }
 ```
 
+![Prompt 的四块来源与组装](/images/codex/03-four-pillars.svg)
+
 这四个 Slot 构成了 Codex 的“内存布局”：
 
 - **Developer Slots (Policy & Capabilities)**：存放优先级最高的系统指令。包括沙箱权限说明、协作模式、Apps/Skills/Plugins 的引导指令。这部分内容在一次会话中变化较少。
 - **Contextual User Slot**：存放环境状态和用户偏好。比如当前的工作目录（CWD）、Shell 状态、日期/时区、网络与文件系统状态，以及用户在当前项目根目录写的 `AGENTS.md`。
 - **Separate Developer Slot**：为某些需要绝对独立、防止被其他指令污染的特殊扩展片段预留。它们会被作为独立的 Developer 消息发送给模型。
+
+![Slot 架构与内存布局](/images/codex/03-slot-layout.svg)
 
 通过严格的分槽，Codex 保证了核心指令的权重，同时将相对稳定的 sections 聚合在一起，有利于底层模型厂商的 Prefix Caching。
 
@@ -82,6 +86,8 @@ pub struct PromptFragment {
     pub content: String,
 }
 ```
+
+![Context Fragment 的动态注入管线](/images/codex/03-fragment-injection.svg)
 
 各个子系统都实现了这个 Trait。在需要更新上下文时，主引擎会遍历所有注册的 Contributor，收集它们产生的 `PromptFragment`，并根据 `slot` 自动追加到对应的槽位中。
 

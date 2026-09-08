@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-label="Cross-Platform Sandboxing">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 32px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 18px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 13px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 14px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.3); stroke-width: 1.5; }
+    .card-async { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.3); stroke-width: 1.5; stroke-dasharray: 4 4; }
+    .card-warn { fill: rgba(239,68,68,0.08); stroke: rgba(239,68,68,0.3); stroke-width: 1.5; }
+    .card-core { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.4); stroke-width: 2; }
+
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-async { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-warn { fill: none; stroke: rgba(239,68,68,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-warn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(239,68,68,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="60" text-anchor="middle" class="title">CROSS-PLATFORM SANDBOXING</text>
+  <text x="500" y="90" text-anchor="middle" class="subtitle">Mapping abstract security requirements to OS-native isolation mechanisms</text>
+
+  <!-- Top: SandboxManager -->
+  <rect x="380" y="140" width="240" height="60" rx="12" class="card-core"/>
+  <text x="500" y="178" class="card-title">SandboxManager</text>
+
+  <!-- Branching Arrows -->
+  <path d="M 500 200 L 500 230 L 280 230 L 280 260" class="spine" marker-end="url(#arrow)"/>
+  <path d="M 500 200 L 500 230 L 720 230 L 720 260" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- Left Branch: Linux -->
+  <rect x="160" y="260" width="240" height="150" rx="12" class="card-async" style="stroke-dasharray: none;"/>
+  <text x="280" y="295" class="card-title">Linux Sandbox</text>
+
+  <rect x="180" y="315" width="200" height="35" rx="6" class="inner-card"/>
+  <text x="280" y="338" class="inner-text">Bubblewrap (FS)</text>
+
+  <rect x="180" y="360" width="200" height="35" rx="6" class="inner-card"/>
+  <text x="280" y="383" class="inner-text">Seccomp (Syscalls)</text>
+
+  <!-- Right Branch: macOS -->
+  <rect x="600" y="260" width="240" height="150" rx="12" class="card-highlight"/>
+  <text x="720" y="295" class="card-title">macOS Sandbox</text>
+
+  <rect x="620" y="315" width="200" height="35" rx="6" class="inner-card"/>
+  <text x="720" y="338" class="inner-text">Seatbelt (App Sandbox)</text>
+
+  <rect x="620" y="360" width="200" height="35" rx="6" class="inner-card"/>
+  <text x="720" y="383" class="inner-text">.sbpl Policy Gen</text>
+
+  <!-- Converging Arrows -->
+  <path d="M 280 410 L 280 440 L 500 440 L 500 470" class="spine-warn" marker-end="url(#arrow-warn)"/>
+  <path d="M 720 410 L 720 440 L 500 440 L 500 470" class="spine-warn" marker-end="url(#arrow-warn)"/>
+
+  <!-- Bottom: Isolated Subprocess -->
+  <rect x="350" y="470" width="300" height="80" rx="12" class="card-warn"/>
+  <text x="500" y="505" class="card-title" fill="#ef4444">Isolated Subprocess</text>
+  <text x="500" y="530" class="inner-text">OS-enforced physical boundary</text>
+
+</svg>
