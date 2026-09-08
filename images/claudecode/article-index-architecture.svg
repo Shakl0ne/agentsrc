@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 1000" width="920" height="1000" role="img" aria-label="Claude Code main loop: QueryEngine drives streaming, tools and replies">
+<style>
+  text { font-family: "Inter", -apple-system, "Helvetica Neue", Arial, "PingFang SC", sans-serif; }
+  .step { fill: rgba(255,255,255,0.04); stroke: rgba(255,255,255,0.4); }
+</style>
+<defs>
+  <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#0d1117"/>
+    <stop offset="50%" stop-color="#161b22"/>
+    <stop offset="100%" stop-color="#0d1117"/>
+  </linearGradient>
+  <linearGradient id="text-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#58a6ff"/>
+    <stop offset="100%" stop-color="#3fb950"/>
+  </linearGradient>
+  <marker id="arrow-blue" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#58a6ff"/>
+  </marker>
+  <marker id="arrow-green" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#3fb950"/>
+  </marker>
+  <marker id="arrow-purple" markerWidth="18" markerHeight="16" refX="16" refY="8" orient="auto">
+    <path d="M0 0 L18 8 L0 16 Z" fill="#bc8cff"/>
+  </marker>
+</defs>
+
+<rect width="920" height="1000" fill="url(#bg)"/>
+
+<text x="450" y="46" text-anchor="middle" font-size="34" font-weight="700" fill="url(#text-grad)">Claude Code - QueryEngine loop</text>
+<text x="450" y="80" text-anchor="middle" font-size="17" fill="#8b949e">continuation-driven: stream, run tools, loop until the message stops</text>
+
+<!-- A: user input -->
+<rect x="250" y="110" width="420" height="76" rx="16" class="step"/>
+<text x="450" y="140" text-anchor="middle" font-size="23" font-weight="700" fill="#f0f6fc">user input</text>
+<text x="450" y="168" text-anchor="middle" font-size="14" fill="#8b949e">message / slash command</text>
+
+<line x1="450" y1="186" x2="450" y2="228" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- B: processUserInput -->
+<rect x="250" y="234" width="420" height="76" rx="16" class="step"/>
+<text x="450" y="264" text-anchor="middle" font-size="23" font-weight="700" fill="#f0f6fc">processUserInput</text>
+<text x="450" y="292" text-anchor="middle" font-size="14" fill="#8b949e">parse + route</text>
+
+<line x1="450" y1="310" x2="450" y2="352" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- C: query engine -->
+<rect x="250" y="358" width="420" height="80" rx="16" fill="rgba(88,166,255,0.10)" stroke="#58a6ff" stroke-width="4"/>
+<text x="450" y="390" text-anchor="middle" font-size="23" font-weight="700" fill="#f0f6fc">QueryEngine.query</text>
+<text x="450" y="420" text-anchor="middle" font-size="14" fill="#8b949e">build messages + stream</text>
+
+<line x1="450" y1="438" x2="450" y2="480" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+
+<!-- D: api streaming -->
+<rect x="250" y="486" width="420" height="76" rx="16" class="step"/>
+<text x="450" y="516" text-anchor="middle" font-size="23" font-weight="700" fill="#f0f6fc">API stream</text>
+<text x="450" y="544" text-anchor="middle" font-size="14" fill="#8b949e">Claude returns chunks</text>
+
+<line x1="450" y1="562" x2="450" y2="632" stroke="#58a6ff" stroke-width="4" marker-end="url(#arrow-blue)"/>
+<text x="500" y="602" font-size="14" fill="#8b949e">model turn</text>
+
+<!-- branches (fanned below) -->
+<path d="M 450 638 L 180 638 L 180 688" stroke="#58a6ff" stroke-width="4" fill="none" marker-end="url(#arrow-blue)"/>
+<path d="M 450 638 L 450 688" stroke="#58a6ff" stroke-width="4" fill="none" marker-end="url(#arrow-blue)"/>
+<path d="M 450 638 L 720 638 L 720 688" stroke="#58a6ff" stroke-width="4" fill="none" marker-end="url(#arrow-blue)"/>
+
+<!-- text render -->
+<rect x="80" y="694" width="250" height="84" rx="16" class="step"/>
+<text x="205" y="728" text-anchor="middle" font-size="14" font-weight="700" fill="#58a6ff">TEXT</text>
+<text x="205" y="754" text-anchor="middle" font-size="19" font-weight="700" fill="#f0f6fc">render to terminal</text>
+<text x="205" y="776" text-anchor="middle" font-size="13" fill="#8b949e">live output</text>
+
+<!-- tool use -->
+<rect x="335" y="694" width="250" height="120" rx="16" fill="rgba(188,140,255,0.10)" stroke="#bc8cff" stroke-width="4"/>
+<text x="460" y="728" text-anchor="middle" font-size="14" font-weight="700" fill="#bc8cff">TOOL_USE</text>
+<text x="460" y="752" text-anchor="middle" font-size="19" font-weight="700" fill="#f0f6fc">permission + run tool</text>
+<text x="460" y="776" text-anchor="middle" font-size="13" fill="#8b949e">ToolResult feeds loop</text>
+
+<!-- complete -->
+<rect x="590" y="694" width="250" height="84" rx="16" fill="rgba(63,185,80,0.12)" stroke="#3fb950" stroke-width="4"/>
+<text x="715" y="728" text-anchor="middle" font-size="14" font-weight="700" fill="#3fb950">MESSAGE_STOP</text>
+<text x="715" y="756" text-anchor="middle" font-size="19" font-weight="700" fill="#f0f6fc">complete</text>
+
+<!-- tool loop back rail -->
+<path d="M 460 816 L 460 878 L 882 878 L 882 372 L 706 370" stroke="#bc8cff" stroke-width="4" fill="none" marker-end="url(#arrow-purple)"/>
+<text x="660" y="862" font-size="14" fill="#bc8cff">loop again</text>
+
+</svg>

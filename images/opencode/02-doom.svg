@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-label="Doom Loop Needs a Permission Gate">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 40px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .label { font-size: 18px; font-weight: 700; letter-spacing: 1.6px; fill: #8fc8ff; }
+    .card-title { font-size: 32px; font-weight: 700; fill: #f0f6fc; }
+    .card-meta { font-size: 22px; font-weight: 500; fill: #d2dbe5; }
+    .mini-title { font-size: 22px; font-weight: 700; fill: #f0f6fc; }
+    .mini-meta { font-size: 20px; font-weight: 500; fill: #d2dbe5; }
+    .card { fill: rgba(255,255,255,0.07); stroke: rgba(255,255,255,0.17); stroke-width: 2; }
+    .mini { fill: rgba(255,255,255,0.06); stroke: rgba(125,196,255,0.22); stroke-width: 1.5; }
+    .warn { fill: rgba(247,129,102,0.16); stroke: rgba(247,129,102,0.56); stroke-width: 2; }
+    .ok { fill: rgba(63,185,80,0.12); stroke: rgba(63,185,80,0.40); stroke-width: 1.8; }
+    .flow { fill: none; stroke: rgba(125,196,255,0.84); stroke-width: 3.2; stroke-linecap: round; }
+    .link { fill: none; stroke: rgba(125,196,255,0.54); stroke-width: 3; stroke-linecap: round; }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="52%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glowBlue" cx="18%" cy="20%" r="30%">
+      <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowPurple" cx="82%" cy="24%" r="28%">
+      <stop offset="0%" stop-color="#bc8cff" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#bc8cff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowGreen" cx="54%" cy="84%" r="30%">
+      <stop offset="0%" stop-color="#3fb950" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <rect width="1600" height="900" fill="url(#grid)"/>
+  <rect width="1600" height="900" fill="url(#glowBlue)"/>
+  <rect width="1600" height="900" fill="url(#glowPurple)"/>
+  <rect width="1600" height="900" fill="url(#glowGreen)"/>
+
+  <text x="800" y="68" text-anchor="middle" class="title">Doom Loop Needs a Permission Gate</text>
+  <text x="800" y="100" text-anchor="middle" class="subtitle">repetition without progress should ask, not auto-ban</text>
+
+  <text x="260" y="216" class="label">REPEATED CALLS</text>
+
+  <g>
+    <rect x="180" y="250" width="320" height="92" rx="24" class="mini"/>
+    <text x="340" y="288" text-anchor="middle" class="mini-title">TOOL CALL 01</text>
+    <text x="340" y="316" text-anchor="middle" class="mini-meta">same input, no progress</text>
+  </g>
+
+  <g>
+    <rect x="180" y="370" width="320" height="92" rx="24" class="mini"/>
+    <text x="340" y="408" text-anchor="middle" class="mini-title">TOOL CALL 02</text>
+    <text x="340" y="436" text-anchor="middle" class="mini-meta">same input, threshold reached</text>
+  </g>
+
+  <path d="M500 416 H620" class="flow"/>
+
+  <g>
+    <rect x="620" y="260" width="360" height="220" rx="28" class="warn"/>
+    <text x="800" y="332" text-anchor="middle" class="card-title">permission.ask()</text>
+    <text x="800" y="378" text-anchor="middle" class="card-meta">sees repetition</text>
+    <text x="800" y="412" text-anchor="middle" class="card-meta">asks before blocking</text>
+  </g>
+
+  <path d="M800 480 V550" class="link"/>
+  <text x="800" y="536" text-anchor="middle" class="label">ASK FIRST</text>
+
+  <g>
+    <rect x="620" y="550" width="360" height="96" rx="24" class="card"/>
+    <text x="800" y="590" text-anchor="middle" class="mini-title">ASK USER</text>
+    <text x="800" y="618" text-anchor="middle" class="mini-meta">show context before deciding</text>
+  </g>
+
+  <path d="M800 646 V676" class="link"/>
+  <path d="M420 676 H1180" class="link"/>
+  <path d="M420 676 V700" class="link"/>
+  <path d="M1180 676 V700" class="link"/>
+
+  <g>
+    <rect x="320" y="700" width="200" height="90" rx="24" class="ok"/>
+    <text x="420" y="738" text-anchor="middle" class="mini-title">ALLOW</text>
+    <text x="420" y="766" text-anchor="middle" class="mini-meta">continue if valid</text>
+  </g>
+
+  <g>
+    <rect x="1080" y="700" width="200" height="90" rx="24" class="warn"/>
+    <text x="1180" y="738" text-anchor="middle" class="mini-title">STOP</text>
+    <text x="1180" y="766" text-anchor="middle" class="mini-meta">stop if denied</text>
+  </g>
+</svg>

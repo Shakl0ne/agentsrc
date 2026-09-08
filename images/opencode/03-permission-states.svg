@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-label="Permission Engine States">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 32px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 18px; font-weight: 500; fill: #b7c3d2; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .arrow-text { font-size: 14px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+    
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-green { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.3); stroke-width: 1.5; }
+    .card-red { fill: rgba(248,81,73,0.08); stroke: rgba(248,81,73,0.3); stroke-width: 1.5; }
+    .card-yellow { fill: rgba(210,153,34,0.05); stroke: rgba(210,153,34,0.3); stroke-width: 1.5; stroke-dasharray: 6 6; }
+    
+    .spine-green { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-yellow { fill: none; stroke: rgba(210,153,34,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-red { fill: none; stroke: rgba(248,81,73,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-blue { fill: none; stroke: rgba(88,166,255,0.6); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(63,185,80,0.8)"/>
+    </marker>
+    <marker id="arrow-yellow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(210,153,34,0.8)"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(248,81,73,0.8)"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(88,166,255,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="600" fill="url(#bg)"/>
+  <rect width="1000" height="600" fill="url(#grid)"/>
+
+  <text x="500" y="60" text-anchor="middle" class="title">Permission Engine States</text>
+  <text x="500" y="90" text-anchor="middle" class="subtitle">ask / allow / deny</text>
+
+  <!-- Evaluate -->
+  <rect x="80" y="270" width="200" height="60" rx="10" class="inner-card"/>
+  <text x="180" y="305" class="inner-text">evaluate() Rules</text>
+  <text x="180" y="322" font-size="12" fill="#8b9eb3" text-anchor="middle">findLast match</text>
+
+  <!-- Paths -->
+  <path d="M 280 300 L 330 300 L 330 160 L 380 160" class="spine-green" marker-end="url(#arrow-green)"/>
+  <path d="M 280 300 L 380 300" class="spine-yellow" marker-end="url(#arrow-yellow)"/>
+  <path d="M 280 300 L 330 300 L 330 440 L 380 440" class="spine-red" marker-end="url(#arrow-red)"/>
+
+  <!-- Allow -->
+  <rect x="380" y="130" width="160" height="60" rx="10" class="card-green"/>
+  <text x="460" y="160" class="inner-text" fill="#3fb950" font-size="20">allow</text>
+  <text x="460" y="180" font-size="12" fill="#8b9eb3" text-anchor="middle">Silent Pass</text>
+
+  <!-- Deny -->
+  <rect x="380" y="410" width="160" height="60" rx="10" class="card-red"/>
+  <text x="460" y="440" class="inner-text" fill="#f85149" font-size="20">deny</text>
+  <text x="460" y="460" font-size="12" fill="#8b9eb3" text-anchor="middle">DeniedError</text>
+
+  <!-- Ask -->
+  <rect x="380" y="230" width="500" height="140" rx="16" class="card-yellow"/>
+  <text x="420" y="260" class="inner-text" fill="#d29922" font-size="20">ask</text>
+  
+  <rect x="420" y="280" width="160" height="50" rx="8" class="inner-card"/>
+  <text x="500" y="310" class="inner-text">Deferred.await</text>
+
+  <!-- User Input -->
+  <rect x="700" y="275" width="140" height="60" rx="8" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="770" y="300" class="inner-text" fill="#58a6ff">User Input</text>
+  <text x="770" y="320" font-size="12" fill="#8b9eb3" text-anchor="middle">once / always / reject</text>
+
+  <path d="M 700 305 L 590 305" class="spine-blue" marker-end="url(#arrow-blue)"/>
+  
+  <!-- Loop for always -->
+  <path d="M 770 275 Q 770 220 630 220 Q 500 220 500 270" class="spine-blue" marker-end="url(#arrow-blue)" stroke-dasharray="4 4"/>
+  <text x="630" y="210" class="arrow-text" fill="#58a6ff">"always" unlocks pending</text>
+
+</svg>
