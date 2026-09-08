@@ -33,7 +33,7 @@
 ## 快速导航
 
 - **看某款 Agent 的整体架构** → 从各专栏的 `01-overview` 读起
-- **想做横向对比** → Codex vs Claude Code 设计哲学对比（`codex/08-philosophy`）
+- **想做横向对比** → Codex vs Claude Code 设计哲学对比散落于 Codex 专栏各章的「设计哲学启示」中
 - **要看应用** → 子智能体编排、上下文压缩、工具权限管线，各专栏均有专文
 - **想看论文与工程交叉** → Reading 专栏
 

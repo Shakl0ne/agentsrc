@@ -44,10 +44,10 @@ hero:
 | 02 | [主循环：Submission 驱动](/codex/02-mainloop) | 事件 Reactor、SessionTask、8 阶段 Turn 生命周期 | ~13K |
 | 03 | [上下文组合与增量注入](/codex/03-context) | 13 个上下文段、context diffing、prompt cache | ~14K |
 | 04 | [Compact 3 种压缩机制](/codex/04-compact) | Local / Remote v1 / v2、InitialContextInjection | ~19K |
-| 05 | [多 Agent 编排架构](/codex/05-multi-agents) | Agent Path、V1/V2 协作、CSV 批处理 Map-Reduce | ~25K |
-| 06 | [工具系统与安全沙箱](/codex/06-tools-sandbox) | ToolExecutor、MCP、ExecPolicy、跨平台沙箱 | ~23K |
-| 07 | [模型管理与 Provider 抽象](/codex/07-models) | 4 种 Provider、AuthManager、WebRTC 语音对话 | ~20K |
-| 08 | [Codex vs CC 设计哲学对比](/codex/08-philosophy) | 3 个核心假设、连锁反应、未来启示 | ~14K |
+| 05 | [工具系统与 MCP 双向集成](/codex/05-tools-mcp) | ToolExecutor、MCP 客户端/服务端双向集成 | ~12K |
+| 06 | [安全架构：策略指令与 OS 沙箱](/codex/06-sandboxing) | ExecPolicy、Bubblewrap/Seccomp 进程隔离 | ~11K |
+| 07 | [多 Agent 编排：V1/V2 路由机制](/codex/07-multi-agents) | Agent Path、V1/V2 协作与通信机制 | ~12K |
+| 08 | [App Server：协议边界与解耦](/codex/08-app-server) | JSON-RPC 通信、IDE 解耦与后台守护进程 | ~12K |
 
 <p class="catalog-cta"><a href="codex/01-overview" class="VPButton medium brand">开始阅读 →</a></p>
 
