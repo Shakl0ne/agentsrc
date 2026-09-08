@@ -10,7 +10,7 @@ title: Codex 多 Agent 编排：如何像管理线程一样管理 AI 团队？
 
 Codex 的解法是将 Agent 抽象为操作系统的“线程（Thread）”——构建基于 ThreadManager 的多实例底座，并在演进中发展出了 V1（基于 ThreadId 的基础调用）和 V2（基于 AgentPath 和明确消息传递）两套协作范式。
 
-本文将拆解 Codex 的多 Agent 引擎，看看它是如何编排这些并行计算单元的。具体来说，我们将回答四个核心问题：
+本文将聚焦于 Codex 的多 Agent 引擎，看看它是如何像操作系统管理进程一样，去孵化、路由和回收这些并行的 AI 执行单元的。接下来的源码剖析将围绕以下几环展开：
 
 1. Codex 是如何通过 `ThreadManager` 与 `CodexThread` 将对话实例线程化的？
 2. V1 和 V2 两代工具在 Agent 寻址和通信上有什么本质区别？
