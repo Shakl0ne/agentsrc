@@ -1,97 +1,90 @@
 ---
-title: Claude Code 对话压缩：5 级压缩机制详解
+title: Claude Code 压缩源码拆解：五级流水线，把调 LLM 留到最后
 ---
 
-# Claude Code 对话压缩：5 级压缩机制详解
+# Claude Code 压缩源码拆解：五级流水线，把调 LLM 留到最后
 
-> 基于泄漏源码分析
+一个跑了三小时的 session：中间读了上百个文件、执行了几十条命令，上下文早就悄悄越过了红线，但用户从头到尾没看到一次「上下文不足」的提示，对话节奏也没有停顿——该压的部分，在你注意到之前就已经压掉了。
 
-所有 coding agent 都要面对上下文窗口的限制。Claude Code（以下简称 CC）使用 Claude 模型，上下文窗口约 200K tokens，但实际可用空间远小于这个数字——系统提示、工具定义、记忆文件、附件消息都占据固定开销，留给对话历史的窗口要在此基础上再打折扣。当对话持续增长、工具调用结果不断堆积时，压缩就不可避免。
+问题是：窗口就 200K，等它满了再让 LLM 写一份摘要，这是所有 coding agent 都想得到的答案。但摘要本身也是一次 API 调用，要花时间、要花钱，还会把之前攒下的 prompt cache 一次性作废。怎么压，才能既省 token、又不丢关键上下文、还尽量不碰缓存？
 
-CC 没有采用单一的「对话太长就调 LLM 做摘要」策略，而是设计了一套 5 级压缩机制。这套机制的核心设计思想是：**能用数据结构变换解决的就不调 LLM**。4 级压缩在数据结构层面操作（折叠工具结果、清除旧 thinking 块、利用 API 原生能力），只有最终级在需要高质量摘要时才调用 LLM。这与 OpenCode（两级压缩均调 LLM）和 Codex（三级均调 LLM）形成鲜明对比，是 CC 在 token 成本与上下文质量之间取得平衡的关键工程。
+CC 的做法是把压缩摊成五级，贵的操作一级级往后放。这一篇把 `src/services/compact/` 拆开，看每一级的触发条件、执行路径，以及它们给彼此留的余地：
 
-## 一、压缩问题
+- 第一，五级各自在什么时机被触发，其中哪几级从头到尾不调 LLM；
+- 第二，压缩动的是消息数组，怎么做到不破坏 prompt cache；
+- 第三，压缩自己失败的时候怎么自保——断路器、递归守卫、还有「压缩的压缩」。
 
-理解 CC 的压缩机制，首先要理解它要解决的三个矛盾。
+压缩在主循环里的位置，第二篇数七条 continue 时已经见过两条（`collapse_drain_retry` 与 `reactive_compact_retry`）；session memory 的提取机制属于第八篇的记忆系统，这里只看它的产物怎么被压缩消费。
 
-**上下文窗口与对话增长**。用户在一个 session 里可能进行数十轮对话，每轮包含文件读取、命令执行、代码编辑等工具调用。一次 `FileReadTool` 读取大文件可能产生数千 tokens 的结果，一次 `BashTool` 执行命令的输出可能更长。这些工具结果累积起来，很快就会逼近上下文窗口上限。超过窗口限制会导致 API 返回 400 `context_length_exceeded` 错误，对话被迫中断。
+## 一、压缩要同时摆平的三件事
 
-**Prompt caching 的成本结构**。Claude API 支持 prompt caching：重复的前缀内容以 cache hit 价格（0.1x）计费，远低于正常 input 价格（1.0x）。但一旦修改消息结构（压缩就是修改），cache 立即失效，下一次请求要以 cache write 价格（1.25x）重新写入。这意味着每次压缩都有一个隐含成本：不仅压缩本身可能花费 LLM 调用，后续请求的缓存也会被破坏。因此，压缩策略必须考虑 cache 友好性——能不修改消息前缀就不修改，能只清理尾部就只清理尾部。
+**窗口增长是单向的**。一轮对话里，读一个大文件可能带回数千 tokens，一条命令的输出更长，工具结果只进不出，很快逼近上限。越过窗口，API 直接回 400 `context_length_exceeded`，对话被迫中断。
 
-CC 对此有一个精巧的设计：cached microcompact 路径通过 Anthropic 的 `cache_edits` API，在不修改客户端消息数组的情况下删除服务端缓存中的工具结果。这样客户端的消息结构不变，cache key 不被破坏，但服务端在计算 token 时不再计入被删除的内容。这是「prompt cache aware」的具体含义——压缩策略本身感知到缓存的存在，并主动避免破坏缓存。OpenCode 和 Codex 的压缩都没有这种缓存感知能力。
+**缓存让「改消息」变贵了**。Claude API 的 prompt caching 按前缀命中计费：命中的部分 0.1x，未命中的写入收 1.25x。前缀只要被改动一个字符，缓存就作废。压缩恰恰就是改消息——每压一次，紧跟着的那次请求就要按 1.25x 全量重写缓存。所以压缩策略必须挑位置下手：能不动前缀就不动前缀，能只清尾部就只清尾部。CC 走得更远，它有一条路径通过 `cache_edits` API 让服务端删缓存内容、客户端消息数组原样不动，第四节展开。
 
-**信息保留与 token 节省**。压缩太激进，模型丢失关键上下文，后续对话质量下降；压缩太保守，token 节省不够，很快又要再压。CC 的方案是分层渐进：先尝试低成本的微压缩（只清理工具结果），不够再升级到自动压缩（尝试用 session memory 代替摘要），最后才调用 LLM 做完整摘要。每一级都有明确的触发条件和成本预算，避免「一刀切」的粗暴策略。
+**保留多少信息是个两难**。压狠了，模型丢掉关键上下文，后续回答质量下滑；压轻了，省不出空间，隔几轮又得再压一次。CC 用分层渐进来拆这个两难：先用数据结构变换做微压缩，不够再升级到全量摘要，每一级都有明确的触发条件与成本预算。
 
-此外，CC 的压缩系统还有两个工程层面的考量。第一是**断路器**：当上下文不可恢复地超过限制时（例如 prompt_too_long），auto compact 会连续失败。如果没有断路器，会话会陷入「压缩失败 → 下一轮再试 → 再失败」的死循环，产生大量无效 API 调用。第二是**递归守卫**：压缩本身会创建 forked agent（用于 LLM 摘要或 session memory 提取），这些 fork 也可能触发压缩，形成递归。CC 通过 `querySource` 标记（`'compact'`、`'session_memory'`）跳过这些 fork 的压缩检查，避免死锁。
+还有两个纯工程层面的坑要提前填：一是**断路器**——上下文不可恢复地超限时（比如 prompt_too_long），auto compact 会反复失败，没有断路器就是「失败→下轮再试→再失败」的死循环；二是**递归守卫**——压缩自己会创建 forked agent 去做摘要和记忆提取，这些 fork 继承了主对话的全部消息，同样会触发压缩检查，不拦住就是「压缩→fork→fork 的压缩」的递归链。两处的解法分别在第三、七节。
 
-## 二、5 级压缩概览
+## 二、五级压缩总览
 
-CC 的压缩系统分布在 `src/services/compact/` 目录下的 11 个文件中，形成 5 个层级的压缩策略：
+压缩系统分布在 `src/services/compact/` 的 11 个文件里，按机制分成五级：
 
 | Level | 名称 | 文件 | 触发条件 | 成本 | 质量 |
 |-------|------|------|----------|------|------|
-| 1 | Auto Compact | `autoCompact.ts` | Token 达有效窗口 ~93% | 中 | 中-高 |
+| 1 | Auto Compact | `autoCompact.ts` | token 达有效窗口约 83.5% | 中 | 中-高 |
 | 2 | Micro Compact | `microCompact.ts` | 每次 API 调用前 | 低 | 中 |
 | 3 | API Microcompact | `apiMicrocompact.ts` | 服务端 input_tokens 超阈值 | 无（API 侧） | 低 |
-| 4 | Reactive Compact | `reactiveCompact.ts` | API 返回 413 / media error | 中 | 高 |
-| 5 | Session Memory Compact | `sessionMemoryCompact.ts` | Auto compact 优先尝试 | 低 | 最高 |
+| 4 | Reactive Compact | `reactiveCompact.ts` | API 返回 413 / 媒体超限 | 中 | 高 |
+| 5 | Session Memory Compact | `sessionMemoryCompact.ts` | Auto Compact 优先尝试 | 低 | 最高 |
 
-需要特别说明的是：`reactiveCompact.ts` 在泄漏源码中不存在——它被 `feature('REACTIVE_COMPACT')` 条件编译裁剪，是 ant（Anthropic 内部）独有模块。但 `query.ts` 和 `commands/compact/compact.ts` 中保留了对它的调用点，可以推断其行为。类似地，`cachedMicrocompact.ts`（cached microcompact 路径的实现）也被 `feature('CACHED_MICROCOMPACT')` 裁剪，但 `microCompact.ts` 中保留了对它的引用和接口描述。
+两个文件在泄漏源码里并不存在：`reactiveCompact.ts` 被 `feature('REACTIVE_COMPACT')` 条件编译裁剪，`cachedMicrocompact.ts`（缓存编辑路径的实现）被 `feature('CACHED_MICROCOMPACT')` 裁剪，都是 ant 内部独有。但 `query.ts`、`microCompact.ts` 和 `commands/compact/compact.ts` 里保留着调用点与接口注释，行为可以从调用侧推断。
 
-这 5 级的关系不是简单的「逐级升级」，而是各自在不同时机被触发、互相补充的。需要特别说明：**Level 5（Session Memory Compact）是 Level 1（Auto Compact）的优先子路径，并非独立触发**——auto compact 触发时会先尝试 session memory（用历史记忆数据结构变换，不调 LLM），失败才回退到 LLM 摘要。因此 5 级是按「压缩机制」划分，而非「触发时机」划分。下方的 mermaid 图展示了它们在 query 循环中的触发顺序和决策路径：
+五级的关系容易误读成「逐级升级」，实际是各自占一个时机、互相补位。关键的一点：**Level 5 是 Level 1 的优先子路径，不独立触发**——auto compact 判定要压时，先试 session memory（读已提取的记忆文件，纯数据操作），失败才回退到 LLM 摘要。所以这张表按「机制」划分，不按「触发时机」划分。它们在 query 循环里的实际顺序是：
 
 ```mermaid
 flowchart TD
-    A[Query Loop 迭代开始] --> B[Level 2: Micro Compact\n每次 API 调用前清理工具结果]
-    B --> B1{时间触发?\n距离上次 assistant > 60min}
-    B1 -- 是 --> B2[时间路径: 清除旧工具结果\ncache 已过期, 无额外成本]
-    B1 -- 否 --> B3{Cached MC?\nfeature CACHED_MICROCOMPACT}
-    B3 -- 是 --> B4[缓存编辑路径: cache_edits\n不修改本地消息]
-    B3 -- 否 --> B5[无操作: 由 auto compact 处理]
+    A["Query Loop 迭代开始"] --> B["Level 2: Micro Compact"]
+    B --> B1{"距上次 assistant 超过 60min?"}
+    B1 -->|"是"| B2["时间路径：清除旧工具结果<br/>缓存已过期，零额外成本"]
+    B1 -->|"否"| B3{"cached MC 可用?<br/>ant + 主线程 + 支持的模型"}
+    B3 -->|"是"| B4["cache_edits 路径<br/>不修改本地消息"]
+    B3 -->|"否"| B5["无操作"]
     B2 --> C
     B4 --> C
     B5 --> C
-    C{Level 1: Auto Compact\nToken 超阈值?} --> |是| D[尝试 Level 5: Session Memory Compact]
-    D --> |成功| E[使用 session memory 替代摘要\n零 LLM 调用]
-    D --> |失败| F[compactConversation\nLLM 流式摘要]
-    C --> |否| G[Level 3: API Microcompact\n服务端配置注入]
+    C{"Level 1: Auto Compact<br/>token 超阈值?"} -->|"是"| D["先试 Level 5: Session Memory"]
+    D -->|"成功"| E["读记忆文件，零 LLM 调用"]
+    D -->|"失败"| F["compactConversation<br/>LLM 流式摘要"]
+    C -->|"否"| G["调用 API<br/>Level 3 配置随请求下发"]
     E --> G
     F --> G
-    G --> H[调用 Anthropic API]
-    H --> I{返回 413 / media error?}
-    I --> |是| J[Level 4: Reactive Compact\n反应式压缩重试]
-    J --> H
-    I --> |否| K[正常处理流式响应]
+    G --> H{"返回 413 / 媒体超限?"}
+    H -->|"是"| I["先排空 context collapse"]
+    I -->|"仍 413"| J["Level 4: Reactive Compact<br/>摘要后重试"]
+    H -->|"否"| K["正常处理流式响应"]
 ```
 
-## 三、Level 1: Auto Compact
+## 三、Auto Compact：阈值、断路器与递归守卫
 
-Auto compact 是 CC 最核心的主动压缩机制，位于 `src/services/compact/autoCompact.ts`（351 行）。它在每次 API 调用前检查 token 使用量，超过阈值时触发压缩。
+Auto compact 是唯一的「主动预判」压缩：每次 API 调用前检查 token 用量，超阈值就先压再发。决策逻辑集中在 `autoCompact.ts`（351 行）。
 
-### 3.1 阈值计算
+### 3.1 阈值是固定 token 差值
 
-Auto compact 的触发不是简单的「80% 上下文窗口」，而是一套精密的多级阈值体系：
-
-```typescript
-// src/services/compact/autoCompact.ts:28-65
-const MAX_OUTPUT_TOKENS_FOR_SUMMARY = 20_000  // 为摘要输出预留
-const AUTOCOMPACT_BUFFER_TOKENS = 13_000      // auto compact 触发缓冲
-const WARNING_THRESHOLD_BUFFER_TOKENS = 20_000
-const ERROR_THRESHOLD_BUFFER_TOKENS = 20_000
-const MANUAL_COMPACT_BUFFER_TOKENS = 3_000
-```
-
-`getEffectiveContextWindowSize()` 先从原始上下文窗口中减去摘要输出预留。这个预留基于 p99.99 的摘要输出统计（17,387 tokens），向上取整到 20,000：
+先算有效窗口：从模型上下文窗口里减去摘要输出预留。预留值有出处——注释写着摘要输出 p99.99 是 17,387 tokens，向上取整到 20K：
 
 ```typescript
-// src/services/compact/autoCompact.ts:33-49
+// src/services/compact/autoCompact.ts:28-48
+// Reserve this many tokens for output during compaction
+// Based on p99.99 of compact summary output being 17,387 tokens.
+const MAX_OUTPUT_TOKENS_FOR_SUMMARY = 20_000
+
 export function getEffectiveContextWindowSize(model: string): number {
   const reservedTokensForSummary = Math.min(
     getMaxOutputTokensForModel(model),
     MAX_OUTPUT_TOKENS_FOR_SUMMARY,
   )
   let contextWindow = getContextWindowForModel(model, getSdkBetas())
-  // 支持环境变量覆盖，用于测试
   const autoCompactWindow = process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW
   if (autoCompactWindow) {
     const parsed = parseInt(autoCompactWindow, 10)
@@ -103,76 +96,45 @@ export function getEffectiveContextWindowSize(model: string): number {
 }
 ```
 
-以 200K 上下文窗口为例：有效窗口 = 200K - 20K = 180K。Auto compact 阈值 = 180K - 13K = 167K（以 200K 原始窗口为基准约 83.5%）。再加上 warning（167K - 20K = 147K）和 error（同样 147K）两级预警，构成完整的 `calculateTokenWarningState()`：
+再叠加触发缓冲 `AUTOCOMPACT_BUFFER_TOKENS = 13_000`（autoCompact.ts:62）。以 200K 窗口的 Sonnet 为例：有效窗口 200K − 20K = 180K，触发线再减 13K 落在 167K，折合原始窗口的约 83.5%。注意阈值是固定 token 差值，窗口不同的模型换算成百分比会漂移——100K 窗口的模型按同一套常量算出来约 67%。
 
-> **注意**：阈值是固定 token 差值（13,000 tokens buffer），不是百分比。不同模型上下文窗口不同，百分比会变化。例如 Haiku 也是 200K 窗口时阈值相同约 83.5%；如果未来模型使用 100K 窗口，阈值将是 100K - 20K - 13K = 67K（约 67%）。文章以 Sonnet 200K 为标准上下文窗口讨论。
+`calculateTokenWarningState()`（autoCompact.ts:93-145）在触发线之外还给出 warning / error 两级预警（各再减 20K），驱动终端 UI 的 token 进度条变色；`isAtBlockingLimit` 是 auto compact 被禁用时的最后防线——到线直接阻止 API 调用，逼用户手动 `/compact`，`MANUAL_COMPACT_BUFFER_TOKENS = 3_000` 就是给手动操作留的余量。
 
-```typescript
-// src/services/compact/autoCompact.ts:93-145
-export function calculateTokenWarningState(
-  tokenUsage: number,
-  model: string,
-): {
-  percentLeft: number
-  isAboveWarningThreshold: boolean
-  isAboveErrorThreshold: boolean
-  isAboveAutoCompactThreshold: boolean
-  isAtBlockingLimit: boolean
-} {
-  const autoCompactThreshold = getAutoCompactThreshold(model)
-  const threshold = isAutoCompactEnabled()
-    ? autoCompactThreshold
-    : getEffectiveContextWindowSize(model)
-  const percentLeft = Math.max(
-    0,
-    Math.round(((threshold - tokenUsage) / threshold) * 100),
-  )
-  const warningThreshold = threshold - WARNING_THRESHOLD_BUFFER_TOKENS
-  const errorThreshold = threshold - ERROR_THRESHOLD_BUFFER_TOKENS
-  // ... 返回多级阈值状态
-}
-```
+### 3.2 断路器：三次失败就跳闸
 
-这套四级状态（ok → warning → error → autoCompact → blocking）驱动了终端 UI 中的 token 进度条颜色变化，也决定了是否触发压缩。`isAtBlockingLimit` 是最后防线：当 auto compact 被禁用时，到达 blocking limit 会直接阻止 API 调用，强制用户手动执行 `/compact`。`MANUAL_COMPACT_BUFFER_TOKENS = 3_000` 为这个手动操作预留了空间。
-
-### 3.2 跟踪状态与断路器
-
-`AutoCompactTrackingState` 跟踪压缩的执行状态：
+`AutoCompactTrackingState` 里挂着断路器状态：
 
 ```typescript
 // src/services/compact/autoCompact.ts:51-60
 export type AutoCompactTrackingState = {
   compacted: boolean
   turnCounter: number
+  // Unique ID per turn
   turnId: string
-  consecutiveFailures?: number  // 连续失败计数，用于断路器
+  // Consecutive autocompact failures. Reset on success.
+  // Used as a circuit breaker to stop retrying when the context is
+  // irrecoverably over the limit (e.g., prompt_too_long).
+  consecutiveFailures?: number
 }
 ```
 
-断路器是工程上非常重要的一环。当上下文不可恢复地超过限制时（例如 prompt_too_long），auto compact 会反复尝试并失败。源码注释记录了一个真实的线上事故：
+这个字段的存在有一场真实事故垫底。源码注释记录：BQ 2026-03-10 的数据显示，1,279 个 session 出现过 50 次以上连续压缩失败、最多的一个 3,272 次，全局每天浪费约 25 万次 API 调用。于是有了 `MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3`（autoCompact.ts:70）：连续失败三次，本 session 内不再尝试 auto compact。`turnCounter` 和 `turnId` 顺带记录「距上次压缩过了几轮」，供遥测区分同一链内的多次压缩与跨 agent 的压缩。
+
+### 3.3 递归守卫与模式互斥
+
+`shouldAutoCompact()` 开头是一串返回 false 的分支，先挡递归：
 
 ```typescript
-// src/services/compact/autoCompact.ts:67-70
-// BQ 2026-03-10: 1,279 sessions had 50+ consecutive failures (up to 3,272)
-// in a single session, wasting ~250K API calls/day globally.
-const MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3
-```
-
-连续失败 3 次后断路器跳闸，当前 session 不再尝试 auto compact，避免无效 API 调用的雪崩。`turnCounter` 和 `turnId` 则用于追踪「距离上次压缩过了多少轮」，为 `recompactionInfo` 提供数据，让遥测能区分「同一链中的多次压缩」（H2 场景）与「跨 agent 的压缩」（H1/H5 场景）。
-
-### 3.3 递归守卫
-
-`shouldAutoCompact()` 包含多重递归守卫，防止压缩操作自身触发新的压缩：
-
-```typescript
-// src/services/compact/autoCompact.ts:170-183
-// session_memory 和 compact 是 forked agent，会死锁
+// src/services/compact/autoCompact.ts:169-183
+// Recursion guards. session_memory and compact are forked agents that
+// would deadlock.
 if (querySource === 'session_memory' || querySource === 'compact') {
   return false
 }
-// marble_origami 是 ctx-agent — 如果它的上下文膨胀触发 autocompact，
-// runPostCompactCleanup 会调用 resetContextCollapse()，
-// 销毁主线程的 committed log（模块级状态跨 fork 共享）
+// marble_origami is the ctx-agent — if ITS context blows up and
+// autocompact fires, runPostCompactCleanup calls resetContextCollapse()
+// which destroys the MAIN thread's committed log (module-level state
+// shared across forks).
 if (feature('CONTEXT_COLLAPSE')) {
   if (querySource === 'marble_origami') {
     return false
@@ -180,14 +142,16 @@ if (feature('CONTEXT_COLLAPSE')) {
 }
 ```
 
-这些守卫的核心思想是：压缩创建的 forked agent 继承了主对话的全部消息，如果它自己又触发压缩，就会形成「压缩 → fork → fork 的压缩 → fork 的 fork」的递归链。通过 `querySource` 标记跳过这些 fork，确保只有主线程的对话才会触发压缩。
+递归的成因：压缩派生的 forked agent 继承主对话全部消息，`querySource` 标记（`'compact'`、`'session_memory'`）就是用来在这些 fork 里跳过压缩检查的。`marble_origami` 那条更隐蔽——ctx-agent 自己的上下文膨胀触发压缩后，`runPostCompactCleanup` 会重置模块级的 context collapse 状态，连带毁掉主线程的 committed log，所以也要拦。
 
-### 3.4 双路径：Session Memory 优先
+往下还有两处「让位」逻辑：`tengu_cobalt_raccoon` 实验开关打开时主动抑制 auto compact，把 413 交给 reactive compact 处理（比较「预判阈值」与「事后反应」两种策略的 A/B）；context collapse 启用时同样让位——collapse 的 90% commit / 95% blocking 流程自己管理余量，auto compact 卡在 93% 上下，抢跑会把 collapse 正要细粒度保留的上下文一次性轰掉。
 
-`autoCompactIfNeeded()` 的关键设计是**优先尝试 session memory 压缩**（无 LLM 调用），失败后才回退到传统的 `compactConversation()`（调 LLM 生成摘要）：
+### 3.4 双路径：session memory 优先
+
+`autoCompactIfNeeded()` 判定要压之后走两条路径，顺序是关键：
 
 ```typescript
-// src/services/compact/autoCompact.ts:287-333
+// src/services/compact/autoCompact.ts:287-310
 // EXPERIMENT: Try session memory compaction first
 const sessionMemoryResult = await trySessionMemoryCompaction(
   messages,
@@ -203,33 +167,23 @@ if (sessionMemoryResult) {
   markPostCompaction()
   return { wasCompacted: true, compactionResult: sessionMemoryResult }
 }
-
-// 回退到 LLM 摘要
-const compactionResult = await compactConversation(
-  messages,
-  toolUseContext,
-  cacheSafeParams,
-  true,  // Suppress user questions for autocompact
-  undefined,  // No custom instructions for autocompact
-  true,  // isAutoCompact
-  recompactionInfo,
-)
 ```
 
-如果 session memory 压缩成功，整个 auto compact 过程不产生任何 LLM 调用——session memory 是后台异步提取的，压缩时直接读取已提取的记忆文件。只有在 session memory 不可用或不足时，才调用 `compactConversation()` 让 LLM 生成摘要。
+session memory 路径成功，整个压缩过程零 LLM 调用——记忆是后台提前提取好的，此时只需要读文件。失败才落到 `compactConversation()` 走 LLM 流式摘要。notifyCompaction 那行也有事故背景：注释记录 BQ 2026-03-01 缺了它，`tengu_prompt_cache_break` 事件里 20% 是误报。第七节展开这条优先路径的内部。
 
-此外，在 reactive-only 模式下（`tengu_cobalt_raccoon` feature flag 为 true 时），auto compact 会被主动抑制，让 reactive compact 作为唯一的压缩路径。这是一个 A/B 实验设计：比较「主动压缩（auto compact 预防性触发）」与「被动压缩（reactive compact 仅在 413 时触发）」哪种策略整体更优。
+![auto compact 的触发线是固定 token 差值，铺在 200K 窗口上](/images/claudecode/04-compact-thresholds.svg)
 
-## 四、Level 2: Micro Compact
+## 四、Micro Compact：调用前的轻量清理
 
-Micro compact 是最轻量的压缩策略，位于 `src/services/compact/microCompact.ts`（530 行）。它在每次 API 调用前运行，目标是清理旧的工具结果以减少 token 消耗。
+Micro compact 是最轻的一级，`microCompact.ts`（530 行），每次 API 调用前都跑。它的目标只有一个：清掉旧工具结果，而且几乎不花成本。
 
-### 4.1 可压缩工具集
+### 4.1 谁的结果可以被清
 
-只有特定工具的结果才会被 micro compact 处理：
+不是所有工具都值得清，白名单写死在源码里：
 
 ```typescript
-// src/services/compact/microCompact.ts:41-50
+// src/services/compact/microCompact.ts:40-50
+// Only compact these tools
 const COMPACTABLE_TOOLS = new Set<string>([
   FILE_READ_TOOL_NAME,
   ...SHELL_TOOL_NAMES,
@@ -242,54 +196,29 @@ const COMPACTABLE_TOOLS = new Set<string>([
 ])
 ```
 
-这些工具的共同特点是：输出内容大、时效性低。文件读取的结果在后续对话中很少被逐字引用，命令输出更是如此。而像 `TodoWriteTool`、`AgentTool` 等工具的结果不在这个集合中——它们的内容对后续对话有持续的参考价值。
+入选的工具有两个共同点：输出大、时效低。文件内容和命令输出在后续对话里很少被逐字引用；`TodoWriteTool`、`AgentTool` 这类结果不在名单里，因为它们对后续轮次有持续的参考价值。
 
-### 4.2 三条路径
+### 4.2 三条路径，按优先级短路
 
-`microcompactMessages()` 有三条执行路径，按优先级短路：
-
-**路径一：时间触发（Time-based）**。当距离上一条 assistant 消息的时间间隔超过阈值（默认 60 分钟），服务端 prompt cache 已过期，全量前缀无论如何都要重写——此时清理旧工具结果不会产生额外成本。配置来自 `timeBasedMCConfig.ts`，通过 GrowthBook 远程下发：
+`microcompactMessages()` 开头两步就决定了走哪条路：
 
 ```typescript
-// src/services/compact/timeBasedMCConfig.ts:30-34
-const TIME_BASED_MC_CONFIG_DEFAULTS: TimeBasedMCConfig = {
-  enabled: false,
-  gapThresholdMinutes: 60,  // 60 分钟 = 服务端 1h cache TTL
-  keepRecent: 5,            // 保留最近 5 个工具结果
+// src/services/compact/microCompact.ts:261-292（节选）
+// Time-based trigger runs first and short-circuits. If the gap since the
+// last assistant message exceeds the threshold, the server cache has expired
+// and the full prefix will be rewritten regardless — so content-clear old
+// tool results now, before the request, to shrink what gets rewritten.
+const timeBasedResult = maybeTimeBasedMicrocompact(messages, querySource)
+if (timeBasedResult) {
+  return timeBasedResult
 }
-```
 
-注释明确说明了阈值选择的原因：60 分钟是服务端 1 小时 cache TTL 的安全边界——超过这个时间，缓存确定已过期，清理工具结果不会导致「本来能命中缓存的请求变成 cache miss」。这个路径直接修改消息内容，将被清理的工具结果替换为标记字符串：
+// Only run cached MC for the main thread to prevent forked agents
+// (session_memory, prompt_suggestion, etc.) from registering their
+// tool_results in the global cachedMCState, which would cause the main
+// thread to try deleting tools that don't exist in its own conversation.
+if (feature('CACHED_MICROCOMPACT')) { /* 走 cached 路径 */ }
 
-```typescript
-// src/services/compact/microCompact.ts:36
-export const TIME_BASED_MC_CLEARED_MESSAGE = '[Old tool result content cleared]'
-```
-
-**路径二：缓存编辑（Cached Microcompact）**。这是最精巧的路径，通过 Anthropic 的 `cache_edits` API 在不修改本地消息内容的情况下删除服务端缓存中的工具结果：
-
-```typescript
-// src/services/compact/microCompact.ts:296-303
-/**
- * Key differences from regular microcompact:
- * - Does NOT modify local message content (cache_reference and cache_edits
- *   are added at API layer)
- * - Uses count-based trigger/keep thresholds from GrowthBook config
- * - Takes precedence over regular microcompact (no disk persistence)
- * - Tracks tool results and queues cache edits for the API layer
- */
-```
-
-Cached microcompact 不修改客户端消息数组——它在 API 请求层附加 `cache_edits` 块，告诉服务端「这些工具结果可以从缓存中删除」。这样客户端消息保持不变，cache key 不被破坏，但服务端在计算 token 时不再计入这些被删除的工具结果。这是 CC 的「prompt cache aware」设计的核心体现：压缩策略主动感知缓存的存在，并选择不破坏缓存的方式。
-
-这个路径还维护了一个 `pinnedEdits` 列表，记录已经被发送过的 cache edits 及其位置。后续请求需要在原始位置重新发送这些 edits，否则服务端的缓存状态会与客户端不一致。`consumePendingCacheEdits()` 和 `pinCacheEdits()` 管理这个生命周期。
-
-此路径由 `feature('CACHED_MICROCOMPACT')` 门控，且只在主线程（`repl_main_thread` query source）执行——子 agent 的工具结果不能注册到全局的 `cachedMCState` 中，否则主线程会尝试删除不存在于自己对话中的工具结果。`cachedMicrocompact.ts` 文件在泄漏源码中不存在（ant-only）。
-
-**路径三：无操作**。当以上两条路径都不触发时，microcompact 返回原始消息不做处理，由 auto compact 处理上下文压力。源码注释说明这是一个有意的设计：
-
-```typescript
-// src/services/compact/microCompact.ts:288-292
 // Legacy microcompact path removed — tengu_cache_plum_violet is always true.
 // For contexts where cached microcompact is not available (external builds,
 // non-ant users, unsupported models, sub-agents), no compaction happens here;
@@ -297,42 +226,35 @@ Cached microcompact 不修改客户端消息数组——它在 API 请求层附�
 return { messages }
 ```
 
-### 4.3 Token 估算
+**路径一：时间触发**。距离上一条 assistant 消息超过阈值（默认 60 分钟，`timeBasedMCConfig.ts`，GrowthBook 远程下发），说明服务端 1 小时的 cache TTL 已经到期，前缀反正要全量重写——此时直接把旧工具结果替换成标记字符串 `'[Old tool result content cleared]'`（microCompact.ts:36），零额外缓存成本。这条路径挑选的时机本身就是 cache 感知：只在缓存确定已死的时候动手。
 
-Micro compact 需要在不调 API 的情况下估算 token 数量。`estimateMessageTokens()` 遍历所有消息块，按类型累加估算值，最后乘以 4/3 的保守系数：
+**路径二：缓存编辑**。缓存还热着的时候，改消息就是烧钱。这条路径改走 Anthropic 的 `cache_edits` API，接口注释写得很清楚：
 
 ```typescript
-// src/services/compact/microCompact.ts:164-205
-export function estimateMessageTokens(messages: Message[]): number {
-  let totalTokens = 0
-  for (const message of messages) {
-    if (message.type !== 'user' && message.type !== 'assistant') continue
-    for (const block of message.message.content) {
-      if (block.type === 'text') {
-        totalTokens += roughTokenCountEstimation(block.text)
-      } else if (block.type === 'tool_result') {
-        totalTokens += calculateToolResultTokens(block)
-      } else if (block.type === 'image' || block.type === 'document') {
-        totalTokens += IMAGE_MAX_TOKEN_SIZE  // 固定 2000
-      } else if (block.type === 'thinking') {
-        totalTokens += roughTokenCountEstimation(block.thinking)
-      }
-      // ...
-    }
-  }
-  return Math.ceil(totalTokens * (4 / 3))  // 保守估计
-}
+// src/services/compact/microCompact.ts:299-303
+// Key differences from regular microcompact:
+// - Does NOT modify local message content (cache_reference and cache_edits
+//   are added at API layer)
+// - Uses count-based trigger/keep thresholds from GrowthBook config
+// - Takes precedence over regular microcompact (no disk persistence)
+// - Tracks tool results and queues cache edits for the API layer
 ```
 
-4/3 的系数是刻意的保守设计：宁可高估 token 数（提前触发压缩），也不要低估（导致 API 400 错误）。图像和文档固定按 2000 tokens 计算，因为它们的实际 token 数取决于服务端的内部处理，客户端无法准确估算。
+客户端消息数组原样不动，API 请求层附带一个 `cache_edits` 块，告诉服务端「这些工具结果可以从缓存里删了」。cache key 不变、命中照旧，只是 token 计数不再包含被删的内容。已发送过的 edits 会进 `pinnedEdits` 列表（`pinned` 在固定位置），后续请求要在原位置重发，否则服务端缓存状态会和客户端对不上——`consumePendingCacheEdits()` 与 `pinCacheEdits()` 管着这个生命周期。
 
-## 五、Level 3: API Microcompact
+实现（`cachedMicrocompact.ts`）被 `feature('CACHED_MICROCOMPACT')` 裁剪，ant 独有；且只在主线程运行，源码注释解释了原因：子 agent 的工具结果若注册进全局 `cachedMCState`，主线程会试图删除自己对话里不存在的工具。
 
-API microcompact 位于 `src/services/compact/apiMicrocompact.ts`（153 行），是最特殊的一级——它不在客户端做任何数据变换，而是构造一个 `ContextManagementConfig` 传给 Anthropic API，由服务端原生处理上下文清理。
+**路径三：无操作**。前两条都不满足时直接原样返回，上下文压力交给 auto compact。这个「什么都不做」也是设计的一部分——注释写明 legacy microcompact 路径已删除，外部构建、非 ant 用户、不支持的模型、子 agent 全部落到这里。
 
-### 5.1 上下文管理策略
+### 4.3 不调 API 的 token 估算
 
-API microcompact 定义了两种服务端策略：
+判断「要不要清」需要先知道「现在多大」。`estimateMessageTokens()` 遍历消息块按类型累加：文本和 thinking 用粗估，图片和文档固定按 2000 tokens（`IMAGE_MAX_TOKEN_SIZE`，microCompact.ts:38），最后整体乘上 4/3 的保守系数。宁可高估提前动手，也不低估等着吃 400。
+
+![micro compact 三条路径按缓存状态选择，不碰热前缀](/images/claudecode/04-cache-paths.svg)
+
+## 五、API Microcompact：把清理外包给服务端
+
+第三级更彻底：客户端什么都不做，只构造一份配置随请求下发，由服务端原生处理。`apiMicrocompact.ts`（153 行）定义了两种策略：
 
 ```typescript
 // src/services/compact/apiMicrocompact.ts:35-61
@@ -351,65 +273,19 @@ export type ContextEditStrategy =
     }
 ```
 
-`clear_tool_uses_20250919` 策略在 input_tokens 超过触发阈值时，清除旧的工具调用结果。`clear_thinking_20251015` 策略清除旧的 thinking 块，只保留最近 N 轮。策略名称中的日期后缀（`20250919`、`20251015`）是 Anthropic API 的版本化策略标识，确保客户端和服务端对策略语义有一致的契约。
+名字里的日期后缀是 API 的版本化策略标识，客户端和服务端靠它对齐语义。`clear_tool_uses_20250919` 在 input_tokens 超过触发线（默认 180K）时清旧工具结果，目标保留 40K——两个值刻意与客户端 microcompact 对齐；`clear_at_least` 算成差值 140K，防止服务端象征性清几个工具就宣布达标。`clear_thinking_20251015` 清旧 thinking 块，空闲超过 1 小时（缓存确定已失效）时只保留最近一轮。
 
-### 5.2 配置构造
+有个分界要注意：thinking 清理对所有用户开放，工具结果清理只对 ant 开放——`getAPIContextManagement()` 里 `process.env.USER_TYPE !== 'ant'` 直接提前返回（apiMicrocompact.ts:90），且策略还要环境变量显式开启。
 
-`getAPIContextManagement()` 根据当前会话状态构造策略数组：
+这一级的账很好算：不调 LLM、不改本地消息、不多发一次请求，配置搭在正常 API 调用上。代价是质量——服务端不知道哪些结果对当前任务更重要，只能按顺序清最旧的。
 
-```typescript
-// src/services/compact/apiMicrocompact.ts:64-152
-export function getAPIContextManagement(options?: {
-  hasThinking?: boolean
-  isRedactThinkingActive?: boolean
-  clearAllThinking?: boolean
-}): ContextManagementConfig | undefined {
-  const strategies: ContextEditStrategy[] = []
-  // thinking 清理策略（对所有用户生效）
-  if (hasThinking && !isRedactThinkingActive) {
-    strategies.push({
-      type: 'clear_thinking_20251015',
-      keep: clearAllThinking
-        ? { type: 'thinking_turns', value: 1 }
-        : 'all',
-    })
-  }
-  // 工具结果清理策略（ant-only）
-  if (process.env.USER_TYPE !== 'ant') {
-    return strategies.length > 0 ? { edits: strategies } : undefined
-  }
-  // ... 按环境变量构造 clear_tool_uses 策略
-}
-```
+## 六、Reactive Compact：413 之后的反应式压缩
 
-默认触发阈值 180K tokens，目标保留 40K tokens，与客户端 microcompact 的值对齐。`clear_at_least` 字段确保服务端至少清除 `triggerThreshold - keepTarget = 140K` tokens 的工具结果，避免服务端「象征性清理」几个工具就认为满足了要求。
+前三级都在请求发出前布局，第四级反着来：等 API 拒绝了再动。`reactiveCompact.ts` 在泄漏源码里不存在（`feature('REACTIVE_COMPACT')` 裁剪，ant 独有），但调用点都在。
 
-工具结果清理策略仅对 ant 用户开放，外部用户只能使用 thinking 清理。`clearAllThinking` 参数在用户空闲超过 1 小时后激活——此时缓存确定已失效，只保留最近一轮 thinking 即可，不需要保留全部。
+### 6.1 错误先扣留，再恢复
 
-### 5.3 零成本优势
-
-API microcompact 的核心优势是**零客户端成本**：不调 LLM、不修改本地消息、不产生额外网络请求。策略配置附加到正常 API 请求中，服务端在处理请求时自动应用。代价是质量较低——服务端使用通用策略清理，不像 LLM 摘要那样能保留语义关键信息。服务端不知道哪些工具结果对当前任务更重要，只能按时间顺序清除最旧的。
-
-## 六、Level 4: Reactive Compact
-
-Reactive compact 是唯一被 API 错误触发的压缩策略。`reactiveCompact.ts` 在泄漏源码中不存在（被 `feature('REACTIVE_COMPACT')` 裁剪），但其调用模式在 `query.ts` 和 `commands/compact/compact.ts` 中清晰可见，可以从调用点推断其行为。
-
-### 6.1 条件加载
-
-Reactive compact 通过 Bun 的 `feature()` 条件加载，未启用时为 `null`：
-
-```typescript
-// src/query.ts:15-17
-const reactiveCompact = feature('REACTIVE_COMPACT')
-  ? (require('./services/compact/reactiveCompact.js') as typeof import('./services/compact/reactiveCompact.js'))
-  : null
-```
-
-这种 `require()` + `as typeof import()` 的模式在第一篇架构文中已有详述：编译期保留类型信息，运行期按 feature flag 决定是否加载模块。`REACTIVE_COMPACT` 是 ant-only 特性，在外部构建中被死代码消除。
-
-### 6.2 413 错误处理
-
-Reactive compact 的核心入口是 `tryReactiveCompact()`，在 API 返回 prompt-too-long（413）或 media-size-error 时触发。在 `query.ts` 的流式处理循环中，错误被「扣留」（withheld）而非立即抛出，给恢复逻辑一个机会：
+第二篇讲过 `query.ts` 的流式处理循环里有个扣留（withhold）机制，当时只点了名，这里看全四类检查：
 
 ```typescript
 // src/query.ts:799-825
@@ -425,25 +301,26 @@ if (reactiveCompact?.isWithheldPromptTooLong(message)) {
 if (mediaRecoveryEnabled && reactiveCompact?.isWithheldMediaSizeError(message)) {
   withheld = true
 }
+if (isWithheldMaxOutputTokens(message)) {
+  withheld = true
+}
 if (!withheld) {
-  yield yieldMessage  // 正常消息才 yield
+  yield yieldMessage
 }
 ```
 
-扣留机制的设计思想是：错误消息先不展示给用户，先尝试恢复。如果恢复成功，用户不会看到错误；如果恢复失败，才将错误消息 yield 出去。这避免了用户在 413 后看到「prompt too long」然后又看到压缩恢复的过程——用户体验更平滑。
+可恢复的错误（prompt-too-long、媒体超限、输出截断）先不 yield 给用户，扣在手里给恢复逻辑一个机会：恢复成功，这条错误用户永远看不到；恢复失败，错误才浮出。体验上用户只会觉得「处理得有点久」，而不是「出错之后又在偷偷修」。
 
-恢复逻辑在流式处理结束后执行：
+### 6.2 恢复的顺序：先细后粗
+
+413 被扣住后，恢复分两步。第一步排空 context collapse 暂存的折叠（粒度细、信息保留多），这是第二篇那条 `collapse_drain_retry` continue（query.ts:1115）。第二步才轮到 reactive compact 全量摘要：
 
 ```typescript
-// src/query.ts:1119-1166
+// src/query.ts:1119-1166（节选）
 if ((isWithheld413 || isWithheldMedia) && reactiveCompact) {
   const compacted = await reactiveCompact.tryReactiveCompact({
     hasAttempted: hasAttemptedReactiveCompact,
-    querySource,
-    aborted: toolUseContext.abortController.signal.aborted,
-    messages: messagesForQuery,
-    cacheSafeParams: { systemPrompt, userContext, systemContext,
-      toolUseContext, forkContextMessages: messagesForQuery },
+    /* querySource、abort 信号、消息与 cache 参数略 */
   })
   if (compacted) {
     const postCompactMessages = buildPostCompactMessages(compacted)
@@ -455,383 +332,128 @@ if ((isWithheld413 || isWithheldMedia) && reactiveCompact) {
     }
     continue  // 用压缩后的消息重试 API
   }
-  // 恢复失败，抛出错误
+  // 恢复失败：浮出错误
   yield lastMessage
   void executeStopFailureHooks(lastMessage, toolUseContext)
   return { reason: isWithheldMedia ? 'image_error' : 'prompt_too_long' }
 }
 ```
 
-`hasAttemptedReactiveCompact` 标志位防止螺旋重试：如果 reactive compact 压缩后仍然 413，不再尝试，直接返回错误。注释明确说明了为什么不在恢复失败后继续执行 stop hooks：「模型从未产生有效响应，hooks 没有有意义的评估对象。在 prompt-too-long 上运行 stop hooks 会制造死亡螺旋：error → hook blocking → retry → error → ...」
+`hasAttemptedReactiveCompact` 只给一次机会：压缩后仍然 413 就不再试，直接把错误交出去。恢复失败后的去向也有讲究——源码注释写明不跑 stop hooks：「模型从未产生有效响应，hooks 没有有意义的评估对象。在 prompt-too-long 上运行 stop hooks 会制造死亡螺旋：error → hook blocking → retry → error → …（hook 每轮都注入更多 token）」。第二篇提过这曾烧掉数千次 API 调用，这里是它的另一半现场。
 
-### 6.3 Context Collapse 优先
+### 6.3 哲学：让 API 当裁判
 
-在 reactive compact 之前，还有一个 `contextCollapse` 的恢复路径。当 413 发生时，优先尝试 drain 所有 staged context-collapses：
+Auto compact 要预测「何时该压」，83.5% 的阈值是经验值，不同对话模式下最优值并不一样。Reactive compact 干脆不预测，等 API 自己说「太长了」再动——代价是 413 后多一次重试延迟，而扣留机制把这个延迟藏在了「正在处理」的表象之下。`tengu_cobalt_raccoon` 开关做的就是这两派的 A/B：开关打开时 auto compact 整体让位（3.3 节），reactive 成为唯一压缩路径。
 
-```typescript
-// src/query.ts:1089-1117
-if (isWithheld413) {
-  if (feature('CONTEXT_COLLAPSE') && contextCollapse &&
-      state.transition?.reason !== 'collapse_drain_retry') {
-    const drained = contextCollapse.recoverFromOverflow(messagesForQuery, querySource)
-    if (drained.committed > 0) {
-      state = { messages: drained.messages, /* ... */,
-        transition: { reason: 'collapse_drain_retry', committed: drained.committed } }
-      continue
-    }
-  }
-}
-```
+## 七、Session Memory Compact：把 LLM 成本前置到后台
 
-Context collapse 是另一个上下文管理实验特性，它在对话进行中「暂存」（stage）部分消息的折叠，在需要时 commit 或 drain。`collapse_drain_retry` 标记防止在 drain 后仍 413 时重复 drain——如果 drain 没用，就继续到 reactive compact。
+第五级是整个体系里最新的一级：压缩时零 LLM 调用，摘要成本早在对话进行中就被后台消化了。`sessionMemoryCompact.ts`（630 行）。
 
-### 6.4 Reactive Compact 的设计哲学
+### 7.1 摘要是提前做好的
 
-Reactive compact 的哲学与 auto compact 截然不同：不预测何时需要压缩，而是在 API 拒绝时再反应。Auto compact 需要设定阈值（83.5%），这个阈值是经验值，不同对话模式下的最优值不同。Reactive compact 省去了预测阈值的复杂性，让 API 自己告诉你「上下文太长了」。
-
-代价是用户可能在 413 后经历一次重试延迟。但这个延迟被 withhold 机制掩盖了——用户看到的是「正在处理」而不是「出错了正在修复」。CC 通过 `tengu_cobalt_raccoon` feature flag 做 A/B 实验，比较两种策略的总体效果。
-
-## 七、Level 5: Session Memory Compact
-
-Session memory compact 是 CC 压缩体系中最精巧的一级。它位于 `src/services/compact/sessionMemoryCompact.ts`（630 行），利用后台异步提取的 session memory 替代实时 LLM 摘要，实现**零 LLM 调用的高质量压缩**。
-
-### 7.1 Session Memory 的异步提取
-
-理解 session memory compact，首先要理解 session memory 本身。`src/services/SessionMemory/sessionMemory.ts`（495 行）在对话进行中后台运行一个 forked agent，定期提取对话关键信息写入 markdown 文件：
+`src/services/SessionMemory/sessionMemory.ts` 在对话进行中跑一个后台 forked agent，定期提取关键信息写进 markdown 文件。节奏由配置控制：
 
 ```typescript
-// src/services/SessionMemory/sessionMemory.ts:315-318
-// Run session memory extraction using runForkedAgent for prompt caching
-// runForkedAgent creates an isolated context to prevent mutation of parent state
-await runForkedAgent({
-  // ...提取配置
-})
-```
-
-提取的触发条件由 `SessionMemoryConfig` 控制：
-
-```typescript
-// src/services/SessionMemory/sessionMemoryUtils.ts:32-36
+// src/services/SessionMemory/sessionMemoryUtils.ts:31-36
+// Default configuration values
 export const DEFAULT_SESSION_MEMORY_CONFIG: SessionMemoryConfig = {
-  minimumMessageTokensToInit: 10000,    // 对话达到 10K tokens 才初始化
-  minimumTokensBetweenUpdate: 5000,    // 每增长 5K tokens 更新一次
-  toolCallsBetweenUpdates: 3,           // 每 3 次工具调用更新一次
+  minimumMessageTokensToInit: 10000,
+  minimumTokensBetweenUpdate: 5000,
+  toolCallsBetweenUpdates: 3,
 }
 ```
 
-这个提取过程确实调用了 LLM，但它发生在后台、与主对话异步、分摊在多次工具调用之间。当 auto compact 触发时，session memory 已经准备好了——压缩时只需读取文件，不需要实时调用 LLM。这就是 session memory compact 能实现「零 LLM 调用」的根本原因：把 LLM 调用的成本从压缩的关键路径上移走，前置到对话进行中的后台。
+对话到 10K tokens 才初始化，之后每增长 5K tokens 或每 3 次工具调用更新一次。提取确实调 LLM，但调用发生在后台、与主对话异步、摊在整段对话里。auto compact 触发时记忆已经躺在磁盘上，压缩只剩读文件。「零 LLM 压缩」的说法容易让人以为 LLM 消失了——它只是被挪出了压缩的关键路径。提取机制本身的细节留给第八篇。
 
-### 7.2 消息保留策略
+### 7.2 保留多近的消息
 
-`trySessionMemoryCompaction()` 的核心是决定保留哪些最近的消息。配置通过 GrowthBook 远程下发：
+压缩不能只剩一份摘要，最近几轮消息要原样保留，否则模型连「正在干什么」都不知道。保留多少由三个数决定：
 
 ```typescript
 // src/services/compact/sessionMemoryCompact.ts:57-61
 export const DEFAULT_SM_COMPACT_CONFIG: SessionMemoryCompactConfig = {
-  minTokens: 10_000,           // 最少保留 10K tokens
+  minTokens: 10_000,           // 保留消息的最少 token
   minTextBlockMessages: 5,     // 最少保留 5 条含文本块的消息
-  maxTokens: 40_000,           // 最多保留 40K tokens
+  maxTokens: 40_000,           // 硬上限
 }
 ```
 
-`calculateMessagesToKeepIndex()` 从 `lastSummarizedMessageId`（上次 session memory 提取覆盖到的消息 ID）开始向后扩展，直到满足两个最小值之一，或触及 `maxTokens` 上限：
+`calculateMessagesToKeepIndex()` 从 `lastSummarizedMessageId`（记忆已覆盖到的位置）向后取消息，不够 10K tokens 或不够 5 条文本消息就往前扩，触到 40K 上限为止。两个最小值一个保证工作状态连续，一个保证用户意图的演变可追；向前扩展的下界是上一个压缩边界——跨过它就会破坏磁盘上消息链的连续性。
 
-```typescript
-// src/services/compact/sessionMemoryCompact.ts:324-397
-export function calculateMessagesToKeepIndex(
-  messages: Message[],
-  lastSummarizedIndex: number,
-): number {
-  let startIndex = lastSummarizedIndex >= 0
-    ? lastSummarizedIndex + 1
-    : messages.length
-  let totalTokens = 0
-  let textBlockMessageCount = 0
-  // 从 startIndex 向后扫描，计算已有 token 和文本消息数
-  for (let i = startIndex; i < messages.length; i++) {
-    totalTokens += estimateMessageTokens([messages[i]!])
-    if (hasTextBlocks(messages[i]!)) textBlockMessageCount++
-  }
-  // 已满足最小值 → 直接返回
-  if (totalTokens >= config.minTokens &&
-      textBlockMessageCount >= config.minTextBlockMessages) {
-    return adjustIndexToPreserveAPIInvariants(messages, startIndex)
-  }
-  // 向前扩展直到满足条件或触及上限
-  for (let i = startIndex - 1; i >= floor; i--) {
-    totalTokens += estimateMessageTokens([messages[i]!])
-    if (hasTextBlocks(messages[i]!)) textBlockMessageCount++
-    startIndex = i
-    if (totalTokens >= config.maxTokens) break
-    if (totalTokens >= config.minTokens &&
-        textBlockMessageCount >= config.minTextBlockMessages) break
-  }
-  return adjustIndexToPreserveAPIInvariants(messages, startIndex)
-}
-```
+### 7.3 切分点要尊重 API 不变量
 
-两个最小值的设定各有考量：`minTokens` 确保保留足够的上下文让模型理解当前工作状态；`minTextBlockMessages` 确保保留足够多的用户-助手交互轮次，让模型能理解用户的意图变化。`maxTokens` 是硬上限，防止保留过多消息导致压缩后仍超阈值。扩展的下界（`floor`）是上一个 compact boundary——不能跨越已有的压缩边界向前扩展，否则会破坏磁盘上的消息链连续性。
+切分点不能随便落，`adjustIndexToPreserveAPIInvariants()` 处理两类约束。一是 tool_use/tool_result 配对：保留的消息里有 `tool_result`，就必须连着包含对应 `tool_use` 的 assistant 消息，否则 API 报「orphan tool_result references non-existent tool_use」。二是 thinking 块合并：流式响应会把同一次 API 调用（同一个 `message.id`）的 thinking 和 tool_use 拆成多条消息存储，发送前 `normalizeMessagesForAPI` 又要求把它们合并回去——切分点落在中间，thinking 就会在合并时丢掉。函数对着保留范围内每个 `message.id` 往前补齐同 id 的消息，把切分点顶到安全位置。
 
-### 7.3 API 不变量保护
+### 7.4 结果构造与恢复会话
 
-`adjustIndexToPreserveAPIInvariants()` 确保压缩不会破坏 Anthropic API 的消息格式约束。它处理两个场景：
+压缩结果由 `createCompactionResultFromSessionMemory()` 组装：session memory 文件内容包成 summary 消息，配上前述保留消息，超长段落截断并注明。源码注释里有一句 `// SM-compact has no compact-API-call`——这条路径明确不产生 API 调用，`postCompactTokenCount` 与 `truePostCompactTokenCount` 因此收敛到同一个估算值。
 
-**Tool use/result 配对**：如果保留的消息包含 `tool_result` 块，必须同时保留包含对应 `tool_use` 的 assistant 消息，否则 API 会报「orphan tool_result references non-existent tool_use」。
+`--resume` 恢复会话是个特殊场景：进程重启后内存里的 `lastSummarizedMessageId` 丢了，但记忆文件还在磁盘上。源码的处理是把起点设为消息末尾（不保留任何消息），遥测记 `tengu_sm_compact_resumed_session`，再由保留策略从尾部向前扩到满足最小值——所有消息被记忆替代，最近的几条拉回来当工作上下文。
 
-**Thinking 块合并**：流式响应会把同一个 `message.id` 的 thinking 块和 tool_use 块拆成多条消息。如果切分点落在它们中间，`normalizeMessagesForAPI` 合并时会丢失 thinking 块。函数检测同 `message.id` 的消息并调整切分点：
+![session memory 把摘要成本前置到后台，压缩时刻只读文件](/images/claudecode/04-sm-offload.svg)
 
-```typescript
-// src/services/compact/sessionMemoryCompact.ts:232-314（大幅简化，仅示 Step 1/2 主流程）
-export function adjustIndexToPreserveAPIInvariants(
-  messages: Message[],
-  startIndex: number,
-): number {
-  let adjustedIndex = startIndex
-  // Step 1: 收集保留范围内的所有 tool_result IDs
-  // 向前查找包含对应 tool_use 的 assistant 消息
-  const allToolResultIds: string[] = []
-  for (let i = startIndex; i < messages.length; i++) {
-    allToolResultIds.push(...getToolResultIds(messages[i]!))
-  }
-  if (allToolResultIds.length > 0) {
-    const neededToolUseIds = new Set(allToolResultIds.filter(
-      id => !toolUseIdsInKeptRange.has(id)))
-    for (let i = adjustedIndex - 1; i >= 0 && neededToolUseIds.size > 0; i--) {
-      if (hasToolUseWithIds(messages[i]!, neededToolUseIds)) {
-        adjustedIndex = i
-        // ... 移除已找到的 ID
-      }
-    }
-  }
-  // Step 2: 收集保留范围内的所有 message.id
-  // 向前查找同 id 的 thinking 消息
-  for (let i = adjustedIndex - 1; i >= 0; i--) {
-    if (message.type === 'assistant' && messageIdsInKeptRange.has(message.message.id)) {
-      adjustedIndex = i  // 包含同 id 的 thinking 消息
-    }
-  }
-  return adjustedIndex
-}
-```
+## 八、LLM 摘要底座：compactConversation
 
-这个函数的存在说明了流式消息处理的复杂性：同一次 API 响应可能被拆成多条消息（thinking、tool_use 分开存储），但 API 要求它们在发送时被合并。压缩的切分点必须尊重这种拆分-合并的不对称性。
+前面各级最终都绕不开一个兜底：真要做高质量摘要时，怎么把这次 LLM 调用的成本和风险压到最低。`compact.ts`（1,705 行）就是这个兜底。
 
-### 7.4 压缩结果构造
+### 8.1 摘要 prompt：九段式结构
 
-Session memory compact 的压缩结果由 `createCompactionResultFromSessionMemory()` 构造。它不调用 LLM，而是把 session memory 文件内容包装成 summary 消息，配合保留的最近消息一起返回：
+`prompt.ts` 要求模型按九个固定段落输出：Primary Request and Intent、Key Technical Concepts、Files and Code Sections（含完整 snippet）、Errors and fixes、Problem Solving、All user messages、Pending Tasks、Current Work、Optional Next Step。模型先在 `<analysis>` 标签里打草稿，再输出 `<summary>` 块；`formatCompactSummary()` 送入上下文前剥掉草稿只留正文——思考的机会给了，token 不为草稿买单。
 
-```typescript
-// src/services/compact/sessionMemoryCompact.ts:437-503
-function createCompactionResultFromSessionMemory(
-  messages: Message[],
-  sessionMemory: string,
-  messagesToKeep: Message[],
-  hookResults: HookResultMessage[],
-  transcriptPath: string,
-  agentId?: AgentId,
-): CompactionResult {
-  const preCompactTokenCount = tokenCountFromLastAPIResponse(messages)
-  const boundaryMarker = createCompactBoundaryMessage(
-    'auto', preCompactTokenCount ?? 0, messages[messages.length - 1]?.uuid)
-  // 截断过长的 session memory 段
-  const { truncatedContent, wasTruncated } =
-    truncateSessionMemoryForCompact(sessionMemory)
-  let summaryContent = getCompactUserSummaryMessage(
-    truncatedContent, true, transcriptPath, true)
-  if (wasTruncated) {
-    summaryContent += `\n\nSome session memory sections were truncated...`
-  }
-  return {
-    boundaryMarker: annotateBoundaryWithPreservedSegment(...),
-    summaryMessages,
-    attachments,
-    hookResults,
-    messagesToKeep,  // 保留的最近消息
-    // SM-compact has no compact-API-call
-    postCompactTokenCount: estimateMessageTokens(summaryMessages),
-    truePostCompactTokenCount: estimateMessageTokens(summaryMessages),
-  }
-}
-```
+prompt 里还有一个 `NO_TOOLS_PREAMBLE` 前缀，明确禁止摘要过程调工具。起因写在注释里：forked agent 路径为了 cache key 匹配继承了主对话的完整工具集，Sonnet 4.6 的 adaptive-thinking 模型偶尔会在摘要任务中尝试工具调用——fork 只有 1 轮预算，调用被拒就整轮落空、只能回退到直接流式路径，这个概率 4.6 上是 2.79%（4.5 只有 0.01%）。前缀把「别调工具」钉在提示最前面，堵的就是这个浪费。
 
-注意注释 `// SM-compact has no compact-API-call`——session memory compact 明确不产生 API 调用。`postCompactTokenCount` 和 `truePostCompactTokenCount` 收敛到同一个值（摘要消息的 token 估算），因为不存在「压缩 API 调用的总用量」与「压缩后上下文大小」的区分。
+### 8.2 forked agent 路径：复用主对话的缓存
 
-### 7.5 恢复会话场景
+`streamCompactSummary()` 优先通过 `runForkedAgent` 发起摘要请求——fork 复用主对话的 prompt cache（传递相同的 `cacheSafeParams`），避免压缩调用自己再交一次缓存写入钱。两个防护细节：压缩 agent 的 `canUseTool` 直接返回 deny，摘要过程不产生任何工具调用；fork 失败则回退到直接流式路径，用一句极简系统提示（"You are a helpful AI assistant tasked with summarizing conversations."）和最小工具集。
 
-`trySessionMemoryCompaction()` 还处理一种特殊场景：恢复的会话（resumed session）。当用户通过 `--resume` 恢复一个之前被压缩过的会话时，`lastSummarizedMessageId` 可能未设置（因为进程重启后内存状态丢失），但 session memory 文件仍然存在：
+### 8.3 buildPostCompactMessages：所有路径的统一出口
 
-```typescript
-// src/services/compact/sessionMemoryCompact.ts:548-566
-if (lastSummarizedMessageId) {
-  // 正常情况：知道哪些消息已被摘要
-  lastSummarizedIndex = messages.findIndex(msg => msg.uuid === lastSummarizedMessageId)
-  if (lastSummarizedIndex === -1) {
-    // ID 不在当前消息中（可能被修改）→ 回退到传统压缩
-    return null
-  }
-} else {
-  // 恢复会话：有 session memory 但不知道边界
-  lastSummarizedIndex = messages.length - 1
-  logEvent('tengu_sm_compact_resumed_session', {})
-}
-```
-
-在恢复场景中，startIndex 被设为 `messages.length`（不保留任何消息），然后 `calculateMessagesToKeepIndex()` 向前扩展到满足最小值。这样所有消息都被 session memory 替代，但保留了最近的几条消息作为工作上下文。
-
-## 八、Compact 架构
-
-CC 的压缩系统由多个协作模块组成。下表梳理各文件职责：
-
-| 文件 | 行数 | 职责 |
-|------|------|------|
-| `compact.ts` | 1705 | 核心：`compactConversation()` LLM 摘要、`buildPostCompactMessages()` 消息重建 |
-| `autoCompact.ts` | 351 | 阈值监控、触发决策、session memory 优先、断路器 |
-| `microCompact.ts` | 530 | 工具结果清理、时间触发、缓存编辑 |
-| `apiMicrocompact.ts` | 153 | 服务端上下文管理策略配置 |
-| `sessionMemoryCompact.ts` | 630 | 基于 session memory 的无 LLM 压缩 |
-| `grouping.ts` | 63 | 按 API 轮次分组消息 |
-| `prompt.ts` | 374 | 压缩摘要的 prompt 模板 |
-| `postCompactCleanup.ts` | 77 | 压缩后缓存/状态清理 |
-| `compactWarningState.ts` | 18 | 压缩警告抑制状态 |
-| `compactWarningHook.ts` | 16 | React hook 订阅警告状态 |
-| `timeBasedMCConfig.ts` | 43 | 时间触发 microcompact 配置 |
-
-### 8.1 compactConversation：LLM 摘要路径
-
-`compactConversation()` 是传统的 LLM 摘要路径，在 session memory 不可用时作为 fallback 被调用。它通过 `streamCompactSummary()` 发起 LLM 请求，优先尝试 forked agent 路径（复用主对话的 prompt cache）：
-
-```typescript
-// src/services/compact/compact.ts:1136-1396
-async function streamCompactSummary({ ... }): Promise<AssistantMessage> {
-  const promptCacheSharingEnabled = getFeatureValue_CACHED_MAY_BE_STALE(
-    'tengu_compact_cache_prefix', true)
-  if (promptCacheSharingEnabled) {
-    try {
-      const result = await runForkedAgent({
-        promptMessages: [summaryRequest],
-        cacheSafeParams,
-        canUseTool: createCompactCanUseTool(),  // 拒绝所有工具调用
-        querySource: 'compact',
-        forkLabel: 'compact',
-        maxTurns: 1,
-        skipCacheWrite: true,
-      })
-      // ...
-    } catch (error) {
-      // fallback to streaming path
-    }
-  }
-  // 直接流式路径（fallback）
-  const streamingGen = queryModelWithStreaming({
-    messages: normalizeMessagesForAPI(
-      stripImagesFromMessages(stripReinjectedAttachments([
-        ...getMessagesAfterCompactBoundary(messages), summaryRequest,
-      ])),
-      context.options.tools,
-    ),
-    systemPrompt: asSystemPrompt([
-      'You are a helpful AI assistant tasked with summarizing conversations.',
-    ]),
-    thinkingConfig: { type: 'disabled' },
-    tools: [FileReadTool],
-    // ...
-  })
-}
-```
-
-关键设计有三点。第一，压缩 agent 的 `canUseTool` 返回 `deny`——压缩过程不允许调用任何工具，只产出文本摘要。这避免了压缩过程中工具调用产生的额外上下文膨胀。第二，forked agent 路径复用主对话的 prompt cache（通过传递相同的 `cacheSafeParams`），避免重复写入缓存。第三，如果 forked agent 失败，fallback 到直接流式路径，用极简的系统提示（"You are a helpful AI assistant tasked with summarizing conversations."）和最小工具集（只有 FileReadTool）。
-
-### 8.2 压缩 Prompt 模板
-
-`prompt.ts` 定义了压缩摘要的 prompt 结构。CC 的摘要 prompt 不是简单的「总结对话」，而是要求模型按 9 个固定段落输出：
-
-```
-1. Primary Request and Intent     — 用户请求和意图
-2. Key Technical Concepts         — 技术概念
-3. Files and Code Sections        — 文件和代码片段（含完整 snippet）
-4. Errors and fixes               — 错误及修复方式
-5. Problem Solving                — 问题解决过程
-6. All user messages              — 所有非工具结果的用户消息
-7. Pending Tasks                  — 待办任务
-8. Current Work                   — 当前工作状态
-9. Optional Next Step             — 可选的下一步（含原文引用）
-```
-
-模型被要求先用 `<analysis>` 标签做草稿分析，再输出 `<summary>` 块。`formatCompactSummary()` 会在送入上下文前剥离 `<analysis>` 部分，只保留 `<summary>`。这种「先思考再产出」的结构让模型有机会在正式摘要前梳理思路，提高摘要质量，同时草稿不被保留在上下文中，不浪费 token。
-
-prompt 还包含一个 `NO_TOOLS_PREAMBLE` 前缀，明确告知模型不要调用任何工具。这是因为 forked agent 路径继承了主对话的完整工具集（为了 cache key 匹配），Sonnet 4.6+ 的 adaptive-thinking 模型有时会在摘要任务中尝试工具调用——前缀将这种概率从 2.79% 降低到 0.01%。
-
-手动 `/compact` 命令位于 `src/commands/compact/compact.ts`（287 行），它的执行路径与 auto compact 类似但有关键差异。首先，手动压缩先尝试 session memory compaction（无自定义指令时），失败后尝试 reactive compact（如果处于 reactive-only 模式），最后回退到传统 `compactConversation()`。在传统路径中，手动压缩会先执行 `microcompactMessages()` 清理工具结果，再调用 `compactConversation()` 生成摘要——这与 auto compact 的「先 session memory 再 LLM」路径不同。
-
-手动压缩与 auto compact 的另一个差异是：手动压缩允许用户提供自定义指令（`customInstructions`），这些指令会通过 hook 合并后注入到压缩 prompt 中。用户可以指示摘要聚焦于特定的文件、任务或决策。此外，手动压缩的错误会通过 `addErrorNotificationIfNeeded()` 展示给用户，而 auto compact 的错误是静默的（失败后下一轮重试）。
-
-在 reactive-only 模式下，手动 `/compact` 会走 `compactViaReactive()` 路径——它不调用 `compactConversation()`，而是调用 `reactiveCompact.reactiveCompactOnPromptTooLong()`。这个函数虽然名字暗示「处理 413」，但实际也被手动压缩复用，因为它的「从尾部逐组剥离并摘要」的策略同样适用于主动压缩场景。`compactViaReactive()` 的 PreCompact hooks 与 cache 参数构建是并行执行的（`Promise.all`），因为两者互不依赖——hook 派生子进程，cache 参数遍历工具列表构建系统提示，没有数据依赖关系。
-
-### 8.3 buildPostCompactMessages：消息重建
-
-`buildPostCompactMessages()` 是所有压缩路径的统一出口，负责把 `CompactionResult` 组装成新的消息数组：
+无论哪一级压缩，结果都汇成 `CompactionResult`，再由同一个函数拼装新消息数组：
 
 ```typescript
 // src/services/compact/compact.ts:330-338
 export function buildPostCompactMessages(result: CompactionResult): Message[] {
   return [
     result.boundaryMarker,      // 压缩边界标记
-    ...result.summaryMessages,   // 摘要消息
+    ...result.summaryMessages,  // 摘要消息
     ...(result.messagesToKeep ?? []),  // 保留的最近消息
-    ...result.attachments,       // 附件（文件、计划、技能等）
-    ...result.hookResults,       // hook 消息（CLAUDE.md 等）
+    ...result.attachments,      // 附件（文件、计划、技能等）
+    ...result.hookResults,      // hook 消息（CLAUDE.md 等）
   ]
 }
 ```
 
-这个固定的排列顺序确保所有压缩路径产出的消息结构一致。`boundaryMarker` 是一条 `SystemCompactBoundaryMessage`，标记压缩发生的位置——后续的 `getMessagesAfterCompactBoundary()` 会从这个标记开始读取「压缩后的消息」，跳过压缩前的历史。
+固定顺序保证五级路径产出的结构一致。`boundaryMarker` 是一条 `SystemCompactBoundaryMessage`，标记压缩发生的位置——后续 `getMessagesAfterCompactBoundary()` 从这个标记开始读「压缩后的消息」，跳过全部旧历史。
 
-### 8.4 压缩后文件恢复
+### 8.4 摘要之后的现场恢复
 
-`compactConversation()` 在生成摘要后，会恢复最近访问过的文件内容。这避免了模型在压缩后需要重新读取文件的额外工具调用：
+摘要生成后，`createPostCompactFileAttachments()` 会把最近访问的文件重新带回上下文，预算写死在常量里：
 
 ```typescript
 // src/services/compact/compact.ts:122-130
 export const POST_COMPACT_MAX_FILES_TO_RESTORE = 5
 export const POST_COMPACT_TOKEN_BUDGET = 50_000
 export const POST_COMPACT_MAX_TOKENS_PER_FILE = 5_000
+// Skills can be large (verify=18.7KB, claude-api=20.1KB). Previously re-injected
+// unbounded on every compact → 5-10K tok/compact. Per-skill truncation beats
+// dropping — instructions at the top of a skill file are usually the critical
+// part. Budget sized to hold ~5 skills at the per-skill cap.
 export const POST_COMPACT_MAX_TOKENS_PER_SKILL = 5_000
 export const POST_COMPACT_SKILLS_TOKEN_BUDGET = 25_000
 ```
 
-`createPostCompactFileAttachments()` 从 `readFileState` 中选取最近访问的 5 个文件，每个最多 5,000 tokens，总共不超过 50,000 tokens。它使用 `FileReadTool` 重新读取文件内容（而非使用缓存），确保内容是最新的。如果文件已经作为 Read 工具结果存在于保留消息中，则跳过——避免重复注入相同内容（最多可节省 25K tokens）。
+5 个文件、每个 5K、总 50K；技能内容每个 5K、总 25K——注释记录了技能曾按全文无上限重注入、每次压缩多烧 5~10K tokens 的历史。文件用 `FileReadTool` 重新读而非用缓存，已作为工具结果存在于保留消息里的跳过，避免同一内容进两遍。计划文件、plan mode 指令、已调用技能、MCP 指令 delta 也一并回灌——压缩后的模型要知道自己有哪些工具、处于什么模式。
 
-除了文件，压缩后还会重新注入：计划文件附件（如果有 plan）、plan mode 指令（如果处于 plan mode）、已调用技能的内容、deferred tools 的 delta 通知、agent 列表 delta、MCP 指令 delta。这些附件确保模型在压缩后仍然知道有哪些工具可用、当前处于什么模式、有哪些外部资源。
+### 8.5 部分压缩：给用户一个支点
 
-### 8.5 Partial Compact：部分压缩
+`partialCompactConversation()` 支持选定一条消息做支点，向一个方向压缩。`from` 方向摘要支点之后的消息、保留前面——前缀不动，缓存友好；`up_to` 方向摘要支点之前的消息、保留后面——摘要顶到前面，后面的消息整体后移，缓存作废。用户还能传 `userFeedback` 注入压缩 prompt，让摘要聚焦自己关心的内容。
 
-除了全量压缩，CC 还支持部分压缩——`partialCompactConversation()` 允许用户选择一条消息作为支点，只压缩其中一部分。这在用户觉得某些早期对话不再需要、但近期对话仍然重要时非常有用：
+### 8.6 PTL 重试：压缩的压缩
 
-```typescript
-// src/services/compact/compact.ts:772-779
-export async function partialCompactConversation(
-  allMessages: Message[],
-  pivotIndex: number,
-  context: ToolUseContext,
-  cacheSafeParams: CacheSafeParams,
-  userFeedback?: string,
-  direction: PartialCompactDirection = 'from',
-): Promise<CompactionResult>
-```
-
-两个方向的缓存影响不同：`from` 方向摘要支点之后的消息，保留前面的消息——由于前面的消息位置不变，cache 前缀被保留，这是缓存友好的方向。`up_to` 方向摘要支点之前的消息，保留后面的消息——摘要位于前面，后面的消息位置被推后，cache 前缀被破坏。
-
-`partialCompactConversation()` 还支持 `userFeedback` 参数，让用户在压缩时提供额外的上下文说明。这个反馈会被注入到压缩 prompt 中（`User context: ${userFeedback}`），让摘要更聚焦于用户关心的内容。
-
-### 8.6 PTL 重试机制
-
-当压缩请求自身命中 prompt-too-long 错误时（压缩请求的消息太多，API 拒绝），`compactConversation()` 有一个重试机制：逐步丢弃最旧的消息组直到请求能通过：
+最极端的情况：对话长到连压缩请求本身都超限。`truncateHeadForPTLRetry()` 从最旧的消息组开始丢，直到把超限的 token 缺口填平，整个丢弃重试最多 3 轮（`MAX_PTL_RETRIES`）：
 
 ```typescript
-// src/services/compact/compact.ts:227-291
-const MAX_PTL_RETRIES = 3
-const PTL_RETRY_MARKER = '[earlier conversation truncated for compaction retry]'
-
+// src/services/compact/compact.ts:243-291（节选）
 export function truncateHeadForPTLRetry(
   messages: Message[],
   ptlResponse: AssistantMessage,
@@ -841,101 +463,29 @@ export function truncateHeadForPTLRetry(
   const tokenGap = getPromptTooLongTokenGap(ptlResponse)
   let dropCount: number
   if (tokenGap !== undefined) {
-    // 精确丢弃：按 token gap 计算
     let acc = 0
     dropCount = 0
-    for (const g of groups) {
+    for (const g of groups) {  // 精确丢弃：按 token gap 累加
       acc += roughTokenCountEstimationForMessages(g)
       dropCount++
       if (acc >= tokenGap) break
     }
   } else {
-    // 模糊丢弃：丢弃 20% 的组
-    dropCount = Math.max(1, Math.floor(groups.length * 0.2))
+    dropCount = Math.max(1, Math.floor(groups.length * 0.2))  // 模糊丢 20%
   }
-  // ... 保留至少一个组用于摘要
+  // 保留至少一个组用于摘要
 }
 ```
 
-这是「压缩的压缩」——当对话长到连压缩请求都装不下时，逐步丢弃最旧的部分直到压缩请求能通过。注释称这是「CC-1180 的最后逃生舱」——没有它，用户在超长对话中会完全卡死。
+错误信息里的 token 缺口解析得出来就按缺口精确丢，解析不出来（部分 Vertex/Bedrock 的错误格式）就模糊丢 20% 的组。注释称这是 CC-1180 的最后逃生舱——丢上下文有损，但总比卡死强。这里的分组单位来自 `grouping.ts` 的 `groupMessagesByApiRound()`：按 assistant `message.id` 划分，同一次 API 调用产生的 thinking 和 tool_use 块共享 id、归入同组，正好是可安全丢弃的最小单元。
 
-### 8.7 消息分组
+### 8.7 手动 /compact：三条路径的汇合点
 
-`grouping.ts` 的 `groupMessagesByApiRound()` 按 API 轮次（assistant `message.id` 变化）分组消息。这个分组是 reactive compact 和 PTL retry 的基础——每次 API 调用的消息（assistant + 对应的 tool_use/result）构成一个可安全丢弃的单元：
+手动压缩（`commands/compact/compact.ts`，287 行）与 auto compact 的差别在于用户在场：错误要展示（`addErrorNotificationIfNeeded()`），还接受自定义指令注入压缩 prompt。路径优先级是 session memory → reactive → 传统 `compactConversation`，前者成功就短路后者（第六篇讲命令系统时从调度器视角看过这个汇合点）。传统路径里手动压缩会先跑一遍 `microcompactMessages()` 清工具结果再摘要——先做便宜的清理，摘要请求本身也能小一点。
 
-```typescript
-// src/services/compact/grouping.ts:22-62
-export function groupMessagesByApiRound(messages: Message[][]): Message[][] {
-  const groups: Message[][] = []
-  let current: Message[] = []
-  let lastAssistantId: string | undefined
-  for (const msg of messages) {
-    if (msg.type === 'assistant' &&
-        msg.message.id !== lastAssistantId &&
-        current.length > 0) {
-      groups.push(current)
-      current = [msg]
-    } else {
-      current.push(msg)
-    }
-    if (msg.type === 'assistant') {
-      lastAssistantId = msg.message.id
-    }
-  }
-  if (current.length > 0) groups.push(current)
-  return groups
-}
-```
+## 九、主循环集成：一条管线的出场顺序
 
-注释说明了为什么用 `message.id` 而非 `message.uuid` 作为分组边界：流式响应中，同一次 API 调用可能产生多个 content block（thinking、tool_use），它们共享同一个 `message.id` 但有不同的 `uuid`。用 `id` 分组能正确地将这些 block 归到同一次 API 调用中。注释还提到，这个分组取代了之前基于「人类轮次」（只在真实用户输入处分组）的方案，因为 SDK/CCR/eval 等场景下整个工作负载可能只有一次人类输入。
-
-### 8.8 压缩后清理
-
-`postCompactCleanup.ts` 负责压缩后的状态清理，重置所有因压缩而失效的缓存：
-
-```typescript
-// src/services/compact/postCompactCleanup.ts:31-77
-export function runPostCompactCleanup(querySource?: QuerySource): void {
-  const isMainThreadCompact = querySource === undefined ||
-    querySource.startsWith('repl_main_thread') || querySource === 'sdk'
-  resetMicrocompactState()       // 清理 microcompact 跟踪状态
-  if (feature('CONTEXT_COLLAPSE') && isMainThreadCompact) {
-    require('../contextCollapse/index.js').resetContextCollapse()
-  }
-  if (isMainThreadCompact) {
-    getUserContext.cache.clear?.()       // 清理用户上下文缓存
-    resetGetMemoryFilesCache('compact')  // 清理 CLAUDE.md 缓存
-  }
-  clearSystemPromptSections()     // 清理系统提示段
-  clearClassifierApprovals()      // 清理分类器审批
-  clearSpeculativeChecks()        // 清理推测性检查
-  clearBetaTracingState()         // 清理 beta 追踪状态
-  clearSessionMessagesCache()     // 清理会话消息缓存
-}
-```
-
-注意子 agent（`agent:*` query source）与主线程共享模块级状态，只有主线程压缩时才重置这些全局缓存，避免子 agent 的压缩操作破坏主线程状态。注释还特别说明：技能内容不在这里清理——`createSkillAttachmentIfNeeded()` 需要跨多次压缩保留技能内容，以便在后续压缩中重新注入。
-
-### 8.9 警告状态管理
-
-`compactWarningState.ts` 和 `compactWarningHook.ts` 管理「上下文剩余空间」警告的显示/隐藏。压缩成功后立即抑制警告（因为压缩后的 token 数要等下一次 API 响应才准确），下次压缩尝试开始时清除抑制：
-
-```typescript
-// src/services/compact/compactWarningState.ts
-export const compactWarningStore = createStore<boolean>(false)
-export function suppressCompactWarning(): void {
-  compactWarningStore.setState(() => true)
-}
-export function clearCompactWarningSuppression(): void {
-  compactWarningStore.setState(() => false)
-}
-```
-
-`compactWarningHook.ts` 用 `useSyncExternalStore` 订阅这个 store，独立于 React 组件树。注释说明了为什么把它放在单独的文件中：`compactWarningState.ts` 保持 React-free，因为 `microCompact.ts` 导入了它的纯状态函数，把 React 拉进 microcompact 的模块依赖图会拖入 print-mode 启动路径。
-
-## 九、Query Loop 集成
-
-所有压缩策略最终集成在 `query.ts` 的主循环中。通过依赖注入（`deps.ts`）实现可测试性：
+五级怎么挂进 `query.ts` 的循环，第二篇给过骨架，这里补压缩侧的细节。集成走依赖注入，`query/deps.ts` 把四个可替换依赖交给测试：
 
 ```typescript
 // src/query/deps.ts:21-39
@@ -945,179 +495,96 @@ export type QueryDeps = {
   autocompact: typeof autoCompactIfNeeded
   uuid: () => string
 }
-export function productionDeps(): QueryDeps {
-  return {
-    callModel: queryModelWithStreaming,
-    microcompact: microcompactMessages,
-    autocompact: autoCompactIfNeeded,
-    uuid: randomUUID,
-  }
-}
 ```
 
-`callModel`、`microcompact`、`autocompact` 三个函数通过 deps 注入，测试时可以替换为 mock。注释说明这是刻意缩小范围的模式验证（「4 deps to prove the pattern」），后续可以扩展到 `runTools`、`handleStopHooks` 等。
+每个迭代里压缩管线的实际顺序是：**snip → microcompact → context collapse → auto compact → blocking 检查 → API 调用（含 API microcompact 配置）→ reactive compact（如 413）**。低成本的先跑，`messagesForQuery` 把每一步的产出传给下一步，直到最重的 LLM 摘要只在前面全部失守时才出场。
 
-每个 query 迭代的压缩流程如下（简化）：
+microcompact 排在 auto compact 前面有实际意义：auto compact 看到的 token 数是清理之后的。工具结果清得够多，阈值检查可能直接通过，这一轮根本不需要摘要。「先做便宜的清理、再判断要不要贵的摘要」，这个顺序本身就是五级设计的缩影。
 
-```typescript
-// src/query.ts (简化)
-async function* query(messages, params) {
-  while (true) {
-    // 1. Micro compact — 每次 API 调用前清理工具结果
-    const microcompactResult = await deps.microcompact(
-      messagesForQuery, toolUseContext, querySource)
-    messagesForQuery = microcompactResult.messages
-
-    // 2. Context collapse（可选）
-    if (feature('CONTEXT_COLLAPSE') && contextCollapse) {
-      messagesForQuery = (await contextCollapse
-        .applyCollapsesIfNeeded(...)).messages
-    }
-
-    // 3. Auto compact — 超阈值时触发（先试 session memory, 再试 LLM 摘要）
-    const { compactionResult } = await deps.autocompact(
-      messagesForQuery, toolUseContext, cacheSafeParams,
-      querySource, tracking, snipTokensFreed)
-    if (compactionResult) {
-      messagesForQuery = buildPostCompactMessages(compactionResult)
-      tracking = { compacted: true, turnId: deps.uuid(), turnCounter: 0 }
-    }
-
-    // 4. Blocking limit 检查（auto compact 关闭时生效）
-    if (!compactionResult && /* ... */) {
-      const { isAtBlockingLimit } = calculateTokenWarningState(
-        tokenCountWithEstimation(messagesForQuery), model)
-      if (isAtBlockingLimit) {
-        yield createAssistantAPIErrorMessage({ content: PROMPT_TOO_LONG })
-        return { reason: 'blocking_limit' }
-      }
-    }
-
-    // 5. 调用 API（同时注入 API microcompact 配置）
-    for await (const message of deps.callModel({
-      messages: messagesForQuery, /* ... */ })) {
-      // 流式处理，同时检查 withheld 错误
-      if (reactiveCompact?.isWithheldPromptTooLong(message)) withheld = true
-      if (!withheld) yield message
-    }
-
-    // 6. Reactive compact — 处理 API 返回的 413
-    if ((isWithheld413 || isWithheldMedia) && reactiveCompact) {
-      const compacted = await reactiveCompact.tryReactiveCompact({ ... })
-      if (compacted) {
-        messagesForQuery = buildPostCompactMessages(compacted)
-        hasAttemptedReactiveCompact = true
-        continue  // 重试
-      }
-      return { reason: 'prompt_too_long' }
-    }
-
-    // 7. 正常处理响应...
-  }
-}
-```
-
-整个流程的执行顺序是：**snip → microcompact → context collapse → auto compact → blocking check → API call（含 API microcompact）→ reactive compact（如 413）**。这个顺序确保了低成本的压缩策略优先执行，只有在它们无法满足时才触发更重的策略。每一步都通过 `messagesForQuery` 变量将处理后的消息传递给下一步，形成一条管道。
-
-值得注意的是，microcompact 在 auto compact 之前执行。这意味着 auto compact 看到的 token 数是 microcompact 清理后的数字。如果 microcompact 清理了足够的工具结果，auto compact 可能就不需要触发了。这种「先清理工具结果，再判断是否需要摘要」的顺序设计，最大化了数据结构级压缩的效果，减少了 LLM 摘要的频率。
-
-## 十、横向对比
+## 十、横向对比与要点回顾
 
 | 维度 | Claude Code | OpenCode | Codex |
 |------|-------------|----------|-------|
 | 压缩层级数 | 5 级 | 2 级 | 3 级 |
-| 数据结构级压缩 | 4 级（micro/API MC/reactive/session memory） | 0 级 | 0 级 |
-| LLM 调用 | 仅 auto compact fallback + 后台 session memory 提取 | 每次压缩均调用 | 每次压缩均调用 |
+| 数据结构级压缩 | 4 条路径 | 无 | 无 |
+| LLM 调用 | 仅摘要兜底 + 后台提取 | 每次压缩均调 | 每次压缩均调 |
 | 触发方式 | 阈值 + API 错误 + 时间间隔 + 会话边界 | 阈值 | 阈值 + 手动 |
-| Prompt cache 感知 | 是（cached microcompact 通过 cache_edits 不破坏缓存） | 否 | 是 |
-| 后台异步提取 | Session memory 后台 forked agent | 无 | 无 |
-| 断路器 | 有（连续失败 3 次停止） | 无 | 无 |
-| 服务端协作 | 有（API microcompact + cache_edits） | 无 | 无 |
-| 部分压缩 | 有（partialCompactConversation, from/up_to 双向） | 无 | 无 |
-| PTL 重试 | 有（truncateHeadForPTLRetry, 3 次重试） | 无 | 无 |
+| Prompt cache 感知 | cache_edits 不破坏缓存 | 无 | 有 |
+| 后台异步摘要 | Session memory | 无 | 无 |
+| 断路器 | 连续失败 3 次停止 | 无 | 无 |
+| 服务端协作 | API microcompact + cache_edits | 无 | 无 |
+| 部分压缩 | from / up_to 双向 | 无 | 无 |
+| PTL 重试 | 有（3 次） | 无 | 无 |
 
-CC 的核心优势在于**将压缩成本从「每次压缩都调 LLM」降低到「大多数压缩是数据操作」**。Session memory 的后台异步提取是关键创新：把 LLM 调用的成本从压缩的关键路径上移走，分摊到对话进行中的后台 forked agent。这使得 auto compact 可以频繁触发而不产生显著的延迟和成本。从用户体验角度看，CC 的压缩几乎是无感的——session memory 路径的压缩耗时在毫秒级（读取文件 + 构建消息数组），而 OpenCode 和 Codex 的同步 LLM 压缩通常需要等待数秒到十几秒。
+对比里最有分量的差异在关键路径上。OpenCode 和 Codex 每次压缩都同步等一个完整的 LLM 响应，期间对话停摆；CC 在 session memory 可用时压缩是毫秒级的读文件加数据变换，摘要兜底也尽量走 forked agent 复用缓存。服务端协作是另一道护城河：`ContextManagementConfig` 和 `cache_edits` 都是 Anthropic API 的原生能力，CC 作为官方产品知道这些能力存在、并且敢把压缩策略押在上面。
 
-OpenCode 和 Codex 的每次压缩都在关键路径上同步调用 LLM——压缩一次对话需要等待一个完整的 API 响应。这意味着压缩期间用户无法与 agent 交互，整个对话流程被阻塞。CC 在 session memory 可用时，压缩是即时的（读取文件 + 数据结构变换），只有在 session memory 不可用时才退化到同步 LLM 调用。即使是退化场景，CC 也通过 forked agent 路径复用主对话的 prompt cache，减少压缩 API 调用的 cache miss 成本。
+四条设计原则收束这一篇：
 
-另一个重要差异是**服务端协作**。CC 的 API microcompact 和 cached microcompact 利用了 Anthropic API 的原生能力（`ContextManagementConfig`、`cache_edits`），让服务端参与上下文管理。OpenCode 和 Codex 面对的是通用 API（或自部署模型），没有这种服务端协作能力。这是 CC 作为 Anthropic 官方产品的独特优势——它知道 API 的内部能力，并能利用这些能力优化压缩策略。
+1. **能用数据结构变换解决的，就不调 LLM**。五级里四条路径不碰 LLM，摘要永远是最后出场的兜底——每升一级都有明确的成本预算。
+2. **压缩必须感知缓存**。时间路径只在缓存确定已死时动手，cache_edits 路径干脆不碰消息数组，摘要兜底也要 fork 复用前缀。
+3. **贵的成本要么前置、要么外移**。session memory 把摘要前置到对话后台，API microcompact 把清理外移给服务端，关键路径上剩下的都是便宜操作。
+4. **每一级都要有失败预案**。断路器（3 次跳闸）、`hasAttemptedReactiveCompact`（一次机会）、PTL 重试（压缩的压缩）、递归守卫（fork 不再触发压缩）——压缩系统的健壮性一半来自「怎么压」，另一半来自「压不动了怎么办」。
 
-**部分压缩（Partial Compact）**是 CC 的另一个独特能力。`partialCompactConversation()` 允许用户选择一条消息作为支点，向两个方向之一做部分压缩：`from` 方向摘要支点之后的消息（保留前面的，cache 前缀不受影响）；`up_to` 方向摘要支点之前的消息（保留后面的，cache 会被破坏但摘要位于前面）。这让用户可以精确控制哪些上下文被摘要、哪些被保留。OpenCode 和 Codex 都是全量压缩，不支持这种细粒度操作。
-
-**断路器和 PTL 重试**是 CC 在长期运行稳定性方面的工程保障。断路器防止不可恢复的上下文超限导致 API 调用雪崩（真实线上事故：1,279 个 session 产生了 50+ 次连续失败，最多 3,272 次，每天浪费 250K 次 API 调用）。PTL 重试机制确保即使压缩请求自身因为对话过长而失败，也能通过逐步丢弃最旧的消息来恢复。OpenCode 和 Codex 都没有这些保护机制，在极端场景下可能让用户陷入无法恢复的死锁状态。
-
-归根结底，CC 的 5 级压缩系统反映了一种分层降级的工程哲学：能用免费的数据操作解决就不用付费的 LLM 调用，能在后台异步做就不在关键路径同步做，能渐进重试就不一次性放弃。每一级都有明确的成本预算和质量预期，通过 GrowthBook 的 feature flag 做线上实验，持续优化各级的触发阈值和策略参数。这种「重工程、轻魔法」的风格贯穿了 CC 的整个代码库——压缩系统只是一个缩影。
-
-## 十一、源码索引
-
-| 文件 | 路径 |
-|------|------|
-| Auto Compact | `src/services/compact/autoCompact.ts` |
-| Micro Compact | `src/services/compact/microCompact.ts` |
-| API Microcompact | `src/services/compact/apiMicrocompact.ts` |
-| Reactive Compact | `src/services/compact/reactiveCompact.ts`（泄漏源码中不存在，ant-only） |
-| Session Memory Compact | `src/services/compact/sessionMemoryCompact.ts` |
-| Compact 核心 | `src/services/compact/compact.ts` |
-| 消息分组 | `src/services/compact/grouping.ts` |
-| Prompt 模板 | `src/services/compact/prompt.ts` |
-| 警告 Hook | `src/services/compact/compactWarningHook.ts` |
-| 警告状态 | `src/services/compact/compactWarningState.ts` |
-| 压缩后清理 | `src/services/compact/postCompactCleanup.ts` |
-| 时间配置 | `src/services/compact/timeBasedMCConfig.ts` |
-| Query Loop 集成 | `src/query.ts` |
-| 依赖注入 | `src/query/deps.ts` |
-| 手动 /compact 命令 | `src/commands/compact/compact.ts` |
-| Session Memory 服务 | `src/services/SessionMemory/sessionMemory.ts` |
-| Session Memory 工具 | `src/services/SessionMemory/sessionMemoryUtils.ts` |
-| Session Memory Prompt | `src/services/SessionMemory/prompts.ts` |
+下一篇进入 Agent 协作，看 subagent 怎么被孵化、路由和回收——其中会再次遇到压缩：每个 teammate 都要有自己独立的压缩状态。
 
 ## 章节小测
 
 <script setup>
 const q = [
   {
-    question: 'Claude Code 5 级压缩机制的核心设计思想是什么？',
+    question: 'Claude Code 五级压缩机制的核心设计思想是什么？',
     options: [
       '在所有对话历史环节追求最大化的 token 节省效果',
-      '优先用数据结构变换解决问题仅在必要时调用 LLM 做摘要',
       '保证每次 API 调用前都执行一次全量上下文压缩操作',
+      '优先用数据结构变换解决问题仅在必要时调用 LLM 做摘要',
       '始终调用 LLM 以获取最高质量的语义摘要结果'
     ],
-    correct: 1,
-    explanation: 'CC 的 5 级压缩：Auto Compact（触发阈值时先试 session memory）、Micro Compact（轻量清理工具结果）、API Microcompact（服务端原生清理）、Reactive Compact（413 时反应式压缩）、Session Memory Compact（利用后台异步提取的记忆）。前 4 级都不调 LLM，这与 OpenCode 和 Codex 每级都调 LLM 形成鲜明对比。'
+    correct: 2,
+    explanation: '四条不调 LLM 的路径：micro compact 的两条（时间触发清工具结果、cache_edits 删缓存）、API microcompact、session memory。reactive compact 本身要做摘要，是调 LLM 的；413 后先排空的 context collapse 属于另一套机制。compactConversation 摘要是最后兜底，与 OpenCode 和 Codex 每次压缩都调 LLM 形成对比。其余选项或违背分层设计（每次全量压缩），或把兜底当常态（始终调 LLM）。'
   },
   {
-    question: '为什么 Micro Compact 的「缓存编辑路径」（cached microcompact）比直接修改消息更优？',
+    question: 'Cached microcompact 路径比直接修改本地消息更优的核心原因是什么？',
     options: [
-      '完全免去客户端侧计算降低占用开销',
-      '基于 cache_edits 操作服务端缓存不破坏客户端 key',
+      '完全免去客户端侧计算降低本地资源占用开销',
+      '通过 cache_edits 让服务端删内容而客户端消息不变',
       '实现代码量远小于传统修改消息的压缩方案',
-      '利用服务端精确估算以实现更准确推断'
+      '利用服务端精确估算以实现更准确的 token 计数'
     ],
     correct: 1,
-    explanation: 'Cached microcompact 不修改客户端消息数组——它在 API 请求层附加 cache_edits 块，告诉服务端「这些工具结果可以从缓存中删除」。这样客户端消息不变、cache key 不被破坏，但服务端 token 计数不再计入被删除的内容。这是 CC「prompt cache aware」设计的核心体现。'
+    explanation: 'cache_edits 块附在 API 请求层，客户端消息数组原样不动、cache key 不被破坏，但服务端 token 计数不再包含被删内容——这是「不破坏缓存前提下压缩」的核心。已发送的 edits 进 pinnedEdits 固定位置重发。其余选项的错误：它仍需客户端跟踪与注册工具结果；代码量不小；token 估算仍是客户端粗估。'
   },
   {
-    question: 'Auto Compact 的断路器（连续失败 3 次停止重试）是基于什么线上数据设计的？',
+    question: 'Auto compact 的断路器（连续失败 3 次停止重试）依据什么数据设计的？',
     options: [
+      '线上数据监测显示超长会话连续失败可达数千次严重浪费',
       '线下压力测试中反复暴露的死循环导致 API 烧费急剧增加',
-      '线上数据监测显示超长会话连续失败可达数千次以上严重浪费',
       '模型训练阶段统计出的上下文压缩最佳失败容限值',
       '缺乏充分的线上数据支撑仅为工程经验的主观猜测'
     ],
-    correct: 1,
-    explanation: '源码注释记录：BQ 2026-03-10 数据显示 1,279 个会话有 50+ 次连续失败（最高 3,272 次），每天浪费约 250K API 调用。断路器让当前 session 不再尝试 auto compact，避免无效调用。'
+    correct: 0,
+    explanation: '源码注释记录 BQ 2026-03-10 的数据：1,279 个 session 出现 50+ 次连续失败、最多 3,272 次，全局每天浪费约 25 万次 API 调用。断路器让该 session 内不再尝试 auto compact。这不是线下压测发现、更非训练统计或主观经验。'
   },
   {
-    question: 'Session Memory Compact 如何实现「零 LLM 调用的高质量压缩」？',
+    question: 'Session memory compact 实现「零 LLM 调用压缩」的根本手段是什么？',
     options: [
       '只压缩纯工具调用结果完全不做语义级别的摘要处理',
-      '将 LLM 调用成本前置到对话进行中的后台异步提取环节',
       '基于纯规则匹配替代模型推理以实现零推理成本压缩',
-      '直接丢弃旧消息不做任何摘要处理以追求极致速度'
+      '直接丢弃旧消息不做任何摘要处理以追求极致速度',
+      '将 LLM 调用成本前置到对话进行中的后台异步提取环节'
     ],
-    correct: 1,
-    explanation: 'SessionMemory 在对话后台运行一个 forked agent，定期提取关键信息写入 markdown 文件。压缩触发时只需读取文件，不需要实时调 LLM。这把 LLM 调用成本从压缩的关键路径上移走，前置到对话进行中的后台。'
+    correct: 3,
+    explanation: '后台 forked agent 在对话进行中定期提取关键信息写文件（对话 10K tokens 起步、每 5K tokens 或 3 次工具调用更新），压缩触发时只剩读文件。LLM 成本没有消失，只是被挪出了压缩的关键路径。session memory 本身仍是 LLM 生成的摘要，不是规则匹配，也不是丢弃。'
+  },
+  {
+    question: 'query 循环里 413（prompt too long）错误为什么要先「扣留」（withhold）而不立即展示给用户？',
+    options: [
+      '等待遥测系统完整记录错误上下文后再决定上报策略',
+      '避免用户在错误提示期间继续输入打断重试的完整性',
+      '给恢复逻辑留出机会成功后错误就无需再让用户看到',
+      '权限系统需要先确认错误内容是否包含敏感的信息'
+    ],
+    correct: 2,
+    explanation: '扣留机制先把可恢复错误扣在手里：413 依次尝试排空 context collapse、reactive compact 压缩后重试，成功则错误消息永不 yield 出去，失败才浮出。用户体验是「处理得久一点」而非「出错后偷偷修」。扣留与遥测记录、防打断、权限检查均无关系。'
   }
 ]
 </script>

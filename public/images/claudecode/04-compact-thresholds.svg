@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640" role="img" aria-label="Auto compact thresholds: fixed token deltas on a 200K window">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .bar-text { font-size: 18px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .bar-sub { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .bar-note { font-size: 16px; font-weight: 500; fill: rgba(139,158,179,0.7); text-anchor: middle; }
+    .tick-label { font-size: 16px; font-weight: 700; text-anchor: middle; }
+    .delta-label { font-size: 17px; font-weight: 700; text-anchor: middle; fill: #7dc4ff; }
+    .bracket-label { font-size: 17px; font-weight: 600; text-anchor: middle; fill: #a879e0; }
+    .axis-label { font-size: 18px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="axis-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(139,158,179,0.6)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="64" text-anchor="middle" class="title">Auto Compact Thresholds · Fixed Deltas</text>
+  <text x="600" y="102" text-anchor="middle" class="subtitle">200K window (Sonnet) · trigger lines are constant token offsets, not percentages</text>
+
+  <!-- tick labels: each anchored to its own line; BLOCKING uses an elbow leader -->
+  <text x="835" y="150" class="tick-label" fill="#d29922">WARNING · 147K</text>
+  <text x="935" y="192" class="tick-label" fill="#ef5b5b">AUTO COMPACT · 167K</text>
+  <text x="1050" y="234" class="tick-label" fill="rgba(239,91,91,0.85)">BLOCKING · 177K</text>
+
+  <!-- leader lines with anchor dots -->
+  <line x1="835" y1="158" x2="835" y2="266" stroke="rgba(210,153,34,0.6)" stroke-width="2"/>
+  <circle cx="835" cy="270" r="4" fill="#d29922"/>
+  <line x1="935" y1="200" x2="935" y2="266" stroke="rgba(239,91,91,0.6)" stroke-width="2"/>
+  <circle cx="935" cy="270" r="4" fill="#ef5b5b"/>
+  <path d="M1050 242 L1050 258 L985 258 L985 266" fill="none" stroke="rgba(239,91,91,0.55)" stroke-width="2.5"/>
+  <circle cx="985" cy="270" r="4" fill="rgba(239,91,91,0.9)"/>
+
+  <!-- threshold ticks: strong outside the bar, faint inside (text stays readable) -->
+  <line x1="835" y1="270" x2="835" y2="300" stroke="rgba(210,153,34,0.85)" stroke-width="2.5"/>
+  <line x1="835" y1="300" x2="835" y2="364" stroke="rgba(210,153,34,0.22)" stroke-width="2.5"/>
+  <line x1="835" y1="364" x2="835" y2="372" stroke="rgba(210,153,34,0.85)" stroke-width="2.5"/>
+  <line x1="935" y1="270" x2="935" y2="300" stroke="rgba(239,91,91,0.95)" stroke-width="3"/>
+  <line x1="935" y1="300" x2="935" y2="364" stroke="rgba(239,91,91,0.25)" stroke-width="3"/>
+  <line x1="935" y1="364" x2="935" y2="372" stroke="rgba(239,91,91,0.95)" stroke-width="3"/>
+  <line x1="985" y1="270" x2="985" y2="300" stroke="rgba(239,91,91,0.7)" stroke-width="2.5"/>
+  <line x1="985" y1="300" x2="985" y2="364" stroke="rgba(239,91,91,0.18)" stroke-width="2.5"/>
+  <line x1="985" y1="364" x2="985" y2="372" stroke="rgba(239,91,91,0.7)" stroke-width="2.5"/>
+  <line x1="1000" y1="270" x2="1000" y2="300" stroke="rgba(168,85,247,0.85)" stroke-width="2.5"/>
+  <line x1="1000" y1="300" x2="1000" y2="364" stroke="rgba(168,85,247,0.22)" stroke-width="2.5"/>
+  <line x1="1000" y1="364" x2="1000" y2="372" stroke="rgba(168,85,247,0.85)" stroke-width="2.5"/>
+
+  <!-- token bar segments (0 -> 200K, 5px per K) -->
+  <rect x="100" y="300" width="733" height="64" rx="6" fill="rgba(125,196,255,0.08)" stroke="rgba(125,196,255,0.25)" stroke-width="1.5"/>
+  <rect x="837" y="300" width="96" height="64" fill="rgba(210,153,34,0.12)" stroke="rgba(210,153,34,0.45)" stroke-width="1.5"/>
+  <rect x="937" y="300" width="61" height="64" fill="rgba(239,68,68,0.14)" stroke="rgba(239,68,68,0.5)" stroke-width="1.5"/>
+  <rect x="1002" y="300" width="96" height="64" fill="rgba(168,85,247,0.14)" stroke="rgba(168,85,247,0.5)" stroke-width="1.5"/>
+
+  <text x="466" y="338" class="bar-text">TOKENS IN USE</text>
+  <text x="466" y="360" class="bar-note">below 147K · nothing triggers</text>
+  <text x="885" y="338" class="bar-sub">WARNING</text>
+  <text x="968" y="338" class="bar-sub">ACTIVE</text>
+  <text x="1050" y="338" class="bar-sub">RESERVE</text>
+
+  <!-- delta annotations: constant offsets between trigger lines -->
+  <line x1="842" y1="396" x2="928" y2="396" stroke="rgba(125,196,255,0.5)" stroke-width="1.5"/>
+  <line x1="842" y1="390" x2="842" y2="402" stroke="rgba(125,196,255,0.5)" stroke-width="1.5"/>
+  <line x1="928" y1="390" x2="928" y2="402" stroke="rgba(125,196,255,0.5)" stroke-width="1.5"/>
+  <text x="885" y="390" class="delta-label">20K</text>
+  <line x1="942" y1="396" x2="978" y2="396" stroke="rgba(125,196,255,0.5)" stroke-width="1.5"/>
+  <line x1="942" y1="390" x2="942" y2="402" stroke="rgba(125,196,255,0.5)" stroke-width="1.5"/>
+  <line x1="978" y1="390" x2="978" y2="402" stroke="rgba(125,196,255,0.5)" stroke-width="1.5"/>
+  <text x="960" y="390" class="delta-label">10K</text>
+
+  <!-- below-bar annotations -->
+  <text x="1000" y="424" class="tick-label" fill="#a879e0">EFFECTIVE EDGE · 180K</text>
+  <path d="M1002 444 L1002 458 L1098 458 L1098 444" fill="none" stroke="rgba(168,85,247,0.5)" stroke-width="1.5"/>
+  <text x="1050" y="488" class="bracket-label">20K SUMMARY RESERVE</text>
+
+  <!-- axis -->
+  <text x="600" y="530" class="axis-label">CONTEXT TOKENS</text>
+  <line x1="100" y1="548" x2="1100" y2="548" stroke="rgba(139,158,179,0.4)" stroke-width="2" marker-end="url(#axis-arrow)"/>
+</svg>

@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640" role="img" aria-label="Teammate main loop: prompt, run, idle, wait">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #c9d5e3; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .card-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .abort-label { font-size: 17px; font-weight: 700; text-anchor: middle; }
+    .center-note { font-size: 17px; font-weight: 500; fill: #6e8296; text-anchor: middle; }
+    .footer { font-size: 17px; font-weight: 500; fill: #6e8296; text-anchor: middle; }
+    .card-blue { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.45); stroke-width: 2; }
+    .card-green { fill: rgba(63,185,80,0.10); stroke: rgba(63,185,80,0.5); stroke-width: 2; }
+    .card-amber { fill: rgba(210,153,34,0.10); stroke: rgba(210,153,34,0.45); stroke-width: 2; }
+    .card-purple { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.45); stroke-width: 2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.65); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+    .abort-line { fill: none; stroke: rgba(248,81,73,0.75); stroke-width: 2.5; stroke-linecap: round; }
+    .abort-dash { fill: none; stroke: rgba(248,81,73,0.65); stroke-width: 2.5; stroke-dasharray: 6 5; stroke-linecap: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.7)"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(248,81,73,0.85)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="64" text-anchor="middle" class="title">Teammate · Run, Idle, Wake</text>
+  <text x="600" y="102" text-anchor="middle" class="subtitle">prompt &#8594; run &#8594; idle &#8594; wait — escape cuts the turn, abort kills the loop</text>
+
+  <!-- abort annotations hitting RUN -->
+  <text x="795" y="136" class="abort-label" fill="rgba(248,81,73,0.9)">ESC &#183; work abort &#8594; idle</text>
+  <path d="M795 144 L855 162" class="abort-dash" marker-end="url(#arrow-red)"/>
+  <text x="1005" y="136" class="abort-label" fill="rgba(248,81,73,0.9)">lifecycle abort &#8594; exit</text>
+  <path d="M1005 144 L975 162" class="abort-line" marker-end="url(#arrow-red)"/>
+
+  <!-- the loop: prompt (top-left) -> run (top-right) -> idle (bottom-right) -> wait (bottom-left) -->
+  <rect x="140" y="170" width="300" height="120" rx="14" class="card-blue"/>
+  <text x="290" y="212" class="card-title">PROMPT</text>
+  <text x="290" y="247" class="card-sub">message arrives from mailbox</text>
+  <text x="290" y="275" class="card-sub">transcript view or task list</text>
+
+  <rect x="760" y="170" width="300" height="120" rx="14" class="card-green"/>
+  <text x="910" y="212" class="card-title">RUN</text>
+  <text x="910" y="247" class="card-sub">runAgent() executes turn</text>
+  <text x="910" y="275" class="card-sub">tools call, results stream</text>
+
+  <rect x="760" y="400" width="300" height="120" rx="14" class="card-amber"/>
+  <text x="910" y="442" class="card-title">IDLE</text>
+  <text x="910" y="477" class="card-sub">isIdle = true</text>
+  <text x="910" y="505" class="card-sub">leader notified</text>
+
+  <rect x="140" y="400" width="300" height="120" rx="14" class="card-purple"/>
+  <text x="290" y="442" class="card-title">WAIT</text>
+  <text x="290" y="477" class="card-sub">polls every 500 ms</text>
+  <text x="290" y="505" class="card-sub">shutdown checked first</text>
+
+  <!-- cycle arrows -->
+  <path d="M440 230 L756 230" class="spine" marker-end="url(#arrow)"/>
+  <path d="M910 290 L910 396" class="spine" marker-end="url(#arrow)"/>
+  <path d="M760 460 L444 460" class="spine" marker-end="url(#arrow)"/>
+  <path d="M290 400 L290 294" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- center note -->
+  <text x="600" y="316" font-size="26" font-weight="700" fill="rgba(125,196,255,0.55)" text-anchor="middle">&#8635;</text>
+  <text x="600" y="348" class="center-note">one teammate = one loop</text>
+  <text x="600" y="374" class="center-note">AsyncLocalStorage isolates its identity</text>
+
+  <text x="600" y="600" class="footer">shutdown requests jump the queue — leader messages before peer, rest FIFO</text>
+</svg>

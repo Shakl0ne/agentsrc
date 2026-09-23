@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="1200" height="600" role="img" aria-label="Stable cached prefix versus volatile uncached sections">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #c9d5e3; }
+    .seg-title { font-size: 18px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .seg-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .card-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 17px; font-weight: 600; text-anchor: middle; }
+    .price { font-size: 18px; font-weight: 700; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.12); stroke-width: 2; }
+    .card-gray { fill: rgba(255,255,255,0.02); stroke: rgba(255,255,255,0.15); stroke-width: 2; stroke-dasharray: 5 4; }
+    .card-green { fill: rgba(63,185,80,0.10); stroke: rgba(63,185,80,0.5); stroke-width: 2; }
+    .card-red { fill: rgba(248,113,113,0.10); stroke: rgba(248,113,113,0.5); stroke-width: 2; }
+    .seg-cached { fill: rgba(63,185,80,0.10); stroke: rgba(63,185,80,0.5); stroke-width: 2; }
+    .seg-volatile { fill: rgba(248,113,113,0.10); stroke: rgba(248,113,113,0.5); stroke-width: 2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.65); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .brk { stroke: rgba(255,255,255,0.5); stroke-width: 3; stroke-dasharray: 8 6; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.7)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="60" text-anchor="middle" class="title">Prompt As a Budget &#183; Hold the Prefix</text>
+  <text x="600" y="96" text-anchor="middle" class="subtitle">cached sections keep the cache breakpoint far right; one uncached section moves it left</text>
+
+  <!-- prompt segments row -->
+  <rect x="70" y="150" width="250" height="90" rx="12" class="seg-cached"/>
+  <text x="195" y="188" class="seg-title">SYSTEM PROMPT</text>
+  <text x="195" y="216" class="seg-sub">systemPromptSection()</text>
+
+  <rect x="340" y="150" width="250" height="90" rx="12" class="seg-cached"/>
+  <text x="465" y="188" class="seg-title">TOOLS</text>
+  <text x="465" y="216" class="seg-sub">stable schemas</text>
+
+  <rect x="610" y="150" width="250" height="90" rx="12" class="seg-cached"/>
+  <text x="735" y="188" class="seg-title">MEMORY</text>
+  <text x="735" y="216" class="seg-sub">memdir &#183; stable until compact</text>
+
+  <rect x="880" y="150" width="250" height="90" rx="12" class="seg-volatile"/>
+  <text x="1005" y="182" class="seg-title">MCP INSTRUCTIONS</text>
+  <text x="1005" y="210" class="seg-sub">DANGEROUS_uncached</text>
+  <text x="1005" y="232" class="seg-sub">recomputed every turn</text>
+
+  <!-- cache breakpoint -->
+  <path d="M870 132 L870 258" class="brk"/>
+  <text x="852" y="122" class="price" fill="#3fb950" text-anchor="end">cache breakpoint</text>
+  <text x="660" y="284" class="price" fill="#3fb950">stable prefix &#183; 0.1x reads on hit</text>
+  <text x="1005" y="284" class="price" fill="#f85149">regenerates &#183; 1.25x write</text>
+
+  <!-- detection panel -->
+  <rect x="70" y="340" width="500" height="150" rx="14" class="card"/>
+  <text x="320" y="378" class="card-title">PHASE 1 &#183; before the call</text>
+  <text x="320" y="410" class="card-sub">fingerprint ~15 dims: system &#183; tools</text>
+  <text x="320" y="438" class="card-sub">per-tool hashes &#183; model &#183; betas &#183; effort</text>
+  <text x="320" y="466" class="card-sub">diff vs last &#8594; pendingChanges</text>
+
+  <rect x="630" y="340" width="500" height="150" rx="14" class="card"/>
+  <text x="880" y="378" class="card-title">PHASE 2 &#183; after the response</text>
+  <text x="880" y="410" class="card-sub">cache_read_tokens &lt; prev &#215; 0.95</text>
+  <text x="880" y="438" class="card-sub">and drop &#8805; 2,000 tokens &#8594; break</text>
+  <text x="880" y="466" class="card-sub">reason: client diff &#183; TTL expiry &#183; server</text>
+
+  <path d="M570 415 L624 415" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- bottom note -->
+  <rect x="70" y="524" width="1060" height="54" rx="12" class="card-gray"/>
+  <text x="600" y="558" class="seg-sub" text-anchor="middle">compact reuses repl_main_thread tracking — the fork shares the same cache prefix, so it shares the detector state</text>
+</svg>

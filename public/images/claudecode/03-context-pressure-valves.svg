@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640" role="img" aria-label="Context Pressure Valves">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #c9d5e3; }
+    .hub-title { font-size: 22px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .hub-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .valve-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; }
+    .valve-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; }
+    .arrow-text { font-size: 17px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glowCenter" cx="50%" cy="48%" r="30%">
+      <stop offset="0%" stop-color="#f0883e" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#f0883e" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="arrowSoft" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.55)"/>
+    </marker>
+    <marker id="arrowGhost" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(139,158,179,0.45)"/>
+    </marker>
+    <marker id="arrowPurple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(188,140,255,0.7)"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="640" fill="url(#bg)"/>
+  <rect width="1200" height="640" fill="url(#grid)"/>
+  <rect width="1200" height="640" fill="url(#glowCenter)"/>
+
+  <text x="600" y="58" text-anchor="middle" class="title">Where the Pressure Goes</text>
+  <text x="600" y="90" text-anchor="middle" class="subtitle">tool sprawl and giant outputs never hit the window at once</text>
+
+  <!-- ============ VALVE 1 : initial prompt / ToolSearch (top-left) ============ -->
+  <g>
+    <rect x="90" y="140" width="340" height="150" rx="22" fill="rgba(88,166,255,0.06)" stroke="rgba(88,166,255,0.4)" stroke-width="2"/>
+    <text x="118" y="184" class="valve-title" fill="#58a6ff">Initial Prompt</text>
+    <text x="118" y="218" class="valve-sub">high-frequency tools with full schema</text>
+    <text x="118" y="246" class="valve-sub">rest deferred behind ToolSearch</text>
+    <text x="118" y="274" class="valve-sub">model fetches schema on demand</text>
+  </g>
+
+  <!-- curve: hub -> valve 1, label placed in open space below-left of hub -->
+  <path d="M460 320 C 380 320 330 300 288 296" stroke="rgba(125,196,255,0.5)" stroke-width="3" fill="none" marker-end="url(#arrowSoft)"/>
+  <text x="376" y="348" class="arrow-text" fill="#58a6ff">fewer schemas</text>
+
+  <!-- ============ VALVE 2 : disk / persisted output (top-right) ============ -->
+  <g>
+    <rect x="770" y="140" width="340" height="150" rx="22" fill="rgba(63,185,80,0.06)" stroke="rgba(63,185,80,0.42)" stroke-width="2"/>
+    <text x="798" y="184" class="valve-title" fill="#3fb950">Disk &#183; tool-results/</text>
+    <text x="798" y="218" class="valve-sub">oversized results persisted to file</text>
+    <text x="798" y="246" class="valve-sub">model gets 2KB preview + path</text>
+    <text x="798" y="274" class="valve-sub">reads the file back if needed</text>
+  </g>
+
+  <!-- curve: hub -> valve 2, label placed in open space below-right of hub -->
+  <path d="M740 320 C 820 320 870 300 912 296" stroke="rgba(125,196,255,0.5)" stroke-width="3" fill="none" marker-end="url(#arrowSoft)"/>
+  <text x="824" y="348" class="arrow-text" fill="#3fb950">result offloaded</text>
+
+  <!-- ============ HUB : context window (center) ============ -->
+  <g>
+    <rect x="450" y="240" width="300" height="160" rx="26" fill="rgba(240,136,62,0.08)" stroke="rgba(240,136,62,0.45)" stroke-width="2.5"/>
+    <text x="600" y="300" class="hub-title">Context Window</text>
+    <text x="600" y="334" class="hub-sub">pressure from 50+ tool schemas</text>
+    <text x="600" y="362" class="hub-sub">and unbounded tool results</text>
+  </g>
+
+  <!-- ============ VALVE 3 : compact (bottom, dashed, next chapter) ============ -->
+  <path d="M600 400 L600 452" stroke="rgba(188,140,255,0.6)" stroke-width="3" fill="none" marker-end="url(#arrowPurple)"/>
+  <text x="676" y="432" class="arrow-text" fill="#bc8cff">history pressure</text>
+  <g>
+    <rect x="420" y="464" width="360" height="128" rx="22" fill="rgba(168,85,247,0.08)" stroke="rgba(168,85,247,0.5)" stroke-width="2"/>
+    <text x="600" y="506" class="valve-title" text-anchor="middle" fill="#bc8cff">History &#183; Compact</text>
+    <text x="600" y="538" class="valve-sub" text-anchor="middle">old tool results replaced by summaries</text>
+    <text x="600" y="566" class="valve-sub" text-anchor="middle">next chapter</text>
+  </g>
+
+  <!-- upstream sources (bottom-left, dashed) -->
+  <rect x="90" y="464" width="280" height="128" rx="22" fill="rgba(240,136,62,0.04)" stroke="rgba(240,136,62,0.22)" stroke-width="2" stroke-dasharray="4 6"/>
+  <text x="230" y="506" class="valve-sub" text-anchor="middle">upstream sources</text>
+  <text x="230" y="538" class="valve-sub" text-anchor="middle">50+ built-in tools</text>
+  <text x="230" y="566" class="valve-sub" text-anchor="middle">MCP servers &#183; long output</text>
+  <path d="M310 464 C 350 430 400 400 446 380" stroke="rgba(240,136,62,0.4)" stroke-width="2.5" fill="none" stroke-dasharray="4 6" marker-end="url(#arrowGhost)"/>
+
+</svg>

@@ -4,11 +4,17 @@ title: Claude Code 权限系统：7 种权限模式与 AI 分类器
 
 # Claude Code 权限系统：7 种权限模式与 AI 分类器
 
-> PermissionMode、AI 安全分类器、denial tracking 与权限 UI 的源码级解读
+想象你给一个 agent 派了个长活：「把这个老仓库迁移到新构建系统，改完跑一遍测试」。你切走煮咖啡，回来发现屏幕上停着一个权限弹窗——它改到一半要跑 `npm install`，已经等你四十分钟。把弹窗全关掉？那下次它跑 `rm -rf build/` 时也不会有人拦。
 
-上一篇分析了 Claude Code 的工具系统，看到每个 `tool_use` block 在执行前都会经过一道权限闸门。这一篇就把这道闸门彻底拆开：它如何在「每次都问」和「从不打扰」之间找到平衡点、AI 分类器在 auto 模式下扮演什么角色、denial tracking 如何让分类器学会沉默、以及权限决策如何通过 React 队列推到终端 UI。
+没有沙箱的 agent，怎么敢直接操作真实文件系统？
 
-整个权限系统的源码主要集中在三处：`src/utils/permissions/`（决策核心，~20 个文件）、`src/hooks/toolPermission/`（React 侧的处理器与上下文）、`src/hooks/useCanUseTool.tsx`（203 行的中央调度 hook）。三者构成一条从「模型要调工具」到「工具真正执行」的完整决策链。
+Claude Code 的答案是「每次都问」和「从不打扰」之间还有一个多维决策空间：模式定基调，规则表达用户意图，AI 分类器在 auto 模式下动态判断，弹窗交互兜底。这一篇把这道闸门拆开。你会看到：
+
+- 第一，七种权限模式各自的语义，切换循环怎么设计；
+- 第二，auto 模式的两阶段 AI 分类器怎么判断风险，失败时怎么收场；
+- 第三，一个权限弹窗背后有哪几条路径在赛跑，用户的「不」怎么被记住。
+
+工具接口与权限的耦合点第三篇已铺垫，MCP 工具如何纳入这套体系下一篇展开。整个权限系统的源码集中在三处：`src/utils/permissions/`（决策核心，~20 个文件）、`src/hooks/toolPermission/`（React 侧的处理器与上下文）、`src/hooks/useCanUseTool.tsx`（203 行的中央调度 hook），三者构成一条从「模型要调工具」到「工具执行」的完整决策链。
 
 ## 一、为什么权限是 CC 的首要安全机制
 
@@ -20,14 +26,14 @@ Codex 走的是「沙箱优先」路线：所有写入操作默认在隔离的�
 - `FileWriteTool` 写入的文件就是磁盘上的真实文件
 - `FileEditTool` 的 `old_string` / `new_string` 替换直接生效，没有 git stash 兜底
 
-源码里确实存在一个 `SandboxManager`（在 `permissions.ts` 中可见 `SandboxManager.isSandboxingEnabled()` / `isAutoAllowBashIfSandboxedEnabled()`），但它是一个可选的、被 feature flag 控制的附加层，不是默认行为。CC 真正依赖的、唯一的安全边界，是**权限系统本身**。
+源码里确实存在一个 `SandboxManager`（在 `permissions.ts` 中可见 `SandboxManager.isSandboxingEnabled()` / `isAutoAllowBashIfSandboxedEnabled()`），但它是一个可选的、feature flag 控制的附加层，默认关闭。CC 唯一的安全边界，是**权限系统本身**。
 
 这给权限系统带来了一个根本性的张力：
 
 - 太严：每个工具调用都打断用户，agent 根本跑不起来
 - 太松：放任 AI 执行破坏性操作，用户的代码库和数据随时可能被毁
 
-CC 的解法是把「权限」拆成一个**多维度的决策空间**——模式（mode）、规则（rule）、分类器（classifier）、UI 交互（interactive handler）共同决定一次工具调用是 allow、ask 还是 deny。这四个维度不是简单的「与」关系，而是一个有优先级的短路链：deny 规则最先短路、bypass-immune 安全检查紧随其后、模式决定默认行为、分类器在 auto 模式下动态覆盖默认、UI 交互是最后的兜底。任何一个维度说 deny，整条链就 deny；但要让一个操作 allow，需要所有维度都不反对。这种「deny 优先、allow 需要共识」的设计，是 CC 在没有沙箱的情况下仍能保证安全的关键。下面逐层展开。
+CC 的解法是把「权限」拆成一个**多维度的决策空间**——模式（mode）、规则（rule）、分类器（classifier）、UI 交互（interactive handler）共同决定一次工具调用是 allow、ask 还是 deny。四个维度组成一条有优先级的短路链：deny 规则最先短路、bypass-immune 安全检查紧随其后、模式决定默认行为、分类器在 auto 模式下动态覆盖默认、UI 交互是最后的兜底。任何一个维度说 deny，整条链就 deny；但要让一个操作 allow，需要所有维度都不反对。这种「deny 优先、allow 需要共识」的设计，是 CC 在没有沙箱的情况下仍能保证安全的关键。下面逐层展开。
 
 ## 二、权限模式：4 种核心模式与若干内部态
 
@@ -73,13 +79,13 @@ const PERMISSION_MODE_CONFIG: Partial<Record<PermissionMode, PermissionModeConfi
 | 模式 | 行为 | 适用场景 | 安全等级 |
 |------|------|---------|---------|
 | `default` | 每个工具调用都问用户 | 谨慎交互、初次试用 | 最高 |
-| `plan` | 只读，所有写操作被拒绝 | 让 AI 先规划再执行 | 高 |
+| `plan` | 只读，写操作按工具返回 deny 或 ask | 让 AI 先规划再执行 | 高 |
 | `auto` | AI 分类器判断，安全放行、危险询问 | 长时间自主任务 | 中 |
 | `bypassPermissions` | 不做任何权限检查 | 受信任的批量重构 | 最低 |
 
 ### 2.2 Shift+Tab 循环逻辑
 
-模式之间通过 Shift+Tab 循环切换，逻辑在 `src/utils/permissions/getNextPermissionMode.ts:34-79`。最值得注意的是 ant 内部用户和外部用户的循环路径不同：
+模式之间通过 Shift+Tab 循环切换，逻辑在 `src/utils/permissions/getNextPermissionMode.ts:34-79`。ant 内部用户和外部用户的循环路径不同：
 
 ```typescript
 case 'default':
@@ -93,21 +99,10 @@ case 'default':
     return 'default'
   }
   return 'acceptEdits'
-
-case 'acceptEdits':
-  return 'plan'
-
-case 'plan':
-  if (toolPermissionContext.isBypassPermissionsModeAvailable) {
-    return 'bypassPermissions'
-  }
-  if (canCycleToAuto(toolPermissionContext)) {
-    return 'auto'
-  }
-  return 'default'
+// case 'acceptEdits' → 'plan'；case 'plan' 的出口与上述 ant 分支同构
 ```
 
-外部用户的循环是 `default → acceptEdits → plan → bypassPermissions → default`；ant 内部用户跳过 `acceptEdits` 和 `plan`，直接在 `default / bypassPermissions / auto` 之间循环——因为 ant 用户更倾向于让 auto 分类器接管，而不是用 acceptEdits 这种粗暴的「全接受编辑」。
+外部用户的循环是 `default → acceptEdits → plan → bypassPermissions → default`；ant 内部用户跳过 `acceptEdits` 和 `plan`，直接在 `default / bypassPermissions / auto` 之间循环——ant 用户更倾向于让 auto 分类器接管，acceptEdits 这种「全接受编辑」基本不用。
 
 `canCycleToAuto` 同时检查缓存的 `isAutoModeAvailable` 和实时的 `isAutoModeGateEnabled()`：
 
@@ -143,7 +138,7 @@ let autoModeCircuitBroken = false
 
 ## 三、权限决策流程
 
-完整的权限决策入口是 `src/utils/permissions/permissions.ts` 中的 `hasPermissionsToUseTool`（外层封装）和 `hasPermissionsToUseToolInner`（1158 行）。决策按以下顺序短路返回：
+完整的权限决策入口是 `src/utils/permissions/permissions.ts` 中的 `hasPermissionsToUseTool`（外层封装）和 `hasPermissionsToUseToolInner`（`permissions.ts:1158` 起）。决策按以下顺序短路返回：
 
 ```mermaid
 flowchart TD
@@ -169,7 +164,8 @@ flowchart TD
     N -->|否| O{当前是 auto 模式?}
     O -->|是| P[跑 AI 分类器]
     P -->|安全| M
-    P -->|危险| F
+    P -->|危险| D
+    P -->|denial 超限或超长| F
     O -->|否| Q[passthrough → ask]
     Q --> F
 ```
@@ -178,7 +174,7 @@ flowchart TD
 
 ### 3.1 bypass-immune 的安全检查
 
-第 1g 步的 `safetyCheck` 是流程图里最容易被低估的一环。它在 `permissions.ts:1144-1152` 和 `1252-1260` 出现两次，分别在外层和内层决策中。它的判定来自工具的 `checkPermissions` 返回的 `decisionReason.type === 'safetyCheck'`，覆盖的路径包括：
+第 1g 步的 `safetyCheck` 是流程图里最容易被低估的一环。它在 `permissions.ts` 里出现两次：`checkRuleBasedPermissions`（hook 侧的规则子集检查器，1144-1152）和 `hasPermissionsToUseToolInner`（1252-1260）各一次。它的判定来自工具的 `checkPermissions` 返回的 `decisionReason.type === 'safetyCheck'`，覆盖的路径包括：
 
 - `.git/` 目录下的文件
 - `.claude/` 配置目录
@@ -191,13 +187,13 @@ flowchart TD
 
 第 1f 步处理另一种 bypass-immune 情况：用户在配置里写了一条内容相关的 ask 规则，例如 `Bash(npm publish:*)`——意思是「npm publish 这种命令永远要问我」。这类规则即使在 bypass 模式下也必须遵守。源码注释解释了原因：「When a user explicitly configures a content-specific ask rule, the tool's checkPermissions returns `{behavior:'ask', decisionReason:{type:'rule', rule:{ruleBehavior:'ask'}}}`. This must be respected even in bypass mode, just as deny rules are respected at step 1d.」
 
-换句话说，bypass 模式并不是「无脑放行一切」，而是「跳过那些没有显式规则的默认询问」。用户用规则表达过的意图，永远优先于模式。
+bypass 模式跳过的只是没有显式规则的默认询问。用户用规则表达过的意图，永远优先于模式。
 
 ### 3.3 plan 模式的特殊处理
 
 `plan` 模式在 `hasPermissionsToUseToolInner` 中没有专门的分支——它依赖工具自身的 `isReadOnly(input)` 和 `checkPermissions` 来判定。当一个工具的 `checkPermissions` 在 plan 模式下发现自己是写操作，会返回 `{behavior: 'deny', ...}` 或 `{behavior: 'ask', ...}`。读工具（`FileReadTool`、`GrepTool`、`GlobTool`）则返回 allow。
 
-但有个有趣的分支：
+但有一个分支：
 
 ```typescript
 const shouldBypassPermissions =
@@ -219,7 +215,7 @@ auto 模式是 CC 权限系统最有想象力的一部分。它的核心思想�
 
 ### 4.1 分类器的输入构造
 
-分类器不是简单地看「工具名 + 参数」，而是构造一个**完整的会话 transcript**。`buildTranscriptEntries` 函数（302-360 行）把消息历史转换成精简的对话记录：
+分类器的输入不限于「工具名 + 参数」，它构造一个**完整的会话 transcript**。`buildTranscriptEntries` 函数（302-360 行）把消息历史转换成精简的对话记录：
 
 ```typescript
 export function buildTranscriptEntries(messages: Message[]): TranscriptEntry[] {
@@ -243,13 +239,7 @@ export function buildTranscriptEntries(messages: Message[]): TranscriptEntry[] {
 
 这是一个对抗性考虑：如果分类器读到 assistant 的推理文本，模型可以通过精心构造的文字来「说服」分类器放行。只保留结构化的 tool_use 调用，把模型的「自我辩护」排除在外，让分类器只看「实际做了什么」。
 
-每个 tool_use block 通过 `toAutoClassifierInput` 投影成精简输入。这是 Tool 接口上的一个方法（见系列第 3 篇）：
-
-```typescript
-toAutoClassifierInput(input: z.infer<Input>): unknown
-```
-
-每个工具自己决定「分类器需要看到我的哪些字段」。例如 `BashTool` 可能只投影命令字符串，`FileWriteTool` 可能只投影文件路径加上内容的前若干字符。如果某个工具返回空字符串，分类器直接判定为「无安全相关性」，立即 allow：
+每个 tool_use block 通过 `toAutoClassifierInput` 投影成精简输入。这是 Tool 接口上的一个方法（见系列第 3 篇），签名 `toAutoClassifierInput(input): unknown`。每个工具自己决定「分类器需要看到我的哪些字段」。例如 `BashTool` 可能只投影命令字符串，`FileWriteTool` 可能只投影文件路径加上内容的前若干字符。如果某个工具返回空字符串，分类器直接判定为「无安全相关性」，立即 allow：
 
 ```typescript
 if (actionCompact === '') {
@@ -271,7 +261,7 @@ if (actionCompact === '') {
 
 权限模板用 `<user_allow_rules_to_replace>...</user_allow_rules_to_replace>` 这种 XML 标签包裹默认规则。外部模板的语义是「用户规则替换默认」，ant 模板的语义是「用户规则追加到默认」。`buildYoloSystemPrompt` 用三个正则替换分别处理 allow / soft_deny / environment 三个 section。
 
-`bashClassifier.ts` 还会在 `BASH_CLASSIFIER` feature flag 开启时往 allow / deny 列表里追加 Bash 前缀规则的描述，让分类器能理解 `Bash(git:*)` 这种配置的语义。
+`bashClassifier.ts` 还会在 `BASH_CLASSIFIER` feature flag 开启时（仅 ant 内部用户生效）往 allow / deny 列表里追加 Bash 前缀规则的描述，让分类器能理解 `Bash(git:*)` 这种配置的语义。
 
 ### 4.3 两阶段 XML 分类器
 
@@ -285,7 +275,9 @@ if (actionCompact === '') {
 
 stage 1 的 suffix 则是「Err on the side of blocking. `<block>` immediately.」——偏向保守，宁可错杀。两阶段的设计哲学是：**对放行宽容（stage 1 allow 就放），对阻止严格（stage 1 block 还要 stage 2 复核）**。
 
-这种「宽放严收」的哲学背后是一个关键的工程权衡。如果 stage 1 误判为 allow，用户顶多被打扰一次（stage 2 还能纠正）；但如果 stage 1 误判为 block，用户会被打断一次，然后还要等 stage 2 复核。所以 stage 1 偏向 block 是「宁可慢一点也别放错」，stage 2 偏向 allow 是「确认过了就大胆放」。两个阶段各自的偏向互相抵消，最终达到一个既不太打扰用户、又不太危险的平衡点。
+![auto 模式分类器：acceptEdits 快路径先行，两阶段宽放严收](/images/claudecode/06-classifier-stages.svg)
+
+这种「宽放严收」的哲学背后是一个不对称的失败成本。stage 1 误判为 block（实际安全的操作被拦），由 stage 2 推理复核纠正——两阶段消除的就是这类误拦；stage 1 误判为 allow（危险操作被放行），没有任何二次确认，静默通过。所以 stage 1 的 suffix 要求「Err on the side of blocking」，用保守偏向把误放行的概率压低——误拦的代价只是几秒延迟，交给 stage 2 消化；误放的代价没有补救，只能靠不让它发生。
 
 两阶段共享同一个 system prompt 和 transcript，享受 prompt cache（1 小时 TTL）。stage 2 在 action block 上设置了 `cache_control`，保证 stage 2 能命中 stage 1 的完整前缀缓存。源码注释明确计算了 cache budget：「Budget: system (1) + CLAUDE.md (0–1) + action (1) = 2–3, under the API limit of 4 cache_control blocks」。这个 budget 计算很重要——超过 4 个 cache_control block API 会返回 400，所以系统提示、CLAUDE.md、action 三处的 cache_control 加起来不能超限。
 
@@ -329,7 +321,7 @@ type AutoModeOutcome =
   | 'transcript_too_long'  // 上下文超限
 ```
 
-`transcript_too_long` 是一个特别值得注意的情况。分类器的 transcript 是从主循环的消息历史投影来的，但投影后可能比主循环上下文还大（因为主循环有 auto-compact，分类器没有）。源码里有一个 `dumpErrorPrompts` 函数（213-250 行），在 transcript 超限时把 system prompt、user prompt、context 比较信息全部 dump 到 `~/.claude/temp/auto-mode-classifier-errors/{sessionId}.txt`，方便通过 `/share` 命令收集给开发者排查。
+`transcript_too_long` 最棘手。分类器的 transcript 是从主循环的消息历史投影来的，但投影后可能比主循环上下文还大（因为主循环有 auto-compact，分类器没有）。源码里有一个 `dumpErrorPrompts` 函数（213-250 行），在 transcript 超限时把 system prompt、user prompt、context 比较信息全部 dump 到 `~/.claude/temp/auto-mode-classifier-errors/{sessionId}.txt`，方便通过 `/share` 命令收集给开发者排查。
 
 这个「投影发散」（projection divergence）问题是 auto 模式最棘手的工程挑战之一。`classifyYoloAction` 在每次调用时都会计算两个数字用于遥测：
 
@@ -345,7 +337,7 @@ const mainLoopTokens = tokenCountWithEstimation(messages)
 
 ### 4.5 acceptEdits 快路径
 
-auto 模式有一个有趣的优化：在跑分类器之前，先模拟一次 `acceptEdits` 模式的检查（`permissions.ts:605-648`）：
+auto 模式有一个优化：在跑分类器之前，先模拟一次 `acceptEdits` 模式的检查（`permissions.ts:605-648`）：
 
 ```typescript
 const acceptEditsResult = await tool.checkPermissions(parsedInput, {
@@ -361,7 +353,7 @@ if (acceptEditsResult.behavior === 'allow') {
 }
 ```
 
-如果连 acceptEdits 模式（自动接受工作目录内的编辑）都会允许这个操作，那就没必要再花一次 API 调用让分类器确认了——直接放行。这把分类器的调用成本省在了「明显安全的操作」上，只在 acceptEdits 也会询问的场景（例如 Bash 命令、关键路径文件写入）才真正调用分类器。
+如果连 acceptEdits 模式（自动接受工作目录内的编辑）都会允许这个操作，那就没必要再花一次 API 调用让分类器确认了——直接放行。这把分类器的调用成本省在了「明显安全的操作」上，只在 acceptEdits 也会询问的场景（例如 Bash 命令、关键路径文件写入）才调用分类器。
 
 但有两个工具被显式排除在这个快路径之外：
 
@@ -398,7 +390,7 @@ export type ToolPermissionContext = {
 
 - `alwaysAllowRules` / `alwaysDenyRules` / `alwaysAskRules` 按 `PermissionRuleSource` 分桶。source 有 8 种：`userSettings` / `projectSettings` / `localSettings` / `flagSettings` / `policySettings` / `cliArg` / `command` / `session`。这种分桶让权限规则有**优先级**：policy 永远覆盖 user，session 是临时的（用户在当前会话里选了「always allow」就加到 session 桶）
 
-这 8 种 source 的优先级关系不是简单的「后写覆盖先写」，而是有严格的层级。`policySettings` 是企业策略，优先级最高，用户无法覆盖；`flagSettings` 是 feature flag 注入的规则，通常用于 A/B 测试新的安全策略；`userSettings` / `projectSettings` / `localSettings` 是用户可控的三档，分别对应全局、项目共享、项目本地（不进 git）；`cliArg` 是命令行参数传入的，进程级；`command` 是 `/permissions` 命令运行时添加的；`session` 是用户在权限弹窗里选「don't ask again」时添加的临时规则。
+这 8 种 source 的优先级有严格的层级。`policySettings` 是企业策略，优先级最高，用户无法覆盖；`flagSettings` 是 feature flag 注入的规则，通常用于 A/B 测试新的安全策略；`userSettings` / `projectSettings` / `localSettings` 是用户可控的三档，分别对应全局、项目共享、项目本地（不进 git）；`cliArg` 是命令行参数传入的，进程级；`command` 是 `/permissions` 命令运行时添加的；`session` 是用户在权限弹窗里选「don't ask again」时添加的临时规则。
 
 在 `hasPermissionsToUseToolInner` 的决策链里，deny 规则在所有 source 上都会被检查——任何一个 source 有 deny，就立即 deny。但 allow 规则只在「没有 deny、没有 ask 规则、mode 允许」的情况下才生效。这种「deny 一票否决、allow 需要全员不反对」的设计，让高优先级 source（如 policy）可以通过 deny 阻止低优先级 source（如 session）的 allow，但反过来不行。
 
@@ -441,7 +433,7 @@ export type PermissionAskDecision<Input> = {
 
 ### 5.2 PermissionDecisionReason：决策的可解释性
 
-每个决策都附带一个 `decisionReason`，在 `permissions.ts:271-324` 定义了 11 种 reason 类型：
+每个决策都附带一个 `decisionReason`，在 `src/types/permissions.ts:271-324` 定义了 11 种 reason 类型：
 
 ```typescript
 export type PermissionDecisionReason =
@@ -458,13 +450,7 @@ export type PermissionDecisionReason =
   | { type: 'other'; reason: string }
 ```
 
-这个 reason 不只是给日志看——它直接影响后续行为。例如 `safetyCheck` 有一个 `classifierApprovable` 布尔：
-
-```typescript
-| { type: 'safetyCheck'; reason: string; classifierApprovable: boolean }
-```
-
-源码注释解释了它的语义：
+这个 reason 不只是给日志看——它直接影响后续行为。例如 `safetyCheck` 带一个 `classifierApprovable` 布尔，源码注释解释了它的语义：
 
 > When true, auto mode lets the classifier evaluate this instead of forcing a prompt. True for sensitive-file paths (.claude/, .git/, shell configs) — the classifier can see context and decide. False for Windows path bypass attempts and cross-machine bridge messages.
 
@@ -519,7 +505,7 @@ export function shouldFallbackToPrompting(state: DenialTrackingState): boolean {
 
 ### 6.1 denial 在 UI 上的反馈
 
-`useCanUseTool.tsx:77-89` 里能看到，当分类器决策被覆盖（用户拒绝了分类器判定 allow 的操作）时，UI 会推一条通知：
+`useCanUseTool.tsx:77-89` 里能看到，当分类器判定 block、操作被 deny 时，UI 会推一条通知：
 
 ```typescript
 if (feature("TRANSCRIPT_CLASSIFIER") && result.decisionReason?.type === "classifier" && result.decisionReason.classifier === "auto-mode") {
@@ -537,7 +523,7 @@ if (feature("TRANSCRIPT_CLASSIFIER") && result.decisionReason?.type === "classif
 }
 ```
 
-「denied by auto mode」这条提示告诉用户：是分类器判定要 block 的，不是用户主动拒绝。同时调用 `recordAutoModeDenials`（不同于 `denialTracking.ts`，是另一个模块）记录被分类器阻止的具体操作。这是给用户一个「我可以看到 AI 替我做了什么决定」的透明度——auto 模式不是黑箱，每一次阻止都有记录。
+「denied by auto mode」这条提示告诉用户：是分类器判定要 block 的，不是用户主动拒绝。同时调用 `recordAutoModeDenial`（不同于 `denialTracking.ts`，是另一个模块）记录被分类器阻止的具体操作。这是给用户一个「我可以看到 AI 替我做了什么决定」的透明度——auto 模式不是黑箱，每一次阻止都有记录。
 
 ### 6.2 dangerousPatterns：进入 auto 模式时的清理
 
@@ -609,17 +595,13 @@ async function handleCoordinatorPermission(params): Promise<PermissionDecision |
 
 ```typescript
 async function handleSwarmWorkerPermission(params): Promise<PermissionDecision | null> {
-  if (!isAgentSwarmsEnabled() || !isSwarmWorker()) {
-    return null
-  }
-
+  if (!isAgentSwarmsEnabled() || !isSwarmWorker()) return null
   // 先尝试分类器自动放行
   const classifierResult = feature('BASH_CLASSIFIER')
     ? await ctx.tryClassifier?.(params.pendingClassifierCheck, updatedInput)
     : null
   if (classifierResult) return classifierResult
-
-  // 转发给 leader
+  // 转发给 leader，并注册回调；等待指示器交给 setAppState
   const request = createPermissionRequest({ ... })
   registerPermissionCallback({
     requestId: request.id,
@@ -628,16 +610,10 @@ async function handleSwarmWorkerPermission(params): Promise<PermissionDecision |
     onReject(...) { ... },
   })
   void sendPermissionRequestViaMailbox(request)
-
-  // 设置等待指示器
-  ctx.toolUseContext.setAppState(prev => ({
-    ...prev,
-    pendingWorkerRequest: { toolName: ctx.tool.name, toolUseId: ctx.toolUseID, description },
-  }))
 }
 ```
 
-关键设计：**先尝试分类器自动放行，不行再转发给 leader**。这样能减少 leader 的打扰次数——swarm worker 自己能判断的操作不打扰 leader，只有真正需要人类判断的才转发。
+关键设计：**先尝试分类器自动放行，不行再转发给 leader**。这样能减少 leader 的打扰次数——swarm worker 自己能判断的操作不打扰 leader，只有需要人类判断的才转发。
 
 转发通过 mailbox 机制（`sendPermissionRequestViaMailbox`），leader 端的 `useSwarmPermissionPoller` 轮询邮箱，拿到请求后走自己的 `useCanUseTool` 流程，再把结果通过 `onAllow` / `onReject` 回调传回 worker。
 
@@ -646,6 +622,8 @@ async function handleSwarmWorkerPermission(params): Promise<PermissionDecision |
 `src/hooks/toolPermission/handlers/interactiveHandler.ts`（536 行）是最复杂的处理器，因为主 agent 的对话框需要同时支持：本地键盘输入、bridge 远程响应（claude.ai 网页端）、channel 中继（Telegram/iMessage 等）、hook 自动决策、分类器自动放行。这五条路径**同时 race**，谁先响应谁赢。
 
 这五条路径并非对等。本地键盘是默认路径，UI 上可见；bridge 和 channel 是远程路径，通过 MCP 通知机制把请求推到用户的手机或网页；hook 和分类器是自动路径，不需要用户介入。当用户在手机上点「allow」时，本地对话框需要立即关闭；反之，如果用户在终端先按了回车，手机上那条 pending 请求也要被取消。这种双向同步靠 `createResolveOnce` 的 `claim()` 机制保证一致性。
+
+![权限弹窗五路赛跑，谁先响应谁赢](/images/claudecode/06-interactive-race.svg)
 
 race 的同步原语是 `createResolveOnce`：
 
@@ -692,7 +670,7 @@ const unsubscribe = bridgeCallbacks.onResponse(bridgeRequestId, response => {
 })
 ```
 
-源码注释提到一个有趣的细节：「All tools are forwarded — CCR's generic allow/deny modal handles any tool, and can return `updatedInput` when it has a dedicated renderer (e.g. plan edit)」。网页端有一个通用的 allow/deny 弹窗，能处理任何工具。对于某些有专用渲染器的工具（如 plan edit），网页端还能返回 `updatedInput`——用户在网页上修改了工具参数后，修改后的值会传回终端。这种「远程编辑参数」的能力让 bridge 不只是一个简单的 yes/no 通道，而是一个完整的远程审批界面。
+源码注释提到一个细节：「All tools are forwarded — CCR's generic allow/deny modal handles any tool, and can return `updatedInput` when it has a dedicated renderer (e.g. plan edit)」。网页端有一个通用的 allow/deny 弹窗，能处理任何工具。对于某些有专用渲染器的工具（如 plan edit），网页端还能返回 `updatedInput`——用户在网页上修改了工具参数后，修改后的值会传回终端。这种「远程编辑参数」的能力让 bridge 超出简单的 yes/no 通道，成为完整的远程审批界面。
 
 ### 7.3.2 channel 中继
 
@@ -710,7 +688,7 @@ if (
 
 源码注释解释了一个看起来像 dead code 的 guard：「Unlike the bridge block, this still guards on `requiresUserInteraction` — channel replies are pure yes/no with no `updatedInput` path. In practice the guard is dead code today: all three `requiresUserInteraction` tools (ExitPlanMode, AskUserQuestion, ReviewArtifact) return `isEnabled()===false` when channels are configured, so they never reach this handler」。这个 guard 是防御性的——虽然现在没有工具能走到这里，但万一未来有工具同时声明 `requiresUserInteraction` 又没在 channel 模式下禁用，这个 guard 会阻止它走 channel 路径（因为 channel 无法传递 `updatedInput`）。
 
-一个精妙的设计是「yes abc123」的拦截。用户在 Telegram 上回复「yes abc123」时，这条消息会被 `useManageMCPConnections.ts` 的 notification handler 在 enqueue 之前拦截，不会进入 Claude 的对话历史。`abc123` 是 `shortRequestId(ctx.toolUseID)` 生成的短 ID，用来匹配对应的 pending 请求。源码注释明确说明了这个设计：「The inbound "yes abc123" is intercepted in the notification handler BEFORE enqueue, so it never reaches Claude as a conversation turn」。如果用户回复的 ID 已经过期（对应请求已经被本地或 bridge 解决），`tryConsumeReply` 会失败，这条消息会被当作普通聊天入队。
+「yes abc123」的拦截是另一处细节。用户在 Telegram 上回复「yes abc123」时，这条消息会被 `useManageMCPConnections.ts` 的 notification handler 在 enqueue 之前拦截，不会进入 Claude 的对话历史。`abc123` 是 `shortRequestId(ctx.toolUseID)` 生成的短 ID，用来匹配对应的 pending 请求。源码注释明确说明了这个设计：「The inbound "yes abc123" is intercepted in the notification handler BEFORE enqueue, so it never reaches Claude as a conversation turn」。如果用户回复的 ID 已经过期（对应请求已经被本地或 bridge 解决），`tryConsumeReply` 会失败，这条消息会被当作普通聊天入队。
 
 ### 7.4 speculative classifier check
 
@@ -802,7 +780,7 @@ type PermissionPromptOption<T extends string> = {
 { label: 'No', value: 'no' },
 ```
 
-注意 CC 不是用 `y/n/a/d` 这种单键快捷键（那是用户简述里的简化说法），而是用方向键 + 回车的 Select 组件。每个选项可以有 `keybinding`，但实际的键位由 `useKeybindings` hook 统一管理。
+CC 用的是方向键 + 回车的 Select 组件，每个选项可以有 `keybinding`，实际的键位由 `useKeybindings` hook 统一管理。
 
 ### 8.2 「don't ask again」语义
 
@@ -889,9 +867,9 @@ const EXPLAIN_COMMAND_TOOL = {
 - 分类器（`yoloClassifier`）：决定 allow / block，影响是否打扰用户
 - explainer（`permissionExplainer`）：只在弹窗已经显示时跑，生成给用户看的风险解释，不影响决策
 
-explainer 通过 `extractConversationContext` 抽取最近 3 条 assistant 消息的文本，作为「为什么模型要跑这个命令」的上下文。这是为了让解释不只是「这个命令做什么」，而是「为什么在这个对话上下文里要做这个」。
+explainer 通过 `extractConversationContext` 抽取最近 3 条 assistant 消息的文本，作为「为什么模型要跑这个命令」的上下文。解释因此带上了对话语境：为什么在此时此刻要做这个操作。
 
-explainer 的实现有一个细节值得注意：它用主循环模型（`getMainLoopModel()`）而不是单独的小模型。这意味着 explainer 的调用成本和主循环一致——每次弹窗都会触发一次完整的 API 调用。为了控制成本，explainer 有 1000 字符的 context 截断（`maxChars = 1000`），并且只取最后 3 条 assistant 消息。如果主循环模型是 Opus，每次弹窗都要花一次 Opus 调用的钱——这是为什么 explainer 默认开启但可以通过 `permissionExplainerEnabled: false` 关闭。
+explainer 用主循环模型（`getMainLoopModel()`），不用单独的小模型。这意味着 explainer 的调用成本和主循环一致——每次弹窗都会触发一次完整的 API 调用。为了控制成本，explainer 有 1000 字符的 context 截断（`maxChars = 1000`），并且只取最后 3 条 assistant 消息。如果主循环模型是 Opus，每次弹窗都要花一次 Opus 调用的钱——这是为什么 explainer 默认开启但可以通过 `permissionExplainerEnabled: false` 关闭。
 
 ### 8.4 auto-approve 的视觉反馈
 
@@ -912,7 +890,7 @@ checkmarkTransitionTimer = setTimeout(() => {
 
 ## 九、与工具系统的集成
 
-权限系统不是孤立的——它和工具系统深度耦合。每个工具通过 `Tool` 接口上的几个方法参与权限决策（详见系列第 3 篇）：
+权限系统和工具系统深度耦合。每个工具通过 `Tool` 接口上的几个方法参与权限决策（详见系列第 3 篇）：
 
 ```typescript
 validateInput?(input, context): Promise<ValidationResult>
@@ -924,7 +902,7 @@ isDestructive?(input): boolean
 toAutoClassifierInput(input): unknown
 ```
 
-注意 CC 走的是**函数式权限判定**，而不是声明式的 `permissions: { required: PermissionType[] }`。每个工具自己实现 `checkPermissions`，根据 input 动态返回决策。这比声明式更灵活——`BashTool` 可以解析 `git push --force` 这种复合命令，分别检查每个子命令；`FileEditTool` 可以根据文件路径是否在 `.git/` 下返回不同的决策。
+CC 走**函数式权限判定**，每个工具自己实现 `checkPermissions`，根据 input 动态返回决策。这比声明式的 `permissions: { required: PermissionType[] }` 更灵活——`BashTool` 可以解析 `git push --force` 这种复合命令，分别检查每个子命令；`FileEditTool` 可以根据文件路径是否在 `.git/` 下返回不同的决策。
 
 ### 9.1 checkPermissions 的返回值如何被使用
 
@@ -952,7 +930,7 @@ toAutoClassifierInput(input): unknown
 - 返回对象：分类器会把它序列化后作为 transcript 的一部分
 - 返回字符串：直接作为 transcript 文本
 
-源码里有一处防御性处理值得注意：
+源码里有一处防御性处理：
 
 ```typescript
 try {
@@ -978,15 +956,17 @@ try {
 | Bypass-immune 路径 | 有（`.git/`、`.claude/`、shell 配置、内容级 ask 规则） | 无 | 由沙箱保证 |
 | 远程审批 | bridge（claude.ai）+ channel（Telegram/iMessage） | 无 | 无 |
 | Swarm 转发 | mailbox 机制，先试分类器再转发 | 无 swarm | 无 swarm |
-| 决策可解释性 | `PermissionDecisionReason` 10 种类型 | 简单文本 | 简单文本 |
+| 决策可解释性 | `PermissionDecisionReason` 11 种类型 | 简单文本 | 简单文本 |
 
 几个值得展开的对比点：
 
 **CC vs Codex 的安全哲学**。Codex 把安全押在沙箱上——所有写入先到沙箱文件系统，用户确认后才 apply 到真实环境。好处是 AI 永远无法直接破坏用户数据，坏处是沙箱和真实环境的差异可能导致 apply 失败。CC 把安全押在权限系统上——AI 直接操作真实环境，但每次操作前都过一道由「规则 + 模式 + 分类器 + UI」共同决定的闸门。好处是没有沙箱 apply 的延迟和失败，坏处是一旦闸门失守（例如 bypass 模式 + 模型犯错），破坏是即时的。
 
-**CC 的 AI 分类器是独一份**。OpenCode 和 Codex 都没有用 AI 模型来做权限决策——它们的「auto」模式本质上是「按规则放行」，规则没匹配到就问。CC 的 auto 模式是真正让一个独立模型看完整 transcript 来判断「这次操作是否安全」，这是把 LLM 用在安全决策上的少数生产案例。代价是每次工具调用都可能触发一次额外的 API 调用（虽然有 acceptEdits 快路径和 speculative check 优化）。
+**CC 的 AI 分类器是独一份**。OpenCode 和 Codex 都没有用 AI 模型来做权限决策——它们的「auto」模式本质上是「按规则放行」，规则没匹配到就问。CC 的 auto 模式让一个独立模型看完整 transcript 来判断「这次操作是否安全」，这是把 LLM 用在安全决策上的少数生产案例。代价是每次工具调用都可能触发一次额外的 API 调用（虽然有 acceptEdits 快路径和 speculative check 优化）。
 
 **Denial tracking 也是 CC 独有**。这个看似简单的双计数器机制，解决了一个其他框架都没认真对待的问题：当用户对 AI 的自主决策不满意时，如何让 AI 逐步退回到「每次都问」的保守模式。OpenCode 和 Codex 的 auto 模式没有这种「自我降级」机制——用户只能手动切回 ask 模式。
+
+权限系统是 CC 整个安全模型的支柱。理解了它，就能理解为什么 CC 敢于在没有沙箱的情况下让 AI 直接操作真实环境——因为它把「是否允许这次操作」的决策，分散到了模式、规则、AI 分类器、UI 交互四个维度上，每个维度都有自己的 fail-safe，组合起来形成了一个比单一沙箱更精细的安全网。下一篇 MCP 集成架构会展开 CC 如何把外部工具纳入这个权限体系。
 
 ## 十一、源码索引
 
@@ -1038,8 +1018,6 @@ try {
 - `src/Tool.ts`（792 行）：`checkPermissions` / `validateInput` / `preparePermissionMatcher` / `toAutoClassifierInput` 等方法定义
 - `src/types/tools.ts`：`ToolProgressData` 等周边类型
 
-权限系统是 CC 整个安全模型的支柱。理解了它，就能理解为什么 CC 敢于在没有沙箱的情况下让 AI 直接操作真实环境——因为它把「是否允许这次操作」的决策，分散到了模式、规则、AI 分类器、UI 交互四个维度上，每个维度都有自己的 fail-safe，组合起来形成了一个比单一沙箱更精细的安全网。下一篇 MCP 集成架构会展开 CC 如何把外部工具纳入这个权限体系。
-
 ## 章节小测
 
 <script setup>
@@ -1047,10 +1025,10 @@ const q = [
   {
     question: 'Claude Code 在无沙箱的前提下把安全责任放在权限系统上，其核心决策链的设计哲学是什么？',
     options: [
-      '以 allow 为默认策略只要任一维度同意就放行操作',
-      '以 deny 为优先而 allow 需各维度共识任一维度可否决',
-      '完全交由 AI 分类器决策用户全程不参与审批过程',
-      '所有决策退化为用户手动确认不给 AI 放权空间'
+      "'以 allow 为默认只要任一维度同意就放行操作'",
+      "'deny 优先而 allow 需要各维度共识'",
+      "'完全交由 AI 分类器决策用户全程不参与审批'",
+      "'所有决策退化为用户手动确认不给 AI 放权'"
     ],
     correct: 1,
     explanation: '决策链中 allow 需要模式、规则、分类器都不反对，而 deny 只需要任意一个维度触发。safetyCheck 和内容级 ask 规则甚至 bypass-immune——即使用户开了 bypass 模式也必须触发确认。这种设计在没有沙箱的情况下仍能保证基本安全。'
@@ -1058,21 +1036,21 @@ const q = [
   {
     question: 'auto 模式的 AI 分类器采用两阶段设计（stage 1 fast + stage 2 thinking），其哲学是什么？',
     options: [
-      'stage 1 偏向放行求速度而 stage 2 做严格复核',
-      'stage 1 偏向阻止宁可误拦再由 stage 2 二次复核',
-      '两阶段之间完全独立无信息共享与决策依赖关系',
-      'stage 2 纯日志记录用途对实际决策不产生影响'
+      "'stage 1 偏向放行求速度而 stage 2 做严格复核'",
+      "'stage 1 偏向阻止宁可误拦再由 stage 2 复核'",
+      "'两阶段完全独立无信息共享与决策依赖关系'",
+      "'stage 2 纯日志记录用途对实际决策不产生影响'"
     ],
     correct: 1,
-    explanation: 'stage 1 的 suffix 要求「Err on the side of blocking」，偏向保守阻止；stage 2 要求 review 分类过程确保准确。如果 stage 1 误判为 allow，用户顶多被多打扰一次；但如果 stage 1 误判为 block（实际安全），还有 stage 2 复核纠正。两阶段的偏向互相抵消达到平衡。'
+    explanation: 'stage 1 的 suffix 要求「Err on the side of blocking」，偏向保守阻止；stage 2 要求 review 分类过程确保准确。两阶段消除的是 stage 1 的误拦——block 了实际安全的操作，由 stage 2 推理复核纠正。stage 1 的 allow 没有二次确认，误放行只能靠 stage 1 自身的保守偏向压低概率。'
   },
   {
     question: 'AI 分类器构建输入时为什么完全丢弃 assistant 的 text block，只保留 tool_use block？',
     options: [
-      'text block 长度远超过 tool_use 不利于分类器快速处理',
-      'assistant 文本可被模型精心构造以绕过分类器安全判定',
-      'text block 中的推理内容对工具调用的风险评估没有帮助',
-      'text block 本质是用户输入变体因此不应被分类器审视'
+      "'text block 长度远超 tool_use 不利于分类器快速处理'",
+      "'assistant 文本可被精心构造以绕过分类器安全判定'",
+      "'text block 的推理内容对风险评估没有参考帮助'",
+      "'text block 本质是用户输入变体不应被分类器审视'"
     ],
     correct: 1,
     explanation: '源码注释明确说：assistant 的 text block 是模型自写的，可能被精心构造以影响分类器决策。只保留结构化的 tool_use 调用，把模型的自我辩护排除在外，让分类器只看实际做了什么。'
@@ -1080,13 +1058,24 @@ const q = [
   {
     question: 'denial tracking 的两个计数器（consecutiveDenials 和 totalDenials）分别解决什么问题？',
     options: [
-      'consecutiveDenials 记录日志而 total 上报遥测系统',
-      '连续拒绝检测同类操作抵制而累计拒绝反映整体不满意',
-      '两者互为冗余设计任一阈值触发都能回调退至保守模式',
-      'totalDenials 用于限制单次会话的最大推理轮数'
+      "'consecutiveDenials 记录日志而 total 上报遥测系统'",
+      "'连续拒绝表明同类操作该停累计拒绝表明整体不满'",
+      "'两者互为冗余任一阈值触发都能退至保守模式'",
+      "'totalDenials 用于限制单次会话的最大推理轮数'"
     ],
     correct: 1,
-    explanation: '连续拒绝达 3 次说明这类操作用户不希望 AI 自动做，立即停止自动放行。累计拒绝达 20 次说明用户对 auto 模式整体不满，整个会话退到保守模式。recordSuccess 只重置 successive 不重置 total，因为前者是短期行为模式，后者是长期用户满意度信号。'
+    explanation: '连续拒绝达 3 次说明这类操作用户不希望 AI 自动做，立即停止自动放行。累计拒绝达 20 次说明用户对 auto 模式整体不满，整个会话退到保守模式。recordSuccess 只重置 consecutiveDenials 不重置 totalDenials，因为前者是短期行为模式，后者是长期用户满意度信号。'
+  },
+  {
+    question: 'safetyCheck 类决策（操作 .git/、.claude/、shell 配置）的 bypass-immune 设计意味着什么？',
+    options: [
+      "'这些路径即使在 bypass 模式下也必须弹窗询问'",
+      "'这些路径只在 auto 模式下询问其他模式直接放行'",
+      "'bypass 模式下跳过询问但会记录完整审计日志'",
+      "'只有 deny 规则命中这些路径时才需要用户确认'"
+    ],
+    correct: 0,
+    explanation: 'safetyCheck 覆盖 .git/、.claude/、IDE 配置、shell 配置文件等敏感路径，即使 bypassPermissions 模式、即使 PreToolUse hook 返回了 allow，也必须弹窗。但 classifierApprovable 为 true 时 auto 模式的分类器可以评估放行——跨机器 bridge 消息则为 false，必须强制询问，因为分类器无法判断另一台机器的状态。'
   }
 ]
 </script>

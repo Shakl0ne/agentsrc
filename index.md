@@ -63,14 +63,12 @@ hero:
 |---|------|------|------|
 | 01 | [整体架构与启动流程](/claudecode/01-overview) | 51 万行源码全景、Bun 运行时、React + Ink 终端 UI | ~15K |
 | 02 | [主循环：QueryEngine](/claudecode/02-mainloop) | continuation-driven 轮询、流式 API 调用循环 | ~16K |
-| 03 | [工具系统：40+ 内置工具](/claudecode/03-tools) | Tool 接口设计、20+ 工具目录、MCP 扩展 | ~14K |
+| 03 | [工具与命令系统](/claudecode/03-tools) | Tool 接口、装配线、斜杠命令三态执行 | ~15K |
 | 04 | [对话压缩：5 级机制](/claudecode/04-compact) | auto/micro/apiMicro/reactive/sessionMemory 五级 | ~16K |
-| 05 | [Agent 系统](/claudecode/05-agents) | AgentTool / Coordinator / Swarm 多级协作 | ~19K |
-| 06 | [命令系统：70+ 斜杠命令](/claudecode/06-commands) | Commander.js 解析、commit/review/mcp/memory 等 | ~15K |
-| 07 | [权限系统：7 种权限模式](/claudecode/07-permissions) | 5 外部 + 2 内部权限模式、AI 分类器 | ~21K |
-| 08 | [MCP 集成架构](/claudecode/08-mcp) | 4 种传输层、OAuth 认证、官方注册表 | ~18K |
-| 09 | [Bridge 桥接与远程模式](/claudecode/09-bridge) | IDE 扩展通信、JSON-RPC、Remote Session | ~10K |
-| 10 | [记忆系统与上下文注入](/claudecode/10-memory) | claude.md、memdir 持久化、SessionMemory | ~13K |
+| 05 | [Agent 系统](/claudecode/05-agents) | AgentTool 与多级协作 | ~19K |
+| 06 | [权限系统：7 种权限模式](/claudecode/06-permissions) | 5 外部 + 2 内部权限模式、AI 分类器 | ~21K |
+| 07 | [MCP 集成架构与 Bridge](/claudecode/07-mcp) | 4 种传输层、OAuth 认证、Bridge 桥接 | ~18K |
+| 08 | [记忆系统与上下文注入](/claudecode/08-memory) | CLAUDE.md 六层注入、memdir、AutoDream 空闲整合 | ~13K |
 
 <p class="catalog-cta"><a href="claudecode/01-overview" class="VPButton medium brand">开始阅读 →</a></p>
 

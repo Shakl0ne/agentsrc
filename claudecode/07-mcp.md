@@ -1,12 +1,20 @@
 ---
-title: Claude Code MCP 集成架构：4 种传输层与扩展生态
+title: Claude Code MCP 集成架构：4 种传输层与远程控制
 ---
 
-# Claude Code MCP 集成架构：4 种传输层与扩展生态
+# Claude Code MCP 集成架构：4 种传输层与远程控制
 
-Model Context Protocol（MCP）是 Anthropic 提出的开放标准，旨在统一 AI 应用与外部工具、资源、数据源之间的交互方式。在三个主流终端 Agent（Claude Code、OpenCode、Codex）中，Claude Code 对 MCP 的支持最为完整——从传输层、鉴权、资源配置到官方注册表、通道权限、插件生态，几乎覆盖了协议的全部能力。本文从源码层面拆解 Claude Code 的 MCP 集成：先看配置类型与传输层，再看客户端管理器与连接生命周期，最后覆盖鉴权、UI、插件系统与横向对比。
+想象你在通勤地铁上用手机打开 claude.ai，接着早上没跑完的重构继续下指令——真正执行命令的进程，是家里那台连着大显示器的 Mac。手机只是遥控器：代码修改、权限审批、实时输出，全发生在另一头的本地进程里。
 
-MCP 协议本身基于 JSON-RPC 2.0，定义了三类核心能力：tools（工具调用）、resources（资源读取）、prompts（提示模板）。Client 与 server 之间的交互遵循「initialize → 协商 capabilities → list tools/resources → call tool → cleanup」的生命周期。Claude Code 作为 MCP client，需要管理多个 server 连接、处理鉴权、转换工具结果格式、在 UI 上展示连接状态——这套完整的工程实现，是理解「一个 Agent 如何安全地扩展外部能力」的最佳样本。
+一个终端 CLI 怎么把外部工具接进来，又怎么被网页和手机「隔着空气」控制？
+
+Claude Code 的答案分两块：对外，MCP 把第三方工具与数据源接进工具池；对内，Bridge 把本地会话桥接到远程端。这一篇先拆 MCP 集成——传输层、鉴权、连接状态机；再收一节 Bridge——本地执行、远程控制的架构。你会看到：
+
+- 第一，四种传输层各适配什么场景，SSE 长连接的超时陷阱怎么绕开；
+- 第二，一个 MCP server 从配置到可调用要过哪些状态，断了怎么自动重连；
+- 第三，Bridge 怎么让远程端审批权限、编辑参数，而本地 CLI 毫无感知。
+
+MCP 协议基于 JSON-RPC 2.0，定义 tools（工具调用）、resources（资源读取）、prompts（提示模板）三类能力，交互遵循「initialize → 协商 capabilities → list → call → cleanup」的生命周期。工具与命令的装配在第三篇、权限闸门在第六篇，这里聚焦外部能力的接入与远程控制的通道。
 
 ## 一、MCP 服务概览
 
@@ -33,11 +41,7 @@ Claude Code 的 MCP 实现集中在 `src/services/mcp/` 目录，共 23 个文�
 `src/services/mcp/types.ts` 用 Zod 定义了所有 MCP server 配置，通过 `type` 字段做 discriminated union。核心的四种用户可配置传输层如下：
 
 ```ts
-// src/services/mcp/types.ts
-export const TransportSchema = lazySchema(() =>
-  z.enum(['stdio', 'sse', 'sse-ide', 'http', 'ws', 'sdk']),
-)
-
+// src/services/mcp/types.ts（节选）
 export const McpStdioServerConfigSchema = lazySchema(() =>
   z.object({
     type: z.literal('stdio').optional(), // Optional for backwards compatibility
@@ -46,7 +50,6 @@ export const McpStdioServerConfigSchema = lazySchema(() =>
     env: z.record(z.string(), z.string()).optional(),
   }),
 )
-
 export const McpSSEServerConfigSchema = lazySchema(() =>
   z.object({
     type: z.literal('sse'),
@@ -56,31 +59,14 @@ export const McpSSEServerConfigSchema = lazySchema(() =>
     oauth: McpOAuthConfigSchema().optional(),
   }),
 )
-
-export const McpHTTPServerConfigSchema = lazySchema(() =>
-  z.object({
-    type: z.literal('http'),
-    url: z.string(),
-    headers: z.record(z.string(), z.string()).optional(),
-    headersHelper: z.string().optional(),
-    oauth: McpOAuthConfigSchema().optional(),
-  }),
-)
-
-export const McpWebSocketServerConfigSchema = lazySchema(() =>
-  z.object({
-    type: z.literal('ws'),
-    url: z.string(),
-    headers: z.record(z.string(), z.string()).optional(),
-    headersHelper: z.string().optional(),
-  }),
-)
+// McpHTTPServerConfigSchema 与 SSE 同构，仅 type 为 'http'；
+// McpWebSocketServerConfigSchema 少一个 oauth 字段
 ```
 
-除上述四种主传输层外，还有三种内部专用类型：
+除上述四种主传输层外，还有四类内部专用类型：
 
-- `sse-ide` / `ws-ide`：IDE 扩展专用，携带 `ideName` 与平台标记，不需要 OAuth 鉴权（走 IDE 提供的 authToken）。
-- `sdk`：SDK 进程内 MCP server，配置只含 `name`，不经过常规传输层，而是通过 `SdkControlTransport` 桥接（见后文）。
+- `sse-ide` / `ws-ide`：IDE 扩展专用，携带 `ideName` 与平台标记，不需要 OAuth 鉴权（`ws-ide` 走 IDE 提供的 authToken）。
+- `sdk`：SDK 进程内 MCP server，配置只含 `name`，不经过常规传输层，经由 `SdkControlTransport` 桥接（见后文）。
 - `claudeai-proxy`：Claude.ai 云端代理的 MCP server，配置含 `url` 和 `id`，连接时用 Claude.ai 的 OAuth token 走 Streamable HTTP。
 
 最终 `McpServerConfigSchema` 是这八种配置的 union：
@@ -168,7 +154,7 @@ stdio 是最常用的传输层，适用于本地工具。Claude Code 通过 `Std
 }
 ```
 
-两个细节值得注意。第一，`CLAUDE_CODE_SHELL_PREFIX` 环境变量允许把整个命令包一层 shell 前缀（如 `docker exec -i container`），此时 command 和 args 会被拼成单条字符串传给 shell。第二，`stderr: 'pipe'` 把子进程的标准错误重定向到管道，由专门的 `stderrHandler` 累积（上限 64 MB），连接成功后一次性输出到日志、连接失败时附带在错误信息里——这避免了 server 的调试输出污染终端 UI。
+两个细节。第一，`CLAUDE_CODE_SHELL_PREFIX` 环境变量允许把整个命令包一层 shell 前缀（如 `docker exec -i container`），此时 command 和 args 会被拼成单条字符串传给 shell。第二，`stderr: 'pipe'` 把子进程的标准错误重定向到管道，由专门的 `stderrHandler` 累积（上限 64 MB），连接成功后一次性输出到日志、连接失败时附带在错误信息里——这避免了 server 的调试输出污染终端 UI。
 
 stdio 还有一个特殊分支：Chrome MCP server 和 Computer Use MCP server 会被「进程内化」。以 Chrome 为例，正常 spawn 一个 Chrome MCP 子进程要吃掉约 325 MB 内存，因此 Claude Code 选择用 `InProcessTransport` 在主进程内直接跑 server，省掉子进程开销（`client.ts:905`）。这两类 server 走的是 `feature('CHICAGO_MCP')` 灰度门控——Computer Use 能力还在灰度阶段，未全量开放。
 
@@ -182,42 +168,21 @@ SSE（Server-Sent Events）用于远程 server 连接，是 HTTP 长连接流式
 if (serverRef.type === 'sse') {
   const authProvider = new ClaudeAuthProvider(name, serverRef)
   const combinedHeaders = await getMcpServerHeaders(name, serverRef)
-
   const transportOptions: SSEClientTransportOptions = {
     authProvider,
     fetch: wrapFetchWithTimeout(
       wrapFetchWithStepUpDetection(createFetchWithInit(), authProvider),
     ),
-    requestInit: {
-      headers: {
-        'User-Agent': getMCPUserAgent(),
-        ...combinedHeaders,
-      },
-    },
+    requestInit: { headers: { 'User-Agent': getMCPUserAgent(), ...combinedHeaders } },
   }
-
-  // EventSource 是长连接，不能用 60s 超时包装
-  transportOptions.eventSourceInit = {
-    fetch: async (url: string | URL, init?: RequestInit) => {
-      const authHeaders: Record<string, string> = {}
+  transportOptions.eventSourceInit = { // EventSource 长连接，不能套 60s 超时
+    fetch: async (url, init) => {
       const tokens = await authProvider.tokens()
-      if (tokens) {
-        authHeaders.Authorization = `Bearer ${tokens.access_token}`
-      }
-      return fetch(url, {
-        ...init,
-        ...getProxyFetchOptions(),
-        headers: {
-          'User-Agent': getMCPUserAgent(),
-          ...authHeaders,
-          ...init?.headers,
-          ...combinedHeaders,
-          Accept: 'text/event-stream',
-        },
-      })
+      return fetch(url, { ...init, ...getProxyFetchOptions(), headers: {
+        Authorization: tokens ? `Bearer ${tokens.access_token}` : '',
+        ...combinedHeaders, Accept: 'text/event-stream' } })
     },
   }
-
   transport = new SSEClientTransport(new URL(serverRef.url), transportOptions)
 }
 ```
@@ -232,33 +197,22 @@ HTTP 传输层对应 MCP 协议的 Streamable HTTP，用 `StreamableHTTPClientTr
 } else if (serverRef.type === 'http') {
   const authProvider = new ClaudeAuthProvider(name, serverRef)
   const combinedHeaders = await getMcpServerHeaders(name, serverRef)
-
-  // 若 server 已有 OAuth token，authProvider 会设置 Authorization；
-  // 此时不要用 session ingress token 覆盖
+  // 若 server 已有 OAuth token，不要用 session ingress token 覆盖
   const hasOAuthTokens = !!(await authProvider.tokens())
-
   const transportOptions: StreamableHTTPClientTransportOptions = {
     authProvider,
     fetch: wrapFetchWithTimeout(
       wrapFetchWithStepUpDetection(createFetchWithInit(), authProvider),
     ),
-    requestInit: {
-      ...getProxyFetchOptions(),
-      headers: {
-        'User-Agent': getMCPUserAgent(),
-        ...(sessionIngressToken &&
-          !hasOAuthTokens && {
-            Authorization: `Bearer ${sessionIngressToken}`,
-          }),
-        ...combinedHeaders,
-      },
-    },
+    requestInit: { ...getProxyFetchOptions(), headers: {
+      'User-Agent': getMCPUserAgent(),
+      ...(sessionIngressToken && !hasOAuthTokens && {
+        Authorization: `Bearer ${sessionIngressToken}`,
+      }),
+      ...combinedHeaders,
+    } },
   }
-
-  transport = new StreamableHTTPClientTransport(
-    new URL(serverRef.url),
-    transportOptions,
-  )
+  transport = new StreamableHTTPClientTransport(new URL(serverRef.url), transportOptions)
 }
 ```
 
@@ -272,31 +226,21 @@ WebSocket 是四种传输层中唯一的全双工通道，适合实时数据流�
 
 ```ts
 } else if (serverRef.type === 'ws') {
-  const combinedHeaders = await getMcpServerHeaders(name, serverRef)
-  const tlsOptions = getWebSocketTLSOptions()
   const wsHeaders = {
     'User-Agent': getMCPUserAgent(),
-    ...(sessionIngressToken && {
-      Authorization: `Bearer ${sessionIngressToken}`,
-    }),
-    ...combinedHeaders,
+    ...(sessionIngressToken && { Authorization: `Bearer ${sessionIngressToken}` }),
+    ...await getMcpServerHeaders(name, serverRef),
   }
-
   let wsClient: WsClientLike
   if (typeof Bun !== 'undefined') {
     // Bun 的 WebSocket 原生支持 headers/proxy/tls
-    wsClient = new globalThis.WebSocket(serverRef.url, {
-      protocols: ['mcp'],
-      headers: wsHeaders,
-      proxy: getWebSocketProxyUrl(serverRef.url),
-      tls: tlsOptions || undefined,
-    } as unknown as string[])
+    wsClient = new globalThis.WebSocket(serverRef.url, { protocols: ['mcp'],
+      headers: wsHeaders, proxy: getWebSocketProxyUrl(serverRef.url),
+      tls: getWebSocketTLSOptions() || undefined } as unknown as string[])
   } else {
     wsClient = await createNodeWsClient(serverRef.url, {
-      headers: wsHeaders,
-      agent: getWebSocketProxyAgent(serverRef.url),
-      ...(tlsOptions || {}),
-    })
+      headers: wsHeaders, agent: getWebSocketProxyAgent(serverRef.url),
+      ...(getWebSocketTLSOptions() || {}) })
   }
   transport = new WebSocketTransport(wsClient)
 }
@@ -346,6 +290,8 @@ export type ConnectedMCPServer = {
 
 这五种状态的区分不仅是 UI 展示的需要，更直接影响连接调度逻辑。`getMcpToolsCommandsAndResources` 在批量连接前会先过滤 disabled server；`NeedsAuthMCPServer` 会触发 `/mcp` 鉴权菜单的引导提示；`PendingMCPServer` 的 reconnectAttempt 字段让 UI 能显示「重连中（2/5）」的进度条。这种「状态驱动 UI、UI 反馈状态」的双向绑定，是 Claude Code 在复杂连接场景下仍能保持可观测性的基础。
 
+![MCP 连接五态：断了由指数退避驱动自动重连](/images/claudecode/07-mcp-connection-states.svg)
+
 ### 4.2 连接生命周期
 
 `connectToServer` 的执行路径可以概括为五步：
@@ -373,7 +319,7 @@ sequenceDiagram
 连接建立后，Client 注册了三个关键 handler：
 
 1. **`ListRootsRequestSchema`**：当 server 反向请求「客户端的根目录」时，返回当前工作目录 `file://${getOriginalCwd()}`。这让 server 能感知用户在哪个项目下工作。
-2. **`ElicitRequestSchema`**：初始化阶段的默认 handler 直接返回 `cancel`，防止 server 在 UI 注册真正的 handler 之前发起 elicitation 导致丢请求。真正的 handler 由 `useManageMCPConnections` 中的 `registerElicitationHandler` 覆盖。
+2. **`ElicitRequestSchema`**：初始化阶段的默认 handler 直接返回 `cancel`，防止 server 在 UI 注册 handler 之前发起 elicitation 导致丢请求。实际的 handler 由 `useManageMCPConnections` 中的 `registerElicitationHandler` 覆盖。
 3. **`onerror` / `onclose`**：连接错误处理与重连触发。
 
 连接成功后，代码会读取三样东西：`client.getServerCapabilities()`（server 声明的能力集）、`client.getServerVersion()`（server 名称与版本）、`client.getInstructions()`（server 给模型的使用说明）。capabilities 是一个结构体，标记 server 是否支持 tools、prompts、resources、resource subscribe 等。Claude Code 据此决定后续拉取哪些内容——没有 tools capability 的 server 不会被列入工具列表。`instructions` 若超过 `MAX_MCP_DESCRIPTION_LENGTH`（2048 字符）会被截断，防止过长的说明污染系统提示。
@@ -450,7 +396,6 @@ export class ClaudeAuthProvider implements OAuthClientProvider {
   private _state?: string
   private _refreshInProgress?: Promise<OAuthTokens | undefined>
   private _pendingStepUpScope?: string
-
   get clientMetadata(): OAuthClientMetadata {
     const metadata: OAuthClientMetadata = {
       client_name: `Claude Code (${this.serverName})`,
@@ -487,7 +432,7 @@ export function buildRedirectUri(port: number = REDIRECT_PORT_FALLBACK): string 
 }
 ```
 
-`findAvailablePort()` 先尝试环境变量 `MCP_OAUTH_CALLBACK_PORT` 指定的端口，否则在动态端口范围内随机选（最多尝试 100 次），最后回退到 3118。随机选择而非顺序扫描是为了安全性——防止攻击者预判端口发起拦截。
+`findAvailablePort()` 先尝试环境变量 `MCP_OAUTH_CALLBACK_PORT` 指定的端口，否则在动态端口范围内随机选（最多尝试 100 次），最后回退到 3118。随机选择、不顺序扫描，是为了安全性——防止攻击者预判端口发起拦截。
 
 ### 5.3 Step-up 检测与 token 刷新
 
@@ -506,7 +451,7 @@ flowchart LR
 
 具体流程是：先在 IdP 用 token exchange（RFC 8693）把 id_token 换成 ID-JAG（Identity JWT Assertion Grant），再在 AS 用 JWT bearer grant（RFC 7523）把 ID-JAG 换成 MCP access_token。这套机制主要用于企业场景——用户已在 IdP 登录，无需再为 MCP server 单独授权。`xaaIdpLogin.ts` 负责 IdP 登录流程，`xaa.ts` 负责后续的 token 交换。
 
-XAA 的请求超时设为 30 秒（`XAA_REQUEST_TIMEOUT_MS = 30000`），用 `AbortSignal.any` 合并超时信号与用户取消信号——当用户在鉴权菜单按 Esc 时，能立即中止进行中的网络请求，而非等到超时。两个 grant type 用 URN 标识：`urn:ietf:params:oauth:grant-type:token-exchange`（RFC 8693）和 `urn:ietf:params:oauth:grant-type:jwt-bearer`（RFC 7523），token type 分别为 `id_token` 和 `id-jag`。这套链式 token 交换的设计遵循 MCP 的 ext-auth 规范（SEP-990），结构上对齐 TS SDK PR #1593 的 Layer-2 接口，便于未来 SDK 升级时机械替换。
+XAA 的请求超时设为 30 秒（`XAA_REQUEST_TIMEOUT_MS = 30000`），用 `AbortSignal.any` 合并超时信号与用户取消信号——当用户在鉴权菜单按 Esc 时，能立即中止进行中的网络请求，不等超时。两个 grant type 用 URN 标识：`urn:ietf:params:oauth:grant-type:token-exchange`（RFC 8693）和 `urn:ietf:params:oauth:grant-type:jwt-bearer`（RFC 7523），token type 分别为 `id_token` 和 `id-jag`。这套链式 token 交换的设计遵循 MCP 的 ext-auth 规范（SEP-990），结构上对齐 TS SDK PR #1593 的 Layer-2 接口，便于未来 SDK 升级时机械替换。
 
 ### 5.5 动态 headers
 
@@ -518,28 +463,18 @@ export async function getMcpHeadersFromHelper(
   config: McpSSEServerConfig | McpHTTPServerConfig | McpWebSocketServerConfig,
 ): Promise<Record<string, string> | null> {
   if (!config.headersHelper) return null
-
   // 项目级配置需要先通过 trust 检查
-  if (
-    'scope' in config &&
+  if ('scope' in config &&
     isMcpServerFromProjectOrLocalSettings(config as ScopedMcpServerConfig) &&
-    !getIsNonInteractiveSession()
-  ) {
-    const hasTrust = checkHasTrustDialogAccepted()
-    if (!hasTrust) {
-      // 未信任的项目不允许执行 headersHelper
-      return null
-    }
+    !getIsNonInteractiveSession() &&
+    !checkHasTrustDialogAccepted()) {
+    return null // 未信任的项目不允许执行 headersHelper
   }
-
   const execResult = await execFileNoThrowWithCwd(config.headersHelper, [], {
     shell: true,
     timeout: 10000,
-    env: {
-      ...process.env,
-      CLAUDE_CODE_MCP_SERVER_NAME: serverName,
-      CLAUDE_CODE_MCP_SERVER_URL: config.url,
-    },
+    env: { ...process.env, CLAUDE_CODE_MCP_SERVER_NAME: serverName,
+      CLAUDE_CODE_MCP_SERVER_URL: config.url },
   })
   // ...解析 JSON 输出为 headers
 }
@@ -573,7 +508,7 @@ export function expandEnvVarsInString(value: string): {
 }
 ```
 
-支持两种语法：`${VAR}` 直接展开，`${VAR:-default}` 带默认值（与 shell 一致）。`split(':-', 2)` 限制了 split 次数，确保默认值本身包含 `:-` 时不会被误切。缺失的变量会被收集到 `missingVars` 数组，由上层报错而非静默使用空值——这很重要，因为一个空的数据库连接串或 API key 可能导致 server 行为异常但难以排查根因。
+支持两种语法：`${VAR}` 直接展开，`${VAR:-default}` 带默认值（与 shell 一致）。`split(':-', 2)` 限制了 split 次数，确保默认值本身包含 `:-` 时不会被误切。缺失的变量会被收集到 `missingVars` 数组，由上层报错，不静默使用空值——这很重要，因为一个空的数据库连接串或 API key 可能导致 server 行为异常但难以排查根因。
 
 `config.ts` 的 `expandEnvVars` 按配置类型递归展开：stdio 展开 `command`/`args`/`env`，远程类型展开 `url`/`headers`，IDE 和 SDK 类型直接透传。展开发生在配置加载阶段（`addMcpConfig` 调用前），确保运行期拿到的配置已经是最终值。`addMcpConfig` 函数本身还做了一系列校验：名称合法性（仅允许字母、数字、下划线、连字符）、保留名检查（`claude-in-chrome`、Computer Use 相关名称）、同名 server 冲突检测，最后才写入对应 scope 的配置文件。
 
@@ -603,14 +538,12 @@ Claude.ai 来源的 server 名会做额外处理：折叠连续下划线并去�
 
 ### 7.1 MCPTool：统一入口
 
-`src/tools/MCPTool/MCPTool.ts` 是所有 MCP 工具的统一入口。它的设计很巧妙——本身是一个「壳」工具，几乎所有方法都被 `src/services/mcp/client.ts` 在运行期覆盖：
+`src/tools/MCPTool/MCPTool.ts` 是所有 MCP 工具的统一入口。它本身是一个「壳」工具，几乎所有方法都被 `src/services/mcp/client.ts` 在运行期覆盖：
 
 ```ts
 export const MCPTool = buildTool({
   isMcp: true,
-  isOpenWorld() {
-    return false
-  },
+  isOpenWorld() { return false },
   name: 'mcp',
   maxResultSizeChars: 100_000,
   async description() {
@@ -633,7 +566,7 @@ export const MCPTool = buildTool({
 
 `maxResultSizeChars: 100_000` 限制单次工具结果不超过 10 万字符，超出会被截断。`inputSchema` 用 `z.object({}).passthrough()` 放行任意输入——因为每个 MCP 工具定义自己的 schema，统一入口不做校验。
 
-这个设计背后有一个重要的架构决策：Claude Code 没有为每个 MCP 工具生成独立的工具定义，而是在运行期动态修改 `MCPTool` 的 `name`/`description`/`prompt`/`call` 等方法。模型看到的是多个 `mcp__{server}__{tool}` 形式的工具名，但它们共享同一个 `MCPTool` 实例的方法签名，实际调用时由 `services/mcp/client.ts` 根据 server 名和工具名路由到正确的 `callMCPTool` 调用。这种「单实例多工具」模式避免了工具注册表膨胀，也简化了权限检查的代码路径。
+这个设计背后的架构决策：`MCPTool` 的 `name`/`description`/`prompt`/`call` 等方法在运行期被逐工具改写，模型看到多个 `mcp__{server}__{tool}` 形式的工具名，但它们共享同一个 `MCPTool` 实例的方法签名，实际调用时由 `services/mcp/client.ts` 根据 server 名和工具名路由到正确的 `callMCPTool` 调用。这种「单实例多工具」模式避免了工具注册表膨胀，也简化了权限检查的代码路径。
 
 ### 7.2 资源访问
 
@@ -648,7 +581,7 @@ export const MCPTool = buildTool({
 
 `callMCPTool`（`client.ts:3029`）是实际调用 MCP 工具的函数。它做了三件事：设置 30 秒间隔的进度日志（长时工具会持续输出 `Tool 'xxx' still running (Ns elapsed)`）、用 `Promise.race` 竞争超时、调用 `client.callTool`。
 
-超时值 `getMcpToolTimeoutMs()` 默认是 `DEFAULT_MCP_TOOL_TIMEOUT_MS = 100_000_000`（约 27 小时），这是一个刻意设大的值——MCP 工具可能执行长时间任务（如跑测试、训练模型），过短的超时会误杀。真正的超时控制交给调用方（如主循环的 turn 超时）和用户手动取消（AbortSignal）。
+超时值 `getMcpToolTimeoutMs()` 默认是 `DEFAULT_MCP_TOOL_TIMEOUT_MS = 100_000_000`（约 27 小时），这是一个刻意设大的值——MCP 工具可能执行长时间任务（如跑测试、训练模型），过短的超时会误杀。超时控制交给调用方（如主循环的 turn 超时）和用户手动取消（AbortSignal）。
 
 在 `callMCPTool` 之上还有一层 `callMCPToolWithUrlElicitationRetry`（`client.ts:2813`），它处理 URL elicitation 的重试逻辑：当工具调用返回需要 elicitation 的错误码（`-32042`）时，触发 elicitation 流程让用户在浏览器完成验证，完成后重试工具调用。这形成了「调用→需验证→elicitation→重试」的闭环，对需要 OAuth 授权后才能调用的 MCP 工具尤为重要。
 
@@ -676,7 +609,7 @@ export type ElicitationRequestEvent = {
 
 URL 模式有一个两阶段流程：第一阶段用户打开浏览器，第二阶段显示等待态（带「Retry now」/「Skip confirmation」按钮）。server 通过 `ElicitationCompleteNotificationSchema` 通知完成。表单与 hook 系统集成——`executeElicitationHooks` 允许插件程序化提供响应，`executeElicitationResultHooks` 在响应完成后触发副作用 hook。
 
-elicitation 还支持错误驱动的重试场景。当工具调用返回错误码 `-32042`（需要 elicitation）时，`callMCPToolWithUrlElicitationRetry` 会捕获该错误并启动 URL elicitation 流程，用户完成浏览器操作后自动重试工具调用。这种「错误即触发」的设计让 MCP server 能按需要求用户验证，而非在连接时就强制完成所有鉴权——对于只在特定操作时需要额外授权的 server（如转账前需要二次验证），这种惰性鉴权显著降低了使用门槛。
+elicitation 还支持错误驱动的重试场景。当工具调用返回错误码 `-32042`（需要 elicitation）时，`callMCPToolWithUrlElicitationRetry` 会捕获该错误并启动 URL elicitation 流程，用户完成浏览器操作后自动重试工具调用。这种「错误即触发」的设计让 MCP server 能按需要求用户验证，不用在连接时就强制完成所有鉴权——对于只在特定操作时需要额外授权的 server（如转账前需要二次验证），这种惰性鉴权显著降低了使用门槛。
 
 ## 八、连接管理 UI 与通道系统
 
@@ -696,7 +629,7 @@ interface MCPConnectionContextValue {
 }
 ```
 
-`useMcpReconnect` 和 `useMcpToggleEnabled` 两个 hook 让任意子组件都能触发重连或启停 server，无需 prop drilling。真正的连接管理逻辑在 `useManageMCPConnections.ts` 中实现。
+`useMcpReconnect` 和 `useMcpToggleEnabled` 两个 hook 让任意子组件都能触发重连或启停 server，无需 prop drilling。连接管理逻辑本体在 `useManageMCPConnections.ts` 中实现。
 
 这个 Hook 内部维护了一套批量更新机制。MCP server 的连接回调是异步到达的（网络 I/O 时序不同），如果每次回调都触发一次 `setAppState`，React 会在短时间内频繁重渲染。为此代码用了一个 16ms 的时间窗口（`MCP_BATCH_FLUSH_MS = 16`）把多个 server 状态更新攒到一次 `setAppState` 调用中：
 
@@ -720,7 +653,7 @@ const flushPendingUpdates = useCallback(() => {
 }, [setAppState])
 ```
 
-选择 16ms（约一帧）而非 `queueMicrotask` 的原因在注释里说得很清楚：microtask 会在当前同步代码结束后立即执行，而网络 I/O 回调可能分散在不同 macrotask 中，导致 batch 不完整。16ms 时间窗口确保即使回调到达时间有偏差，也能被同一个 batch 捕获。
+选择 16ms（约一帧）、不用 `queueMicrotask` 的原因在注释里说得很清楚：microtask 会在当前同步代码结束后立即执行，而网络 I/O 回调可能分散在不同 macrotask 中，导致 batch 不完整。16ms 时间窗口确保即使回调到达时间有偏差，也能被同一个 batch 捕获。
 
 Hook 还监听 `pluginReconnectKey`——这是一个由 `/reload-plugins` 命令递增的计数器。当插件被重新加载时，`getClaudeCodeMcpConfigs()` 会读取已清缓存的插件数据，effect 重新执行后就会连接新启用的插件 MCP server。这是插件与 MCP 连接管理的衔接点。
 
@@ -742,7 +675,7 @@ export function isChannelsEnabled(): boolean {
 }
 ```
 
-白名单是插件粒度而非 server 粒度——源码注释解释了原因：如果一个插件长出了恶意的第二个 server，这个插件本身已经被攻破，逐 server 门控拦不住，反而会在无害的插件重构时误伤。
+白名单按插件粒度做门控——源码注释解释了原因：如果一个插件长出了恶意的第二个 server，这个插件本身已经被攻破，逐 server 门控拦不住，反而会在无害的插件重构时误伤。
 
 `channelPermissions.ts` 实现权限审批的中继。当 CC 遇到权限对话框时，同时通过活跃通道发送审批请求，与本地 UI / bridge / hooks / classifier 竞速，先返回者赢。用户在通道里的回复格式是严格的：
 
@@ -752,7 +685,7 @@ export function isChannelsEnabled(): boolean {
 
 5 个小写字母（不含 `l`，因为像 `1`/`I`），大小写不敏感，不允许裸 yes/no——这防止 AI 在对话流中误触发审批。server 解析用户回复后发送结构化的 `notifications/claude/channel/permission` 事件，CC 匹配 request_id 后完成审批。
 
-这套机制有一个被明确接受的安全边界：受信任的方是人类（通过通道回复），而非 Claude 本身。但信任边界不是终端，而是 allowlist（`tengu_harbor_ledger`）。源码注释坦诚记录了这个权衡——一个被攻破的通道 server 能在人类未看到提示的情况下伪造「yes」加随机 ID 的回复，但这只加速而非增强了攻击能力：被攻破的通道本就拥有无限的对话注入能力（通过长期社会工程等待 `acceptEdits` 等权限），注入后自审批只是更快，不是更强的能力。`isChannelPermissionRelayEnabled` 是独立的 GrowthBook 门控（`tengu_harbor_permissions`），默认关闭，与通道总开关（`tengu_harbor`）分离——通道可以先上线，权限中继后灰度，互不影响。
+这套机制有一个被明确接受的安全边界：信任的是人类（通过通道回复）和 allowlist（`tengu_harbor_ledger`）。源码注释坦诚记录了这个权衡——一个被攻破的通道 server 能在人类未看到提示的情况下伪造「yes」加随机 ID 的回复，但被攻破的通道本就拥有无限的对话注入能力（通过长期社会工程等待 `acceptEdits` 等权限），注入后自审批只是更快，能力没有变强。`isChannelPermissionRelayEnabled` 是独立的 GrowthBook 门控（`tengu_harbor_permissions`），默认关闭，与通道总开关（`tengu_harbor`）分离——通道可以先上线，权限中继后灰度，互不影响。
 
 `channelNotification.ts` 处理通道的通用通知机制，让通道插件能接收 CC 的状态变更（如新消息、工具调用开始/结束）。这与权限中继共享同一套通道基础设施，但走不同的 JSON-RPC notification 路径。
 
@@ -788,7 +721,7 @@ URL 规范化是注册表查询正确性的关键。`normalizeUrl` 把 URL 的 q
 
 ### 9.1 插件与 MCP 的关系
 
-插件系统位于 `src/services/plugins/`，与 MCP 是互补关系而非替代关系。核心区别：
+插件系统位于 `src/services/plugins/`，与 MCP 互补。核心区别：
 
 - **MCP server** 是外部进程，通过 JSON-RPC 通信，Claude Code 只能调用其暴露的工具/资源。
 - **插件** 是运行在 Claude Code 进程内的代码，可以提供三类能力：skills（命令）、hooks（生命周期钩子）、MCP server 配置。
@@ -800,21 +733,14 @@ URL 规范化是注册表查询正确性的关键。`normalizeUrl` 把 URL 的 q
 `builtinPlugins.ts` 管理随 CLI 发布的内置插件。插件 ID 用 `{name}@builtin` 格式区分于市场插件（`{name}@{marketplace}`）：
 
 ```ts
-export function getBuiltinPlugins(): {
-  enabled: LoadedPlugin[]
-  disabled: LoadedPlugin[]
-} {
+export function getBuiltinPlugins(): { enabled: LoadedPlugin[]; disabled: LoadedPlugin[] } {
   for (const [name, definition] of BUILTIN_PLUGINS) {
     if (definition.isAvailable && !definition.isAvailable()) continue
-
     const pluginId = `${name}@${BUILTIN_MARKETPLACE_NAME}`
     const userSetting = settings?.enabledPlugins?.[pluginId]
     // 启用状态：用户偏好 > 插件默认 > true
-    const isEnabled =
-      userSetting !== undefined
-        ? userSetting === true
-        : (definition.defaultEnabled ?? true)
-
+    const isEnabled = userSetting !== undefined
+      ? userSetting === true : (definition.defaultEnabled ?? true)
     const plugin: LoadedPlugin = {
       name,
       manifest: { name, description: definition.description, version: definition.version },
@@ -822,10 +748,9 @@ export function getBuiltinPlugins(): {
       source: pluginId,
       enabled: isEnabled,
       isBuiltin: true,
-      hooksConfig: definition.hooks,
       mcpServers: definition.mcpServers,
     }
-    // ...
+    // ...（hooksConfig 等其余字段与 disabled 分组逻辑）
   }
 }
 ```
@@ -842,7 +767,7 @@ export function getBuiltinPlugins(): {
 
 ### 9.4 进程内传输与 SDK 桥接
 
-两个特殊的传输层值得单独说明。
+还有两个特殊的传输层。
 
 `InProcessTransport.ts` 用于在主进程内运行 MCP server，不 spawn 子进程。它创建一对 linked transport，一端的 `send` 直接投递到另一端的 `onmessage`：
 
@@ -860,14 +785,80 @@ export function createLinkedTransportPair(): [Transport, Transport] {
 
 `SdkControlTransport.ts` 桥接 CLI 进程与 SDK 进程的通信。SDK MCP server 运行在 SDK 进程内，需要通过 stdout/stdin 的控制消息与 CLI 进程的 MCP client 通信。`SdkControlClientTransport`（CLI 侧）把 JSON-RPC 消息包装成带 `server_name` 和 `request_id` 的控制请求发给 SDK；`SdkControlServerTransport`（SDK 侧）接收控制请求、路由到对应 server、返回响应。消息 ID 全程保留以做关联。
 
-## 十、横向对比
+## 十、Bridge：本地执行、远程控制
+
+前面所有机制都默认用户坐在终端前。Bridge 把这个前提拆掉：CLI 会话可以通过 `src/bridge/`（31 个文件、约 1.26 万行）桥接到 claude.ai 网页端与移动 App——用户在手机上发起对话，在网页上审批权限，本地进程执行一切。第五篇 SendMessage 的 `"bridge:<session-id>"` 寻址、第六篇权限弹窗五路 race 里的 bridge 远程响应，终点都在这里。
+
+### 10.1 两种运行模式
+
+| 维度 | Standalone Bridge | REPL Bridge |
+|------|-------------------|-------------|
+| 形态 | 常驻守护进程 | 运行在 REPL 进程内 |
+| 核心文件 | `bridgeMain.ts`（2,999 行） | `replBridge.ts`（2,406 行） |
+| 会话来源 | 轮询服务器拉工作项，spawn 子 CLI 进程 | 桥接当前 REPL 会话 |
+| 数据流 | 远程端 → CCR 后端 → Bridge → 子进程 | 远程端 → CCR 后端 → REPL |
+
+Standalone Bridge 的主循环是「轮询 → 分发 → spawn → 监控」：空闲时 2 秒一次轮询工作项，满载时切到 10 分钟一次。这个 10 分钟不是拍脑袋定的，`pollConfigDefaults.ts` 的注释写明了它与服务器侧约束的换算：
+
+```ts
+// Server-side constraints that bound this value:
+// - BRIDGE_LAST_POLL_TTL = 4h (Redis key expiry → environment auto-archived)
+// - max_poll_stale_seconds = 24h (session-creation health gate, currently disabled)
+//
+// 10 minutes gives 24× headroom on the Redis TTL while still picking up
+// server-initiated token-rotation redispatches within one poll cycle.
+const POLL_INTERVAL_MS_AT_CAPACITY = 600_000
+```
+
+拉到会话请求就 spawn 一个 `--print` 模式的子 CLI 进程，以 stream-json 格式双向通信；spawn 前有幂等检查（`completedWorkIds` 集合去重服务器的重复派发）。REPL Bridge 不 spawn 子进程——REPL 自身就是被桥接的会话。多会话时 Standalone 支持三种 spawn 模式：`single-session`、`same-dir`、`worktree`——worktree 模式给每个会话独立 git worktree，防并发踩踏文件修改。
+
+![bridge 双模式：守护进程 spawn 子进程，REPL 直接桥接当前会话](/images/claudecode/07-bridge-modes.svg)
+
+### 10.2 消息协议与回声去重
+
+Bridge 的消息是自定义 SDK 格式：`type` 字段做 discriminated union，控制消息与数据消息分流。`isEligibleBridgeMessage` 过滤器只转发 `user`、`assistant` 和 `local_command` 消息——`tool_result`、progress 等 REPL 噪声留在本地。
+
+通道上有一个回声问题：Bridge 发出的消息可能被服务器回放回来。`BoundedUUIDSet`（`bridgeMessaging.ts:429`）是一个 FIFO 环形缓冲区，`recentPostedUUIDs` 记录发出的消息 UUID，收到相同 UUID 的入站消息判定为回声丢弃；`recentInboundUUIDs` 是第二道防线，防 SSE 序号协商失败时的历史重放：
+
+```ts
+export class BoundedUUIDSet {
+  private readonly ring: (string | undefined)[]
+  private readonly set = new Set<string>()
+  private writeIdx = 0
+
+  add(uuid: string): void {
+    if (this.set.has(uuid)) return
+    // Evict the entry at the current write position (if occupied)
+    const evicted = this.ring[this.writeIdx]
+    if (evicted !== undefined) {
+      this.set.delete(evicted)
+    }
+    this.ring[this.writeIdx] = uuid
+    this.writeIdx = (this.writeIdx + 1) % this.capacity
+  }
+}
+```
+
+数组管 FIFO 淘汰、`Set` 管 O(1) 查询，两个结构同步维护——满时淘汰最旧条目，内存 O(capacity)。
+
+### 10.3 权限回调：跨三进程的无感审批
+
+权限请求的完整链路：子 CLI → Bridge → 服务器 → 网页弹窗 → 用户决策 → 原路返回。子进程只看到一个 `control_response` 回来，和本地 REPL 的权限流程完全一致——「本地执行、远程控制」的全部复杂度都被 Bridge 吃掉了。网页端还能返回 `updatedInput`（第六篇 7.3.1 节拆过这个五路 race），用户在网页上直接修改工具参数后传回终端，bridge 因此是一个完整的远程审批界面。
+
+### 10.4 JWT 与 epoch 并发控制
+
+v1 与 v2 两代传输：v1 用 WebSocket（读）+ HTTP POST（写），v2 用 SSE（读）+ CCRClient（写）。JWT 的处理不验证签名——客户端只解析并读取 `exp` 过期时间，签名验证属于服务器侧职责。v2 的 token 刷新不能走 stdin 换发（CCR v2 端点验证 JWT 的 `session_id` claim，OAuth token 没有它），改走 `reconnectSession` 触发服务器侧重派。
+
+并发控制靠 epoch：每次 /bridge 调用服务器侧递增 epoch，同一会话只能有一个活跃 worker，新 worker 注册后旧 worker 的心跳开始返回 409。Standalone 与 REPL 真正共享的基础设施是 `bridgeMessaging.ts`（消息路由与回声去重）和 `jwtUtils.ts` 的刷新调度器——注释明写「Used by both the standalone bridge and the REPL bridge」；`remoteBridgeCore.ts`（1,008 行）只服务 env-less REPL 路径，负责消息写入、权限响应路由与 401 恢复。调试有 `/bridge-kick` 故障注入命令，可以注入 poll 404、注册失败等四种故障，测试恢复路径。
+
+## 十一、横向对比
 
 将三个终端 Agent 的 MCP 支持放在一起对比：
 
 | 维度 | Claude Code | OpenCode | Codex |
 |------|-------------|----------|-------|
 | 传输层 | 4 主传输 + 3 专用（IDE/SDK/proxy） | stdio + SSE | stdio + SSE |
-| 鉴权 | OAuth 2.0 + XAA + headersHelper | 无 | OAuth 2.0 |
+| 鉴权 | OAuth 2.0 + XAA + headersHelper | OAuth 2.0（基础） | OAuth 2.0 |
 | 资源 | list + read | 无 | list + read |
 | 官方注册表 | 有（预取 + 查询） | 无 | 无 |
 | 通道权限 | 有（Telegram/iMessage/Discord 审批中继） | 无 | 无 |
@@ -878,13 +869,13 @@ export function createLinkedTransportPair(): [Transport, Transport] {
 
 Claude Code 在传输层多样性、鉴权深度、通道权限和插件生态上都明显领先。OpenCode 和 Codex 都只支持 stdio + SSE 两种基础传输层，没有 OAuth 之外的鉴权增强，也没有官方注册表与通道系统。这种差距的根源在于 Claude Code 把 MCP 视为一等扩展生态（插件系统直接依赖 MCP 配置注入），而后两者更多把 MCP 当作可选的工具接入通道。
 
-具体来看几个关键差异点。传输层方面，Claude Code 额外支持的 HTTP（Streamable HTTP）是 MCP 协议较新的传输规范，它比 SSE 更轻量（无需维持长连接），适合部署在 Serverless 或无状态后端的 MCP server；WebSocket 则填补了实时双向通信的空白。鉴权方面，OpenCode 完全没有 MCP 鉴权实现——它只能连接无需认证的本地 stdio server 或公开的远程 server，这在企业场景下是硬伤。XAA 让 Claude Code 能与企业 SSO 无缝集成，用户登录一次即可访问所有受保护的 MCP server，无需逐个授权。
+具体来看几个关键差异点。传输层方面，Claude Code 额外支持的 HTTP（Streamable HTTP）是 MCP 协议较新的传输规范，它比 SSE 更轻量（无需维持长连接），适合部署在 Serverless 或无状态后端的 MCP server；WebSocket 则填补了实时双向通信的空白。鉴权方面，OpenCode 有 OAuth 基础流程，但没有 XAA、headersHelper、step-up 这些企业场景的增强。XAA 让 Claude Code 能与企业 SSO 无缝集成，用户登录一次即可访问所有受保护的 MCP server，无需逐个授权。
 
-重连策略的差异也值得注意。Claude Code 的指数退避（5 次、上限 30s）能在网络抖动时自动恢复，且重连过程中 UI 显示进度（「第 N/5 次」），用户体验友好。Codex 没有自动重连——连接断了就断了，需要用户手动重启。OpenCode 有简单重试但缺少退避策略，高频重试可能给 server 造成压力。
+重连策略的差异也最直观。Claude Code 的指数退避（5 次、上限 30s）能在网络抖动时自动恢复，且重连过程中 UI 显示进度（「第 N/5 次」），用户体验友好。Codex 没有自动重连——连接断了就断了，需要用户手动重启。OpenCode 有简单重试但缺少退避策略，高频重试可能给 server 造成压力。
 
 进程内传输（`InProcessTransport`）是 Claude Code 独有的优化。把高内存开销的 MCP server（如 Chrome）放进主进程运行，省掉了子进程的内存复制开销和 IPC 延迟。这种优化在工具调用频繁的场景下收益显著——每次工具调用的 stdin/stdout 序列化在子进程模式下可能增加数毫秒延迟，进程内模式下则是微秒级的内存拷贝。
 
-## 十一、设计取舍总结
+## 十二、设计取舍总结
 
 回顾整个 MCP 集成，几个关键的设计决策值得提炼。
 
@@ -892,13 +883,15 @@ Claude Code 在传输层多样性、鉴权深度、通道权限和插件生态�
 
 **连接用 memoize 缓存，重连靠清除缓存**。`connectToServer` 被 `memoize` 包裹，同一份配置只连接一次。重连时调用 `clearServerCache` 清除对应 key，下次调用自然触发新连接。这是一种「以缓存失效代替显式状态转移」的模式，简洁但要小心缓存 key 的设计——`getServerCacheKey` 需要覆盖配置变更的场景。
 
-**错误恢复用「连续错误计数 + 手动 close」弥补 SDK 缺陷**。MCP SDK 的 transport 在连接失败时只调 `onerror` 不调 `onclose`，而 Claude Code 依赖 `onclose` 触发重连。代码没有修改 SDK，而是在外层追踪连续错误、达到阈值后手动 `client.close()`，让 SDK 的 close 链路自然触发 `onclose`。这种「不侵入依赖、在边界做适配」的策略在大型项目中很常见。
+**错误恢复用「连续错误计数 + 手动 close」弥补 SDK 缺陷**。MCP SDK 的 transport 在连接失败时只调 `onerror` 不调 `onclose`，而 Claude Code 依赖 `onclose` 触发重连。代码不动 SDK，在外层追踪连续错误、达到阈值后手动 `client.close()`，让 SDK 的 close 链路自然触发 `onclose`。这种「不侵入依赖、在边界做适配」的策略在大型项目中很常见。
 
 **通道权限用结构化事件而非文本中继**。用户在 Telegram 回复「yes」后，不是把文本透传给 CC，而是由 server 解析后发送 `notifications/claude/channel/permission` 结构化事件。这防止了 AI 在对话流中误触发审批——即使模型输出了「yes xxxxx」，也不会被当作有效审批。安全边界从「终端」转移到了「server 端的解析逻辑」，配合 allowlist 做来源控制。
 
 这些决策共同构成了一个在「功能完备」与「工程可控」之间取得平衡的 MCP 集成。3,348 行的 `client.ts` 看似庞大，但每一种传输层、每一个错误分支、每一次重连尝试都有对应的源码逻辑可追溯——这正是 Claude Code 能把 MCP 做成「三者中最完整」的工程基础。
 
 值得补充的是，这套 MCP 集成并非一蹴而就。从代码中大量保留的注释可以看出演进的痕迹：`sse-ide` 和 `ws-ide` 是为 IDE 集成后加的传输类型；`claudeai-proxy` 是 Claude.ai 云端代理功能引入后的新分支；XAA（SEP-990）和 CIMD（SEP-991）是近期增加的企业鉴权能力；通道权限中继仍在 `tengu_harbor_permissions` 灰度门控下。每一个 feature flag 和 GrowthBook 开关都标记着一个正在灰度或待发布的特性。这种「主干稳定、特性门控」的演进方式，让 Claude Code 能在保持 MCP 核心管道不变的前提下，持续吸收协议新能力和企业场景需求——这也是 51 万行代码体量下仍能维持可维护性的关键工程实践。
+
+下一篇是系列的收尾：跨会话记忆——CLAUDE.md 注入、memdir 持久化与 AutoDream。
 
 ## 章节小测
 
@@ -907,46 +900,57 @@ const q = [
   {
     question: 'Claude Code 支持四种面向用户的 MCP 传输层（stdio/SSE/HTTP/WebSocket），选择 stdio 传输层时有一个特殊的进程内优化是什么？',
     options: [
-      'stdio 默认通过 shell 前缀包装命令以实现灵活重定向',
-      'Chrome 等重型 server 被进程内化避免大内存子进程开销',
-      '所有 stdio 子进程的 stderr 默认直接输出到终端',
-      'stdio 传输层因安全策略限制而不支持环境变量透传'
+      "'stdio 默认通过 shell 前缀包装命令实现灵活重定向'",
+      "'所有 stdio 子进程的 stderr 默认直接输出到终端'",
+      "'Chrome 等重型 server 进程内化省子进程开销'",
+      "'stdio 因安全策略限制不支持环境变量透传'"
     ],
-    correct: 1,
+    correct: 2,
     explanation: 'Chrome MCP server 正常 spawn 子进程要吃掉约 325 MB 内存。Claude Code 选择用 InProcessTransport 在主进程内直接跑 server，省掉子进程开销。这是由 feature(\'CHICAGO_MCP\') 灰度门控的优化路径。'
   },
   {
     question: 'MCP 客户端对 SSE 传输层和 HTTP 传输层使用了不同的 fetch 包装策略，原因是什么？',
     options: [
-      'SSE 与 HTTP 使用了两种不同的底层客户端库',
-      'EventSource 长连接不能套超时而 HTTP 独立请求可以',
-      'HTTP 基于请求响应模式无需额外的超时控制机制',
-      'SSE 因协议结构限制无法在请求头携带自定义内容'
+      "'长连接不能套超时而独立请求可以'",
+      "'SSE 与 HTTP 使用了两种不同的底层客户端库'",
+      "'HTTP 基于请求响应模式无需额外的超时控制'",
+      "'SSE 因协议结构限制无法在请求头携带自定义内容'"
     ],
-    correct: 1,
+    correct: 0,
     explanation: 'SSE 传输层的 eventSourceInit.fetch 故意不套 wrapFetchWithTimeout——EventSource 是长连接，会无限期保持以接收服务端推送的事件，套 60 秒超时会直接掐断流。HTTP 的 fetch 可安全套超时包装，因为每次请求独立。'
   },
   {
-    question: 'assembleToolPool 在批量连接 MCP server 前对 local（stdio/sdk）和 remote（sse/http/ws）使用不同的批次大小，除此之外还用了什么优化避免不必要的鉴权探测？',
+    question: 'getMcpToolsCommandsAndResources 在批量连接 MCP server 前对 local（stdio/sdk）和 remote（sse/http/ws）使用不同的批次大小，除此之外还用了什么优化避免不必要的鉴权探测？',
     options: [
-      '在批量连接前将未显式配置的 server 标记为禁用',
-      '短 TTL auth cache 跳过鉴权失败 server 避免往返',
-      '确保批量为所有 server 执行完整鉴权以保障安全',
-      '仅鉴权一次此后所有 server 的 token 视为永久有效'
+      "'在批量连接前将未显式配置的 server 标记为禁用'",
+      "'确保批量为所有 server 执行完整鉴权以保障安全'",
+      "'仅鉴权一次此后所有 server 的 token 视为永久有效'",
+      "'短 TTL auth cache 跳过近期 401 的 server'"
     ],
-    correct: 1,
+    correct: 3,
     explanation: '15 分钟 TTL 的 auth cache：最近返回 401 的 server 会被跳过，避免每次会话都做无意义的鉴权探测。hasMcpDiscoveryButNoToken 进一步将曾探测过但用户从未完成授权的 server 也跳过，省掉网络往返。'
   },
   {
     question: '插件与 MCP server 的本质区别是什么？',
     options: [
-      '插件和 MCP server 在概念与实现上没有任何本质区别',
-      'MCP server 是外部进程而插件是 CC 进程内的代码提供多种增强能力',
-      '插件运行在 CC 进程内因此比外部 MCP server 具有更高的安全性',
-      'MCP server 可以暴露任意工具因此功能上限远超插件体系'
+      "'插件和 MCP server 在概念与实现上没有本质区别'",
+      "'MCP server 是外部进程而插件运行在 CC 进程内'",
+      "'插件运行在进程内因此比外部 MCP server 更安全'",
+      "'MCP server 可暴露任意工具功能上限远超插件体系'"
     ],
     correct: 1,
     explanation: 'MCP server 是外部进程（或远程服务），独立于 CC 运行，通过 JSON-RPC 通信。插件是运行在 CC 进程内的代码，可以提供 skills（命令）、hooks（生命周期钩子）以及 MCP server 配置——插件可以声明 MCP server 配置，但插件本身不是 MCP server。'
+  },
+  {
+    question: 'Bridge 系统的两种运行模式（Standalone / REPL）的核心区别是什么？',
+    options: [
+      "'Standalone 只支持单会话而 REPL 天然支持多会话'",
+      "'Standalone 走 SSE 而 REPL 只能用 WebSocket 传输'",
+      "'Standalone spawn 子 CLI 而 REPL 桥接当前会话'",
+      "'Standalone 面向 IDE 集成而 REPL 面向移动端'"
+    ],
+    correct: 2,
+    explanation: 'Standalone Bridge 是常驻守护进程（bridgeMain.ts），轮询拉取工作项后 spawn --print 模式的子 CLI 进程执行；REPL Bridge 运行在 REPL 进程内部，被桥接的就是当前会话本身，无需 spawn。两者共享消息路由与 JWT 刷新等基础设施（bridgeMessaging.ts、jwtUtils.ts）；remoteBridgeCore.ts 只服务 REPL 路径。'
   }
 ]
 </script>
