@@ -140,41 +140,13 @@ let autoModeCircuitBroken = false
 
 完整的权限决策入口是 `src/utils/permissions/permissions.ts` 中的 `hasPermissionsToUseTool`（外层封装）和 `hasPermissionsToUseToolInner`（`permissions.ts:1158` 起）。决策按以下顺序短路返回：
 
-```mermaid
-flowchart TD
-    A[tool_use 请求] --> B{被 abort?}
-    B -->|是| Z[抛 AbortError]
-    B -->|否| C{整个工具有 deny 规则?}
-    C -->|是| D[返回 deny]
-    C -->|否| E{整个工具有 ask 规则?}
-    E -->|是且非沙箱可放行| F[返回 ask]
-    E -->|否| G[调用 tool.checkPermissions]
-    G --> H{工具自身判定 deny?}
-    H -->|是| D
-    H -->|否| I{requiresUserInteraction 且 ask?}
-    I -->|是| F
-    I -->|否| J{内容级 ask 规则?}
-    J -->|是| F
-    J -->|否| K{safetyCheck 触发?<br/>.git/.claude/shell 配置}
-    K -->|是| F
-    K -->|否| L{bypassPermissions 或<br/>plan+bypass 可用?}
-    L -->|是| M[返回 allow]
-    L -->|否| N{有 alwaysAllow 规则?}
-    N -->|是| M
-    N -->|否| O{当前是 auto 模式?}
-    O -->|是| P[跑 AI 分类器]
-    P -->|安全| M
-    P -->|危险| D
-    P -->|denial 超限或超长| F
-    O -->|否| Q[passthrough → ask]
-    Q --> F
-```
+![权限检查的短路阶梯](/images/claudecode/06-permission-ladder.svg)
 
-这个流程图把决策顺序压缩成了几个关键分叉点，但源码里有几处容易被忽略的细节。
+这张阶梯图把决策顺序压成了关键分叉点，但源码里有几处容易被忽略的细节。
 
 ### 3.1 bypass-immune 的安全检查
 
-第 1g 步的 `safetyCheck` 是流程图里最容易被低估的一环。它在 `permissions.ts` 里出现两次：`checkRuleBasedPermissions`（hook 侧的规则子集检查器，1144-1152）和 `hasPermissionsToUseToolInner`（1252-1260）各一次。它的判定来自工具的 `checkPermissions` 返回的 `decisionReason.type === 'safetyCheck'`，覆盖的路径包括：
+第 1g 步的 `safetyCheck` 是这条短路链里最容易被低估的一环。它在 `permissions.ts` 里出现两次：`checkRuleBasedPermissions`（hook 侧的规则子集检查器，1144-1152）和 `hasPermissionsToUseToolInner`（1252-1260）各一次。它的判定来自工具的 `checkPermissions` 返回的 `decisionReason.type === 'safetyCheck'`，覆盖的路径包括：
 
 - `.git/` 目录下的文件
 - `.claude/` 配置目录
@@ -545,26 +517,7 @@ export const DANGEROUS_BASH_PATTERNS: readonly string[] = [
 
 ## 七、权限处理器：三种分发路径
 
-`useCanUseTool.tsx` 是权限系统的中央调度 hook。它的核心逻辑只有 60 行左右，但根据 `result.behavior` 的不同，分发到三个不同的处理器：
-
-```mermaid
-flowchart LR
-    A[hasPermissionsToUseTool 返回] --> B{behavior?}
-    B -->|allow| C[直接放行]
-    B -->|deny| D[记录并拒绝]
-    B -->|ask| E{是 coordinator worker?}
-    E -->|是| F[coordinatorHandler<br/>同步等待 hook+分类器]
-    F -->|自动检查解决| C
-    F -->|未解决| G[继续往下]
-    E -->|否| G
-    G --> H{是 swarm worker?}
-    H -->|是| I[swarmWorkerHandler<br/>转发给 leader]
-    I -->|分类器自动放行| C
-    I -->|leader 决定| C
-    H -->|否| J[interactiveHandler<br/>弹窗等待用户]
-    J -->|用户确认| C
-    J -->|分类器后台放行| C
-```
+`useCanUseTool.tsx` 是权限系统的中央调度 hook。它的核心逻辑只有 60 行左右：`behavior` 为 `allow` 直接放行，`deny` 记录并拒绝；`ask` 则逐级下探——请求方是 coordinator worker 就交给 `coordinatorHandler` 串行跑 hook 与分类器，自动检查解决不了就继续往下；是 swarm worker 就交给 `swarmWorkerHandler` 转发给 leader，由分类器或 leader 决定；两者都不是，才轮到 `interactiveHandler` 弹窗等用户。三条路径殊途同归，最终都收敛回放行或拒绝：
 
 ### 7.1 coordinatorHandler：协作模式下的串行检查
 

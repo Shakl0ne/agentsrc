@@ -42,28 +42,7 @@ CC 的做法是把压缩摊成五级，贵的操作一级级往后放。这一�
 
 五级的关系容易误读成「逐级升级」，实际是各自占一个时机、互相补位。关键的一点：**Level 5 是 Level 1 的优先子路径，不独立触发**——auto compact 判定要压时，先试 session memory（读已提取的记忆文件，纯数据操作），失败才回退到 LLM 摘要。所以这张表按「机制」划分，不按「触发时机」划分。它们在 query 循环里的实际顺序是：
 
-```mermaid
-flowchart TD
-    A["Query Loop 迭代开始"] --> B["Level 2: Micro Compact"]
-    B --> B1{"距上次 assistant 超过 60min?"}
-    B1 -->|"是"| B2["时间路径：清除旧工具结果<br/>缓存已过期，零额外成本"]
-    B1 -->|"否"| B3{"cached MC 可用?<br/>ant + 主线程 + 支持的模型"}
-    B3 -->|"是"| B4["cache_edits 路径<br/>不修改本地消息"]
-    B3 -->|"否"| B5["无操作"]
-    B2 --> C
-    B4 --> C
-    B5 --> C
-    C{"Level 1: Auto Compact<br/>token 超阈值?"} -->|"是"| D["先试 Level 5: Session Memory"]
-    D -->|"成功"| E["读记忆文件，零 LLM 调用"]
-    D -->|"失败"| F["compactConversation<br/>LLM 流式摘要"]
-    C -->|"否"| G["调用 API<br/>Level 3 配置随请求下发"]
-    E --> G
-    F --> G
-    G --> H{"返回 413 / 媒体超限?"}
-    H -->|"是"| I["先排空 context collapse"]
-    I -->|"仍 413"| J["Level 4: Reactive Compact<br/>摘要后重试"]
-    H -->|"否"| K["正常处理流式响应"]
-```
+![五级压缩在 query 循环里的占位](/images/claudecode/04-compact-pipeline.svg)
 
 ## 三、Auto Compact：阈值、断路器与递归守卫
 

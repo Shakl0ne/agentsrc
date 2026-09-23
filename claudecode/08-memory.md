@@ -188,34 +188,6 @@ SessionMemory 的模板是一份 10 段固定结构（`prompts.ts`）：Session 
 
 `src/services/autoDream/` 把「睡觉时整理记忆」这个比喻落到了代码里。`autoDream.ts` 在每次 stop hook 后被 `executeAutoDream()` 调用，实际触发要过三道闸门：
 
-```mermaid
-flowchart TD
-    A[stop hook 触发] --> B{isGateOpen?
-非 KAIROS / 非远程 / 自动记忆开 / AutoDream 开}
-    B -- 否 --> Z[直接返回]
-    B -- 是 --> C[读取 .consolidate-lock 的 mtime
-= lastConsolidatedAt]
-    C --> D{时间闸门
-hoursSince >= minHours?}
-    D -- 否 --> Z
-    D -- 是 --> E{扫描节流
-距上次扫描 >= 10min?}
-    E -- 否 --> Z
-    E -- 是 --> F[扫描 transcript 目录
-列出 mtime > lastAt 的会话]
-    F --> G{会话闸门
-排除当前会话后 >= minSessions?}
-    G -- 否 --> Z
-    G -- 是 --> H[tryAcquireConsolidationLock]
-    H --> I{锁获得?
-PID 存活且未过期}
-    I -- 否 --> Z
-    I -- 是 --> J[runForkedAgent
-querySource: auto_dream]
-    J --> K[完成: completeDreamTask
-失败: rollbackConsolidationLock]
-```
-
 ![三道闸门按成本递增排列](/images/claudecode/08-autodream-gates.svg)
 
 默认配置是 `minHours: 24`、`minSessions: 5`，由 GrowthBook `tengu_onyx_plover` 远程下发。三道闸门按成本递增排列：时间闸门只读一个 stat，扫描闸门要遍历整个 transcript 目录，锁闸门要写文件并验证 PID。大多数 stop hook 调用在时间闸门就 return，成本一次 stat。`SESSION_SCAN_INTERVAL_MS = 10 * 60 * 1000` 是扫描节流——时间闸门一旦通过，每轮都会通过，但目录扫描不能每轮都做，所以加一道 10 分钟节流。
@@ -284,40 +256,17 @@ BQ 分析显示约 90% 的「所有客户端 flag 都 false 且间隔小于 TTL�
 
 ## 八、一次完整循环的时序
 
-把所有子系统串起来，一次完整的 query 循环是这样：
+把所有子系统串起来，一次完整的 query 循环里，关键时序点有五个。
 
-```mermaid
-sequenceDiagram
-    participant U as 用户输入
-    participant Q as query()
-    participant SC as getSystemContext [memoized]
-    participant UC as getUserContext [memoized]
-    participant API as Anthropic API
-    participant PH as postSamplingHooks
-    participant SH as stopHooks
-    participant SM as SessionMemory
-    participant MD as MagicDocs
-    participant EM as extractMemories
-    participant AD as AutoDream
-    participant CD as CacheBreakDetection
+1. `getSystemContext` 与 `getUserContext` 在 query 开始时被 `fetchSystemPromptParts()` 并行取回，memoize 保证只在首次或缓存被清后才计算。
 
-    U->>Q: 用户消息
-    Q->>SC: 取系统上下文（首次计算，否则命中缓存）
-    Q->>UC: 取用户上下文（CLAUDE.md + memdir + currentDate）
-    Q->>API: 流式调用（含 cache_control 标记）
-    CD->>CD: Phase 1 记录 pendingChanges
-    API-->>Q: 流式响应
-    Q->>PH: executePostSamplingHooks（每轮采样后）
-    PH->>SM: shouldExtractMemory? 满足阈值则 runForkedAgent
-    PH->>MD: 上一轮无工具调用？更新 trackedMagicDocs
-    Note over Q: 若 message_stop 且无工具调用
-    Q->>SH: handleStopHooks
-    SH->>EM: executeExtractMemories（fire-and-forget）
-    SH->>AD: executeAutoDream（fire-and-forget）
-    CD->>CD: Phase 2 checkResponseForCacheBreak
-```
+2. postSamplingHooks 在每轮模型采样后执行，SessionMemory 与 MagicDocs 都注册在这里，`sequential()` 包装保证它们不并发执行；SessionMemory 内部有 token 阈值守卫，多数轮次直接 return。
 
-几个关键时序点。`getSystemContext` 与 `getUserContext` 在 query 开始时被 `fetchSystemPromptParts()` 并行取回，memoize 保证只在首次或缓存被清后才计算。postSamplingHooks 在每轮模型采样后执行，SessionMemory 与 MagicDocs 都注册在这里，`sequential()` 包装保证它们不并发执行；SessionMemory 内部有 token 阈值守卫，多数轮次直接 return。stopHooks 在 `message_stop` 且无工具调用时执行，`extractMemories` 与 `executeAutoDream` 在这里 fire-and-forget，不阻塞主循环返回——`--bare` 模式下整段被跳过，注释写着「Scripted -p calls don't want auto-memory or forked agents contending for resources during shutdown」。AutoDream 的 stop hook 路径只是入口，实际触发要看三道闸门，大多数调用在时间闸门就 return，成本一次 stat。CacheBreakDetection 的 Phase 1 在请求构造时记录、Phase 2 在响应回来后比较，只做遥测，不影响请求本身。
+3. stopHooks 在 `message_stop` 且无工具调用时执行，`extractMemories` 与 `executeAutoDream` 在这里 fire-and-forget，不阻塞主循环返回——`--bare` 模式下整段被跳过，注释写着「Scripted -p calls don't want auto-memory or forked agents contending for resources during shutdown」。
+
+4. AutoDream 的 stop hook 路径只是入口，实际触发要看三道闸门，大多数调用在时间闸门就 return，成本一次 stat。
+
+5. CacheBreakDetection 的 Phase 1 在请求构造时记录、Phase 2 在响应回来后比较，只做遥测，不影响请求本身。
 
 ## 九、横向对比
 

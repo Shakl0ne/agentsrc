@@ -439,22 +439,7 @@ Coordinator 不另起炉灶，它复用 AgentTool 的派生机制，改三处：
 
 Swarm 对应 `src/utils/swarm/`，核心想法是让多个具名 agent 平等协作——Coordinator 是「一个 leader 调度匿名 worker」，Swarm 是「teammates 之间互相发消息」。启用由 `isAgentSwarmsEnabled()` 三层门控：内部用户直接启用、外部用户需环境变量或 `--agent-teams` 显式 opt-in、再加 `tengu_amber_flint` GrowthBook killswitch。这是 Anthropic 灰度新功能的典型配置。
 
-teammate 可以跑在三种后端上，`detectAndGetBackend()` 自动选择：
-
-```mermaid
-flowchart TD
-    A[spawn teammate] --> B{inside tmux?}
-    B -->|Yes| C[TmuxBackend<br/>原生 pane]
-    B -->|No| D{in iTerm2?}
-    D -->|Yes| E{it2 CLI 可用?}
-    E -->|Yes| F[ITermBackend<br/>原生 pane]
-    E -->|No| G{tmux 可用?}
-    G -->|Yes| H[TmuxBackend<br/>外部 session]
-    G -->|No| I[抛错：需安装 it2]
-    D -->|No| J[InProcessBackend<br/>同进程]
-```
-
-优先级是 tmux 内嵌 > iTerm2 原生 pane > in-process——auto 模式下，普通终端里的默认终点就是 in-process，装了 tmux 也一样；「tmux 外部 session」只在 iTerm2 内 it2 不可用时作为降级出现。两种 pane 后端让 teammate 在终端独立 pane 里跑、输出肉眼可见；in-process 只能通过 transcript 视图查看。会话启动时 `captureTeammateModeSnapshot()` 固定一次模式，运行期改配置不影响当前会话，只对下次启动生效。
+teammate 可以跑在三种后端上，`detectAndGetBackend()` 按优先链自动选择：在 tmux 里就用 TmuxBackend（原生 pane）；不在 tmux 但在 iTerm2 且 it2 CLI 可用，用 ITermBackend（原生 pane）；it2 不可用但 tmux 可用，降级为 TmuxBackend 外部 session，都不满足则抛错要求安装 it2。auto 模式下普通终端的默认终点是 in-process，装了 tmux 也一样。两种 pane 后端让 teammate 在终端独立 pane 里跑、输出肉眼可见；in-process 只能通过 transcript 视图查看。会话启动时 `captureTeammateModeSnapshot()` 固定一次模式，运行期改配置不影响当前会话，只对下次启动生效。
 
 团队落成时 `TeamCreateTool` 在磁盘上写 team file，记录 leader 与成员。几个设计：一个 leader 只能管一个 team；leader 的 agent ID 是确定性的（`formatAgentId(TEAM_LEAD_NAME, teamName)`），可复现、重连后免查表路由；team 等于一个独立的 task list，任务编号从 1 开始；`registerTeamForSessionCleanup()` 注册会话结束时的清理，防止团队文件永远留在磁盘上。
 
@@ -471,36 +456,9 @@ flowchart TD
 `AgentTool.call()` 里有显式检查：`team_name` 给了而 swarm 未启用，直接抛错。schema 保持稳定、把 gating 推迟到调用时——模型看到的参数集不随 swarm 状态变化，这是「能力探测」模式。
 ## 六、Task 生命周期总览
 
-把前面几节串起来，一个 task 从创建到终态的完整流程：
+把前面几节串起来，一个 task 的生命周期是一条单向线：创建 → 注册 → 按类型分发 → 运行 → 终态 → 延迟清理。
 
-```mermaid
-flowchart TD
-    A[模型调用工具<br/>AgentTool/BashTool 等] --> B[createTaskStateBase<br/>生成 ID + outputFile]
-    B --> C[registerTask<br/>写入 AppState.tasks]
-    C --> D{任务类型}
-    D -->|local_bash| E1[LocalShellTask<br/>spawn 子进程]
-    D -->|local_agent| E2[LocalAgentTask<br/>runAgent 同步/异步]
-    D -->|in_process_teammate| E3[InProcessTeammateTask<br/>runInProcessTeammate]
-    D -->|remote_agent| E4[RemoteAgentTask<br/>teleportToRemote CCR]
-    D -->|dream| E5[DreamTask<br/>记忆生成]
-    E1 --> F[status: running]
-    E2 --> F
-    E3 --> F
-    E4 --> F
-    E5 --> F
-    F --> G{触发终止}
-    G -->|完成| H1[status: completed<br/>enqueueAgentNotification]
-    G -->|失败| H2[status: failed<br/>error 入队]
-    G -->|用户 kill| H3[status: killed<br/>Task.kill taskType 分发]
-    G -->|teammate 挂起| I[isIdle = true<br/>status 仍为 running]
-    I --> F
-    H1 --> J[evictAfter 延迟<br/>PANEL_GRACE_MS 30s]
-    H2 --> J
-    H3 --> J
-    J --> K[从 AppState.tasks 移除<br/>evictTaskOutput 清盘]
-```
-
-几个关键节点。**创建**：`createTaskStateBase()` 生成 ID 与 `outputFile` 路径，状态置为 `pending`。**注册**：`registerTask()` 写入 `AppState.tasks` 字典，UI 立即可见。**分发**：`getTaskByType(type)` 找到对应 `Task` 实例，但只有 `kill()` 是多态分发的，spawn 各自走自己的路径。**终态**：`completed`/`failed`/`killed` 三种，由 `isTerminalTaskStatus()` 判定。**延迟清理**：终态后不立即从 AppState 移除，先设置 `evictAfter = Date.now() + 30s`，让 UI 有时间显示「已完成」状态，之后 `evictTaskOutput()` 清理 output file 符号链接。
+关键节点有这么几个。**创建**：`createTaskStateBase()` 生成 ID 与 `outputFile` 路径，状态置为 `pending`。**注册**：`registerTask()` 写入 `AppState.tasks` 字典，UI 立即可见。**分发**：`getTaskByType(type)` 找到对应 `Task` 实例，但只有 `kill()` 是多态分发的，spawn 各自走自己的路径。**终态**：`completed`/`failed`/`killed` 三种，由 `isTerminalTaskStatus()` 判定。**延迟清理**：终态后不立即从 AppState 移除，先设置 `evictAfter = Date.now() + 30s`，让 UI 有时间显示「已完成」状态，之后 `evictTaskOutput()` 清理 output file 符号链接。
 
 teammate 是这条流程里的特例——它在 `running` 态内用 `isIdle` 布尔标志挂起等待新 prompt，task status 不变。这是 teammate「常驻」特性的体现。
 
@@ -709,7 +667,4 @@ const q = [
 </script>
 
 <Quiz :questions="q"></Quiz>
-
-
-
 

@@ -113,21 +113,14 @@ export type ScopedMcpServerConfig = McpServerConfig & {
 
 ## 三、四种传输层
 
-Claude Code 支持四种面向用户的传输层，覆盖本地与远程、有状态与无状态、单向与双向的全部组合。下图展示了从 Claude Code 进程到外部服务的完整链路：
+Claude Code 支持四种面向用户的传输层，覆盖本地与远程、有状态与无状态、单向与双向的全部组合。四种传输层共用同一套抽象：MCP Client 面向 `Transport` 编程，传输层负责把 JSON-RPC 送到目标服务。
 
-```mermaid
-flowchart LR
-    CC["Claude Code 进程"] --> Client["MCP Client"]
-    Client --> Transport["传输层抽象"]
-    Transport --> Stdio["stdio: 子进程 stdin/stdout"]
-    Transport --> SSE["SSE: HTTP 流式"]
-    Transport --> HTTP["HTTP: 请求/响应"]
-    Transport --> WS["WebSocket: 全双工"]
-    Stdio --> Svc1["本地工具/数据库"]
-    SSE --> Svc2["云端 MCP server"]
-    HTTP --> Svc3["无状态服务"]
-    WS --> Svc4["实时数据流"]
-```
+| 传输层 | 连接方式 | 典型场景 |
+|------|---------|---------|
+| `stdio` | 子进程 stdin/stdout | 本地工具、数据库 |
+| `sse` | HTTP 流式长连接 | 云端 MCP server |
+| `http` | 请求/响应 | 无状态服务 |
+| `ws` | WebSocket 全双工 | 实时数据流 |
 
 ### 3.1 stdio：本地子进程
 
@@ -296,23 +289,11 @@ export type ConnectedMCPServer = {
 
 `connectToServer` 的执行路径可以概括为五步：
 
-```mermaid
-sequenceDiagram
-    participant Caller as useManageMCPConnections
-    participant CTS as connectToServer
-    participant Transport as Transport Layer
-    participant Server as MCP Server
-    Caller->>CTS: name, ScopedMcpServerConfig
-    CTS->>CTS: 按 type 选择 Transport
-    CTS->>Transport: new XxxClientTransport(opts)
-    CTS->>CTS: new Client({ name, capabilities })
-    CTS->>Transport: client.connect(transport)
-    Transport->>Server: JSON-RPC initialize
-    Server-->>Transport: capabilities + serverInfo
-    CTS->>CTS: client.getServerCapabilities()
-    CTS->>CTS: 注册 onerror/onclose/elicitation handler
-    CTS-->>Caller: ConnectedMCPServer
-```
+1. 按 `type` 选择 Transport 构造函数，注入鉴权头与代理选项，构造实例；
+2. `new Client({ name, capabilities })` 创建协议客户端；
+3. `client.connect(transport)` 发起连接，底层完成 JSON-RPC `initialize` 握手，server 返回 capabilities 与 serverInfo；
+4. `client.getServerCapabilities()` 缓存协商结果，供后续工具发现使用；
+5. 注册 `onerror`/`onclose`/elicitation handler，返回 `ConnectedMCPServer`。
 
 连接超时由 `getConnectionTimeoutMs()` 控制，用 `Promise.race` 竞速 `connectPromise` 与 `timeoutPromise`。超时后会显式关闭 `inProcessServer` 和 `transport`，避免僵尸连接。
 
@@ -440,16 +421,7 @@ export function buildRedirectUri(port: number = REDIRECT_PORT_FALLBACK): string 
 
 ### 5.4 XAA：跨应用免授权访问
 
-`xaa.ts` 实现了 Cross-App Access（XAA，SEP-990），允许在不弹出浏览器授权页的情况下获取 MCP access token。它串联两个 RFC：
-
-```mermaid
-flowchart LR
-    IdP["身份提供者 IdP"] -->|1. RFC 8693 Token Exchange| IDJAG["ID-JAG token"]
-    IDJAG -->|2. RFC 7523 JWT Bearer Grant| AS["授权服务器 AS"]
-    AS --> AccessToken["MCP access_token"]
-```
-
-具体流程是：先在 IdP 用 token exchange（RFC 8693）把 id_token 换成 ID-JAG（Identity JWT Assertion Grant），再在 AS 用 JWT bearer grant（RFC 7523）把 ID-JAG 换成 MCP access_token。这套机制主要用于企业场景——用户已在 IdP 登录，无需再为 MCP server 单独授权。`xaaIdpLogin.ts` 负责 IdP 登录流程，`xaa.ts` 负责后续的 token 交换。
+`xaa.ts` 实现了 Cross-App Access（XAA，SEP-990），允许在不弹出浏览器授权页的情况下获取 MCP access token。它串联两个 RFC：先在 IdP 用 token exchange（RFC 8693）把 id_token 换成 ID-JAG（Identity JWT Assertion Grant），再在 AS 用 JWT bearer grant（RFC 7523）把 ID-JAG 换成 MCP access_token。这套机制主要用于企业场景——用户已在 IdP 登录，无需再为 MCP server 单独授权。`xaaIdpLogin.ts` 负责 IdP 登录流程，`xaa.ts` 负责后续的 token 交换。
 
 XAA 的请求超时设为 30 秒（`XAA_REQUEST_TIMEOUT_MS = 30000`），用 `AbortSignal.any` 合并超时信号与用户取消信号——当用户在鉴权菜单按 Esc 时，能立即中止进行中的网络请求，不等超时。两个 grant type 用 URN 标识：`urn:ietf:params:oauth:grant-type:token-exchange`（RFC 8693）和 `urn:ietf:params:oauth:grant-type:jwt-bearer`（RFC 7523），token type 分别为 `id_token` 和 `id-jag`。这套链式 token 交换的设计遵循 MCP 的 ext-auth 规范（SEP-990），结构上对齐 TS SDK PR #1593 的 Layer-2 接口，便于未来 SDK 升级时机械替换。
 
