@@ -388,10 +388,10 @@ const q = [
   {
     question: 'CLAUDE.md 的加载顺序为什么从 cwd 向上遍历到根目录？',
     options: [
-      "'为兼容 git 从子目录向上遍历仓库根目录的工作方式'",
-      "'减少文件系统随机读取次数以提升加载性能'",
-      "'子目录指令后出现优先级更高可覆盖父目录通用指令'",
-      "'git worktree 场景要求从当前目录向上遍历至根'"
+      '为兼容 git 从子目录向上遍历仓库根目录的工作方式',
+      '减少文件系统随机读取次数以提升加载性能',
+      '子目录指令后出现优先级更高可覆盖父目录通用指令',
+      'git worktree 场景要求从当前目录向上遍历至根'
     ],
     correct: 2,
     explanation: '收集时从 cwd 向上走到根，处理时反转为自根向 cwd——越靠近当前目录的文件越晚拼接，后出现的优先级更高，子目录指令得以覆盖父目录。CC 还会对 worktree 场景做去重处理，避免同一份 CLAUDE.md 被加载两次。'
@@ -399,10 +399,10 @@ const q = [
   {
     question: 'memdir 按 git root 而非按绝对路径分桶，这一设计解决了什么问题？',
     options: [
-      "'同一仓库所有 worktree 共享记忆不因路径分裂'",
-      "'简化底层路径解析复杂度并降低错误概率'",
-      "'按 git root 分桶后各分支获得独立记忆空间'",
-      "'避免以长绝对路径为键降低文件系统开销'"
+      '同一仓库所有 worktree 共享记忆不因路径分裂',
+      '简化底层路径解析复杂度并降低错误概率',
+      '按 git root 分桶后各分支获得独立记忆空间',
+      '避免以长绝对路径为键降低文件系统开销'
     ],
     correct: 0,
     explanation: 'getAutoMemBase() 走 findCanonicalGitRoot()，同一 git 仓库的所有 worktree 共享同一个 memory 目录。即使用户在不同 worktree 路径下工作，跨会话记忆仍然一致，不会因为 worktree 路径不同而导致记忆分裂。'
@@ -410,10 +410,10 @@ const q = [
   {
     question: 'extractMemories 与主对话的内存写入是什么协作关系？',
     options: [
-      "'两者各自独立提取互不感知可能重复写入'",
-      "'主对话写入时 extractMemories 强制接管合并'",
-      "'extractMemories 定期清空主对话写过的文件'",
-      "'主对话写了就跳过该区间没写则后台补上'"
+      '两者各自独立提取互不感知可能重复写入',
+      '主对话写入时 extractMemories 强制接管合并',
+      'extractMemories 定期清空主对话写过的文件',
+      '主对话写了就跳过该区间没写则后台补上'
     ],
     correct: 3,
     explanation: 'hasMemoryWritesSince() 检测主对话在某轮是否写过 memory 文件：写了，后台 agent 跳过那段；没写，后台 agent 补上漏掉的。主加补的双轨设计让提取既不依赖主 agent 主动性，也不重复劳动。'
@@ -421,10 +421,10 @@ const q = [
   {
     question: 'AutoDream 的三道闸门（时间/扫描/会话）为什么按这个顺序排列？',
     options: [
-      "'闸门顺序由每次 stop hook 的随机种子决定'",
-      "'时间闸门一次 stat 会话闸门要扫目录按成本递增'",
-      "'三道闸门在每次触发时被同时并行地检查'",
-      "'先执行最贵的目录扫描再执行便宜的时间检查'"
+      '闸门顺序由每次 stop hook 的随机种子决定',
+      '时间闸门一次 stat 会话闸门要扫目录按成本递增',
+      '三道闸门在每次触发时被同时并行地检查',
+      '先执行最贵的目录扫描再执行便宜的时间检查'
     ],
     correct: 1,
     explanation: '时间闸门只读取一个文件 stat（毫秒级），扫描闸门需要遍历整个 transcript 目录（秒级），锁闸门需要写文件并验证 PID（含 IO）。按成本递增排列，大多数 stop hook 调用在时间闸门就 return。'
@@ -432,10 +432,10 @@ const q = [
   {
     question: 'MCP 指令段为什么用 DANGEROUS_uncachedSystemPromptSection() 每轮重算？',
     options: [
-      "'段内容含敏感凭证每轮重新生成更安全'",
-      "'该段计算开销很小缓存收益可以忽略'",
-      "'MCP server 可能在会话中途连接或断开'",
-      "'缓存系统对提示段的大小有硬性上限'"
+      '段内容含敏感凭证每轮重新生成更安全',
+      '该段计算开销很小缓存收益可以忽略',
+      'MCP server 可能在会话中途连接或断开',
+      '缓存系统对提示段的大小有硬性上限'
     ],
     correct: 2,
     explanation: 'MCP server 可能在会话中途连接/断开，指令段必须每轮重算，所以走 DANGEROUS_uncachedSystemPromptSection()，函数名还要求调用方传 reason 说明为什么必须破坏缓存。对照 memory 段：memdir 内容在压缩前稳定，用 systemPromptSection() 缓存一次就能守住 cache 前缀。'

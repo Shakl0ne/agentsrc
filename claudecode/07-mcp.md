@@ -900,10 +900,10 @@ const q = [
   {
     question: 'Claude Code 支持四种面向用户的 MCP 传输层（stdio/SSE/HTTP/WebSocket），选择 stdio 传输层时有一个特殊的进程内优化是什么？',
     options: [
-      "'stdio 默认通过 shell 前缀包装命令实现灵活重定向'",
-      "'所有 stdio 子进程的 stderr 默认直接输出到终端'",
-      "'Chrome 等重型 server 进程内化省子进程开销'",
-      "'stdio 因安全策略限制不支持环境变量透传'"
+      'stdio 默认通过 shell 前缀包装命令实现灵活重定向',
+      '所有 stdio 子进程的 stderr 默认直接输出到终端',
+      'Chrome 等重型 server 进程内化省子进程开销',
+      'stdio 因安全策略限制不支持环境变量透传'
     ],
     correct: 2,
     explanation: 'Chrome MCP server 正常 spawn 子进程要吃掉约 325 MB 内存。Claude Code 选择用 InProcessTransport 在主进程内直接跑 server，省掉子进程开销。这是由 feature(\'CHICAGO_MCP\') 灰度门控的优化路径。'
@@ -911,10 +911,10 @@ const q = [
   {
     question: 'MCP 客户端对 SSE 传输层和 HTTP 传输层使用了不同的 fetch 包装策略，原因是什么？',
     options: [
-      "'长连接不能套超时而独立请求可以'",
-      "'SSE 与 HTTP 使用了两种不同的底层客户端库'",
-      "'HTTP 基于请求响应模式无需额外的超时控制'",
-      "'SSE 因协议结构限制无法在请求头携带自定义内容'"
+      '长连接不能套超时而独立请求可以',
+      'SSE 与 HTTP 使用了两种不同的底层客户端库',
+      'HTTP 基于请求响应模式无需额外的超时控制',
+      'SSE 因协议结构限制无法在请求头携带自定义内容'
     ],
     correct: 0,
     explanation: 'SSE 传输层的 eventSourceInit.fetch 故意不套 wrapFetchWithTimeout——EventSource 是长连接，会无限期保持以接收服务端推送的事件，套 60 秒超时会直接掐断流。HTTP 的 fetch 可安全套超时包装，因为每次请求独立。'
@@ -922,10 +922,10 @@ const q = [
   {
     question: 'getMcpToolsCommandsAndResources 在批量连接 MCP server 前对 local（stdio/sdk）和 remote（sse/http/ws）使用不同的批次大小，除此之外还用了什么优化避免不必要的鉴权探测？',
     options: [
-      "'在批量连接前将未显式配置的 server 标记为禁用'",
-      "'确保批量为所有 server 执行完整鉴权以保障安全'",
-      "'仅鉴权一次此后所有 server 的 token 视为永久有效'",
-      "'短 TTL auth cache 跳过近期 401 的 server'"
+      '在批量连接前将未显式配置的 server 标记为禁用',
+      '确保批量为所有 server 执行完整鉴权以保障安全',
+      '仅鉴权一次此后所有 server 的 token 视为永久有效',
+      '短 TTL auth cache 跳过近期 401 的 server'
     ],
     correct: 3,
     explanation: '15 分钟 TTL 的 auth cache：最近返回 401 的 server 会被跳过，避免每次会话都做无意义的鉴权探测。hasMcpDiscoveryButNoToken 进一步将曾探测过但用户从未完成授权的 server 也跳过，省掉网络往返。'
@@ -933,10 +933,10 @@ const q = [
   {
     question: '插件与 MCP server 的本质区别是什么？',
     options: [
-      "'插件和 MCP server 在概念与实现上没有本质区别'",
-      "'MCP server 是外部进程而插件运行在 CC 进程内'",
-      "'插件运行在进程内因此比外部 MCP server 更安全'",
-      "'MCP server 可暴露任意工具功能上限远超插件体系'"
+      '插件和 MCP server 在概念与实现上没有本质区别',
+      'MCP server 是外部进程而插件运行在 CC 进程内',
+      '插件运行在进程内因此比外部 MCP server 更安全',
+      'MCP server 可暴露任意工具功能上限远超插件体系'
     ],
     correct: 1,
     explanation: 'MCP server 是外部进程（或远程服务），独立于 CC 运行，通过 JSON-RPC 通信。插件是运行在 CC 进程内的代码，可以提供 skills（命令）、hooks（生命周期钩子）以及 MCP server 配置——插件可以声明 MCP server 配置，但插件本身不是 MCP server。'
@@ -944,10 +944,10 @@ const q = [
   {
     question: 'Bridge 系统的两种运行模式（Standalone / REPL）的核心区别是什么？',
     options: [
-      "'Standalone 只支持单会话而 REPL 天然支持多会话'",
-      "'Standalone 走 SSE 而 REPL 只能用 WebSocket 传输'",
-      "'Standalone spawn 子 CLI 而 REPL 桥接当前会话'",
-      "'Standalone 面向 IDE 集成而 REPL 面向移动端'"
+      'Standalone 只支持单会话而 REPL 天然支持多会话',
+      'Standalone 走 SSE 而 REPL 只能用 WebSocket 传输',
+      'Standalone spawn 子 CLI 而 REPL 桥接当前会话',
+      'Standalone 面向 IDE 集成而 REPL 面向移动端'
     ],
     correct: 2,
     explanation: 'Standalone Bridge 是常驻守护进程（bridgeMain.ts），轮询拉取工作项后 spawn --print 模式的子 CLI 进程执行；REPL Bridge 运行在 REPL 进程内部，被桥接的就是当前会话本身，无需 spawn。两者共享消息路由与 JWT 刷新等基础设施（bridgeMessaging.ts、jwtUtils.ts）；remoteBridgeCore.ts 只服务 REPL 路径。'
