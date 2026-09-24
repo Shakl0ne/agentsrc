@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-label="The Execution Pipeline">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 32px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 18px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 13px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 14px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.3); stroke-width: 1.5; }
+    .card-async { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.3); stroke-width: 1.5; stroke-dasharray: 4 4; }
+    .card-warn { fill: rgba(239,68,68,0.08); stroke: rgba(239,68,68,0.3); stroke-width: 1.5; }
+    .card-core { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.4); stroke-width: 2; }
+
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-async { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-warn { fill: none; stroke: rgba(239,68,68,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-warn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(239,68,68,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="60" text-anchor="middle" class="title">THE EXECUTION PIPELINE</text>
+  <text x="500" y="90" text-anchor="middle" class="subtitle">Strict sequential barriers before OS execution</text>
+
+  <!-- Node 1: LLM -->
+  <rect x="40" y="260" width="160" height="80" rx="8" class="inner-card"/>
+  <text x="120" y="295" class="card-title">LLM Output</text>
+  <text x="120" y="320" class="inner-sub">shell_command</text>
+
+  <path d="M 200 300 L 250 300" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- Node 2: ExecPolicyManager -->
+  <rect x="250" y="240" width="200" height="120" rx="12" class="card-warn"/>
+  <text x="350" y="280" class="card-title" fill="#ef4444">1. ExecPolicy</text>
+  <text x="350" y="310" class="inner-text">Parse Rule Tree</text>
+  <text x="350" y="335" class="inner-sub">Allow/Forbidden/Prompt</text>
+
+  <path d="M 450 300 L 500 300" class="spine-warn" marker-end="url(#arrow-warn)"/>
+
+  <!-- Node 3: ExecApproval Request -->
+  <rect x="500" y="240" width="200" height="120" rx="12" class="card-core"/>
+  <text x="600" y="280" class="card-title">2. ExecApproval</text>
+  <text x="600" y="310" class="inner-text">Suspend Task</text>
+  <text x="600" y="335" class="inner-sub">Await User Decision</text>
+
+  <path d="M 700 300 L 750 300" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- Node 4: SandboxManager -->
+  <rect x="750" y="160" width="200" height="120" rx="12" class="card-highlight"/>
+  <text x="850" y="200" class="card-title">3. Sandbox</text>
+  <text x="850" y="230" class="inner-text">Wrap Command</text>
+  <text x="850" y="255" class="inner-sub">Apply Perm Profile</text>
+
+  <path d="M 850 280 L 850 330" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- Node 5: OS Exec Server -->
+  <rect x="750" y="330" width="200" height="80" rx="8" class="card"/>
+  <text x="850" y="365" class="card-title">OS Exec Server</text>
+  <text x="850" y="390" class="inner-sub">Subprocess</text>
+
+</svg>

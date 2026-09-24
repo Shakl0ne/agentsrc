@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 820" width="1200" height="820" role="img" aria-label="Claude Code Macro Architecture">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 38px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .eyebrow { font-size: 16px; font-weight: 700; letter-spacing: 2.4px; fill: #9fb1c8; }
+    .chip-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .card-title { font-size: 26px; font-weight: 700; fill: #f0f6fc; }
+    .band-meta { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .small-title { font-size: 22px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .small-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 16px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+
+    .container { fill: rgba(255,255,255,0.02); stroke: rgba(255,255,255,0.22); stroke-width: 2.5; }
+    .chip { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.18); stroke-width: 2; }
+    .band { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.14); stroke-width: 1.5; }
+    .card-cloud { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.4); stroke-width: 2; }
+    .card-async { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.35); stroke-width: 2; stroke-dasharray: 6 6; }
+    .card-small { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.14); stroke-width: 1.5; }
+
+    .spine { fill: none; stroke: rgba(125,196,255,0.65); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-soft { fill: none; stroke: rgba(125,196,255,0.18); stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-async { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 7 6; }
+    .attach { stroke: rgba(139,158,179,0.55); stroke-width: 2; }
+    .attach-async { stroke: rgba(63,185,80,0.55); stroke-width: 2; stroke-dasharray: 5 5; }
+    .node { fill: rgba(125,196,255,0.9); }
+    .node-async { fill: rgba(63,185,80,0.75); }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <radialGradient id="glowBlue" cx="20%" cy="20%" r="36%">
+      <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowPurple" cx="80%" cy="34%" r="34%">
+      <stop offset="0%" stop-color="#bc8cff" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#bc8cff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowGreen" cx="70%" cy="90%" r="34%">
+      <stop offset="0%" stop-color="#3fb950" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#3fb950" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.7)"/>
+    </marker>
+    <marker id="arrow-async" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(63,185,80,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="820" fill="url(#bg)"/>
+  <rect width="1200" height="820" fill="url(#grid)"/>
+  <rect width="1200" height="820" fill="url(#glowBlue)"/>
+  <rect width="1200" height="820" fill="url(#glowPurple)"/>
+  <rect width="1200" height="820" fill="url(#glowGreen)"/>
+
+  <text x="600" y="64" text-anchor="middle" class="title">Claude Code · Macro Architecture</text>
+  <text x="600" y="100" text-anchor="middle" class="subtitle">one local Bun process orchestrating a cloud model and peripheral capabilities</text>
+
+  <!-- user input chip -->
+  <rect x="655" y="126" width="200" height="40" rx="20" class="chip"/>
+  <text x="755" y="152" class="chip-title">USER INPUT</text>
+
+  <!-- local process container -->
+  <rect x="70" y="200" width="700" height="590" rx="20" class="container"/>
+  <text x="100" y="232" class="eyebrow">LOCAL · BUN PROCESS</text>
+
+  <!-- band 1: presentation -->
+  <rect x="100" y="250" width="640" height="118" rx="14" class="band"/>
+  <rect x="128" y="283" width="12" height="52" rx="6" fill="#58a6ff"/>
+  <text x="165" y="290" class="eyebrow">PRESENTATION</text>
+  <text x="165" y="328" class="card-title">REPL.tsx</text>
+
+  <!-- band 2: business logic -->
+  <rect x="100" y="382" width="640" height="118" rx="14" class="band"/>
+  <rect x="128" y="415" width="12" height="52" rx="6" fill="#bc8cff"/>
+  <text x="165" y="422" class="eyebrow">BUSINESS LOGIC</text>
+  <text x="165" y="460" class="card-title">QueryEngine</text>
+
+  <!-- band 3: services -->
+  <rect x="100" y="514" width="640" height="118" rx="14" class="band"/>
+  <rect x="128" y="547" width="12" height="52" rx="6" fill="#3fb950"/>
+  <text x="165" y="554" class="eyebrow">SERVICES</text>
+  <text x="165" y="592" class="card-title">api · mcp · lsp</text>
+
+  <!-- band 4: infrastructure -->
+  <rect x="100" y="646" width="640" height="118" rx="14" class="band"/>
+  <rect x="128" y="679" width="12" height="52" rx="6" fill="#f0883e"/>
+  <text x="165" y="686" class="eyebrow">INFRASTRUCTURE</text>
+  <text x="165" y="724" class="card-title">state/ · hooks/</text>
+
+  <!-- cloud model card -->
+  <rect x="880" y="390" width="270" height="120" rx="16" class="card-cloud"/>
+  <text x="1015" y="448" class="card-title" text-anchor="middle">ANTHROPIC API</text>
+  <text x="1015" y="482" class="band-meta">cloud · streaming inference</text>
+
+  <!-- main spine: input enters the process, flows down the side lane, exits to the cloud -->
+  <path d="M755 166 L755 441 L880 441" class="spine-soft"/>
+  <path d="M755 166 L755 441 L880 441" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- streaming response: cloud -> business logic -->
+  <path d="M880 482 L740 482" class="spine-async" marker-end="url(#arrow-async)"/>
+  <text x="825" y="430" class="arrow-text">tool_use</text>
+  <text x="825" y="510" class="arrow-text">tool_result</text>
+
+  <!-- peripheral: mcp servers -->
+  <rect x="880" y="556" width="270" height="68" rx="12" class="card-async"/>
+  <text x="1015" y="586" class="small-title">MCP Servers</text>
+  <text x="1015" y="610" class="small-sub">async tools · resources</text>
+  <path d="M770 590 L880 590" class="attach-async"/>
+  <circle cx="770" cy="590" r="4" class="node-async"/>
+  <circle cx="880" cy="590" r="4" class="node-async"/>
+
+  <!-- peripheral: bridge -->
+  <rect x="880" y="640" width="270" height="68" rx="12" class="card-small"/>
+  <text x="1015" y="670" class="small-title">Bridge → claude.ai</text>
+  <text x="1015" y="694" class="small-sub">remote control</text>
+  <path d="M770 674 L880 674" class="attach"/>
+  <circle cx="770" cy="674" r="4" class="node"/>
+  <circle cx="880" cy="674" r="4" class="node"/>
+
+  <!-- peripheral: subprocess -->
+  <rect x="880" y="724" width="270" height="68" rx="12" class="card-small"/>
+  <text x="1015" y="754" class="small-title">Subprocess</text>
+  <text x="1015" y="778" class="small-sub">bash · LSP</text>
+  <path d="M770 758 L880 758" class="attach"/>
+  <circle cx="770" cy="758" r="4" class="node"/>
+  <circle cx="880" cy="758" r="4" class="node"/>
+</svg>

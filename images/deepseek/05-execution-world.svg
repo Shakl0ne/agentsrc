@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="1000" height="560" role="img" aria-label="Swap the execution world and all consumers move together">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 18px; font-weight: 700; fill: #9fb1c8; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .panel-local { fill: rgba(88,166,255,0.05); stroke: rgba(88,166,255,0.3); stroke-width: 2; }
+    .panel-remote { fill: rgba(63,185,80,0.05); stroke: rgba(63,185,80,0.3); stroke-width: 2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; marker-end: url(#arrow); }
+    .swap { fill: none; stroke: rgba(168,85,247,0.6); stroke-width: 3; stroke-linecap: round; marker-end: url(#arrow-purple); }
+    .label-purple { font-size: 17px; font-weight: 700; fill: #d2a8ff; text-anchor: middle; }
+    .consumers { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.12); stroke-width: 1.5; }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(168,85,247,0.7)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="52" text-anchor="middle" class="title">ONE EXECUTION WORLD, SWAPPED WHOLE</text>
+  <text x="500" y="80" text-anchor="middle" class="subtitle">swap the world — consumers move with it</text>
+
+  <!-- LOCAL panel (x=40, w=380) -->
+  <rect x="40" y="108" width="380" height="370" rx="14" class="panel-local"/>
+  <text x="230" y="140" class="card-title">LOCAL WORLD</text>
+
+  <rect x="70" y="158" width="320" height="56" rx="10" class="consumers"/>
+  <text x="230" y="192" class="inner-text">bash · PTY · LSP</text>
+
+  <rect x="70" y="230" width="320" height="56" rx="10" class="inner-card"/>
+  <text x="230" y="264" class="inner-text">fs-local</text>
+
+  <rect x="70" y="302" width="320" height="56" rx="10" class="inner-card"/>
+  <text x="230" y="336" class="inner-text">subprocess-local</text>
+
+  <rect x="70" y="374" width="320" height="56" rx="10" class="inner-card"/>
+  <text x="230" y="408" class="inner-text">sandbox-local</text>
+
+  <text x="230" y="458" class="inner-sub">host kernel &amp; filesystem</text>
+
+  <!-- REMOTE panel (x=580, w=380) -->
+  <rect x="580" y="108" width="380" height="370" rx="14" class="panel-remote"/>
+  <text x="770" y="140" class="card-title">REMOTE WORLD</text>
+
+  <rect x="610" y="158" width="320" height="56" rx="10" class="consumers"/>
+  <text x="770" y="192" class="inner-text">bash · PTY · LSP</text>
+
+  <rect x="610" y="230" width="320" height="56" rx="10" class="inner-card"/>
+  <text x="770" y="264" class="inner-text">fs-ssh</text>
+
+  <rect x="610" y="302" width="320" height="56" rx="10" class="inner-card"/>
+  <text x="770" y="336" class="inner-text">subprocess-ssh</text>
+
+  <rect x="610" y="374" width="320" height="56" rx="10" class="inner-card"/>
+  <text x="770" y="408" class="inner-text">sandbox-ssh</text>
+
+  <text x="770" y="458" class="inner-sub">remote backend</text>
+
+  <!-- swap arrow -->
+  <path d="M432 280 C 470 280, 530 280, 568 280" class="swap"/>
+  <text x="500" y="264" class="label-purple">swap the group</text>
+
+  <text x="500" y="516" text-anchor="middle" class="inner-sub">providers swap atomically — no partial migration</text>
+</svg>

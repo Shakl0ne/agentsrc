@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640" role="img" aria-label="MCP connection: five states with exponential backoff reconnection">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #c9d5e3; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .card-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 17px; font-weight: 600; text-anchor: middle; }
+    .footer { font-size: 17px; font-weight: 500; fill: #6e8296; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.12); stroke-width: 2; }
+    .card-blue { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.45); stroke-width: 2; }
+    .card-green { fill: rgba(63,185,80,0.10); stroke: rgba(63,185,80,0.5); stroke-width: 2; }
+    .card-amber { fill: rgba(210,153,34,0.10); stroke: rgba(210,153,34,0.45); stroke-width: 2; }
+    .card-red { fill: rgba(248,81,73,0.08); stroke: rgba(248,81,73,0.4); stroke-width: 2; }
+    .card-gray { fill: rgba(255,255,255,0.02); stroke: rgba(255,255,255,0.15); stroke-width: 2; stroke-dasharray: 5 4; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.65); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .reconnect { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 3; stroke-dasharray: 8 6; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.7)"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(63,185,80,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="64" text-anchor="middle" class="title">MCP Connection · Five States</text>
+  <text x="600" y="102" text-anchor="middle" class="subtitle">one config, five outcomes — exponential backoff drives the retry loop</text>
+
+  <!-- reconnect loop (drawn first, behind cards) -->
+  <path d="M920 250 L920 180 L520 180 L520 246" class="reconnect" marker-end="url(#arrow-green)"/>
+  <text x="720" y="168" class="arrow-text" fill="#3fb950">onclose &#8594; backoff 1s &#183; 2s &#183; 4s &#183; 8s &#183; 16s &#183; 5 tries</text>
+
+  <!-- top row -->
+  <rect x="60" y="250" width="240" height="120" rx="14" class="card"/>
+  <text x="180" y="292" class="card-title">CONFIG</text>
+  <text x="180" y="326" class="card-sub">user &#183; project &#183; enterprise</text>
+  <text x="180" y="354" class="card-sub">7 scopes merge by priority</text>
+
+  <rect x="400" y="250" width="240" height="120" rx="14" class="card-blue"/>
+  <text x="520" y="292" class="card-title">PENDING</text>
+  <text x="520" y="326" class="card-sub">connecting / reconnecting</text>
+  <text x="520" y="354" class="card-sub">reconnectAttempt n/5</text>
+
+  <rect x="760" y="250" width="320" height="120" rx="14" class="card-green"/>
+  <text x="920" y="292" class="card-title">CONNECTED</text>
+  <text x="920" y="326" class="card-sub">tools &#183; prompts &#183; resources live</text>
+  <text x="920" y="354" class="card-sub">memoized until closed</text>
+
+  <path d="M300 310 L396 310" class="spine" marker-end="url(#arrow)"/>
+  <text x="348" y="294" class="arrow-text" fill="#9fb1c8">connect</text>
+  <path d="M640 310 L756 310" class="spine" marker-end="url(#arrow)"/>
+  <text x="698" y="294" class="arrow-text" fill="#9fb1c8">initialize</text>
+
+  <!-- bottom row -->
+  <rect x="400" y="450" width="240" height="120" rx="14" class="card-amber"/>
+  <text x="520" y="492" class="card-title">NEEDS AUTH</text>
+  <text x="520" y="526" class="card-sub">OAuth flow required</text>
+  <text x="520" y="554" class="card-sub">/mcp menu guides the user</text>
+
+  <rect x="760" y="450" width="320" height="120" rx="14" class="card-red"/>
+  <text x="920" y="492" class="card-title">FAILED</text>
+  <text x="920" y="526" class="card-sub">terminal error surfaced</text>
+  <text x="920" y="554" class="card-sub">stderr attached to the message</text>
+
+  <rect x="60" y="450" width="240" height="120" rx="14" class="card-gray"/>
+  <text x="180" y="492" class="card-title">DISABLED</text>
+  <text x="180" y="526" class="card-sub">skipped before connecting</text>
+  <text x="180" y="554" class="card-sub">grayed toggle in the UI</text>
+
+  <path d="M470 370 L470 446" class="spine" marker-end="url(#arrow)"/>
+  <text x="438" y="415" class="arrow-text" fill="#d29922">401</text>
+  <path d="M580 446 L580 374" class="spine" marker-end="url(#arrow)"/>
+  <text x="618" y="415" class="arrow-text" fill="#9fb1c8">auth done</text>
+  <path d="M620 370 L820 446" class="spine" marker-end="url(#arrow)"/>
+  <text x="706" y="394" class="arrow-text" fill="#f85149">3 errors &#8594; close</text>
+  <path d="M180 370 L180 446" class="spine" marker-end="url(#arrow)"/>
+  <text x="248" y="415" class="arrow-text" fill="#9fb1c8">user toggle</text>
+
+  <text x="600" y="620" class="footer">connectToServer is memoized — a reconnect clears the cache entry and runs it again</text>
+</svg>

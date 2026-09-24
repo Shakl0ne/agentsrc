@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640" role="img" aria-label="AgentTool: one call, four spawn paths">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #c9d5e3; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .card-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .mono { font-size: 19px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .switch-label { font-size: 17px; font-weight: 600; fill: #d29922; text-anchor: middle; }
+    .footer { font-size: 17px; font-weight: 500; fill: #6e8296; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.12); stroke-width: 2; }
+    .card-blue { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.45); stroke-width: 2; }
+    .card-amber { fill: rgba(210,153,34,0.10); stroke: rgba(210,153,34,0.45); stroke-width: 2; }
+    .card-green { fill: rgba(63,185,80,0.10); stroke: rgba(63,185,80,0.5); stroke-width: 2; }
+    .card-purple { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.45); stroke-width: 2; stroke-dasharray: 6 5; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.65); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .switch { fill: none; stroke: rgba(210,153,34,0.65); stroke-width: 2.5; stroke-dasharray: 7 6; stroke-linecap: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.7)"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(210,153,34,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="64" text-anchor="middle" class="title">AgentTool · Four Spawn Paths</text>
+  <text x="600" y="102" text-anchor="middle" class="subtitle">one call, four outcomes — the sync path can even flip mid-run</text>
+
+  <!-- the call -->
+  <rect x="430" y="150" width="340" height="60" rx="12" class="card"/>
+  <text x="600" y="188" class="mono">Agent(prompt, subagent_type, ...)</text>
+
+  <!-- fan-out arrows -->
+  <path d="M520 210 L188 264" class="spine" marker-end="url(#arrow)"/>
+  <path d="M570 210 L462 264" class="spine" marker-end="url(#arrow)"/>
+  <path d="M630 210 L742 264" class="spine" marker-end="url(#arrow)"/>
+  <path d="M680 210 L1018 264" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- four paths -->
+  <rect x="50" y="270" width="256" height="130" rx="14" class="card-blue"/>
+  <text x="178" y="308" class="card-title">SYNC</text>
+  <text x="178" y="340" class="card-sub">parent blocks until done</text>
+  <text x="178" y="368" class="card-sub">result returns as tool_result</text>
+
+  <rect x="331" y="270" width="256" height="130" rx="14" class="card-amber"/>
+  <text x="459" y="308" class="card-title">ASYNC</text>
+  <text x="459" y="340" class="card-sub">async_launched now</text>
+  <text x="459" y="368" class="card-sub">&#060;task-notification&#062; later</text>
+
+  <rect x="612" y="270" width="256" height="130" rx="14" class="card-green"/>
+  <text x="740" y="308" class="card-title">TEAMMATE</text>
+  <text x="740" y="340" class="card-sub">team_name + name given</text>
+  <text x="740" y="368" class="card-sub">spawns into the swarm</text>
+
+  <rect x="893" y="270" width="256" height="130" rx="14" class="card-purple"/>
+  <text x="1021" y="308" class="card-title">FORK</text>
+  <text x="1021" y="340" class="card-sub">inherits parent tools</text>
+  <text x="1021" y="368" class="card-sub">shares prompt cache</text>
+
+  <!-- backgrounding: sync flips to async mid-run -->
+  <path d="M178 400 L178 445 L459 445 L459 406" class="switch" marker-end="url(#arrow-amber)"/>
+  <text x="318" y="476" class="switch-label">backgrounding: user button · autoBackgroundMs timeout</text>
+
+  <text x="600" y="560" class="footer">backgroundSignal + Promise.race — the sync path flips to async mid-run</text>
+</svg>

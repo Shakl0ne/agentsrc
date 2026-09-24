@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-label="One capability, three roles">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 16px; font-weight: 700; fill: #9fb1c8; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.35); stroke-width: 2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; marker-end: url(#arrow); }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+  <text x="500" y="52" text-anchor="middle" class="title">ONE CAPABILITY, THREE ROLES</text>
+  <text x="500" y="84" text-anchor="middle" class="subtitle">Three roles make a seam</text>
+
+  <!-- Service Definition -->
+  <rect x="60" y="150" width="270" height="180" rx="12" class="card-highlight"/>
+  <text x="195" y="186" class="card-title">Service Definition</text>
+  <rect x="84" y="206" width="222" height="30" rx="6" class="inner-card"/>
+  <text x="195" y="227" class="inner-text">dsh-shell</text>
+  <text x="195" y="268" class="inner-sub">declares interface</text>
+  <text x="195" y="296" class="inner-sub">no backend import</text>
+
+  <!-- Service Provider -->
+  <rect x="670" y="150" width="270" height="180" rx="12" class="card"/>
+  <text x="805" y="186" class="card-title">Service Provider</text>
+  <rect x="694" y="206" width="222" height="30" rx="6" class="inner-card"/>
+  <text x="805" y="227" class="inner-text">bash-local</text>
+  <rect x="694" y="242" width="222" height="30" rx="6" class="inner-card"/>
+  <text x="805" y="263" class="inner-text">bash-sandbox</text>
+  <text x="805" y="310" class="inner-sub">one provider per composition</text>
+
+  <!-- Consumer -->
+  <rect x="365" y="410" width="270" height="100" rx="12" class="card"/>
+  <text x="500" y="446" class="card-title">Consumer</text>
+  <rect x="389" y="466" width="222" height="30" rx="6" class="inner-card"/>
+  <text x="500" y="487" class="inner-text">dsh-tool-bash</text>
+  <text x="500" y="538" class="inner-sub">reads sandboxMode fact</text>
+
+  <!-- arrows -->
+  <path d="M330 200 C 480 200, 520 200, 666 200" class="spine"/>
+  <text x="500" y="190" class="arrow-text">implements</text>
+
+  <path d="M670 320 C 540 360, 560 400, 570 446" class="spine"/>
+  <text x="640" y="400" class="arrow-text">registers on ctx.shell</text>
+
+  <path d="M195 330 C 260 380, 330 410, 430 418" class="spine"/>
+  <text x="280" y="400" class="arrow-text">depends on interface</text>
+
+  <text x="500" y="130" class="inner-sub">stable key: ctx.shell</text>
+</svg>

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="1000" height="620" role="img" aria-label="Scope parent chain: registrations inherit down, events emit up">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 17px; font-weight: 700; fill: #9fb1c8; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.35); stroke-width: 2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; marker-end: url(#arrow); }
+    .rail-down { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 8 8; marker-end: url(#arrow-green); }
+    .rail-up { fill: none; stroke: rgba(168,85,247,0.6); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 8 8; marker-end: url(#arrow-purple); }
+    .label-green { font-size: 17px; font-weight: 700; fill: #7ee2a8; text-anchor: middle; }
+    .label-purple { font-size: 17px; font-weight: 700; fill: #d2a8ff; text-anchor: middle; }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(63,185,80,0.7)"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(168,85,247,0.7)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="52" text-anchor="middle" class="title">SCOPE CHAIN: TWO DIRECTIONS</text>
+  <text x="500" y="84" text-anchor="middle" class="subtitle">Registrations inherit down, events emit up</text>
+
+  <!-- Vertical spine: ROOT SCOPE -->
+  <rect x="380" y="120" width="240" height="88" rx="12" class="card-highlight"/>
+  <text x="500" y="156" class="card-title">ROOT SCOPE</text>
+  <text x="500" y="184" class="inner-sub">bindScopeParent</text>
+
+  <path d="M500 208 L500 242" class="spine"/>
+
+  <!-- CHILD SCOPE -->
+  <rect x="380" y="246" width="240" height="88" rx="12" class="card"/>
+  <text x="500" y="282" class="card-title">CHILD SCOPE</text>
+  <text x="500" y="310" class="inner-sub">createScope(ctx, key)</text>
+
+  <path d="M500 334 L500 368" class="spine"/>
+
+  <!-- GRANDCHILD SCOPE -->
+  <rect x="380" y="372" width="240" height="88" rx="12" class="card"/>
+  <text x="500" y="408" class="card-title">GRANDCHILD</text>
+  <text x="500" y="436" class="inner-sub">nearest-first chain</text>
+
+  <!-- LEFT rail: registrations inherit DOWN -->
+  <path d="M240 180 C 210 230, 210 330, 240 380 C 255 400, 255 430, 250 460" class="rail-down"/>
+  <text x="155" y="270" class="label-green">REGISTRATIONS</text>
+  <text x="155" y="296" class="label-green">INHERIT DOWN</text>
+
+  <!-- RIGHT rail: events emit UP -->
+  <path d="M760 460 C 790 430, 790 330, 760 280 C 745 250, 745 220, 750 180" class="rail-up"/>
+  <text x="850" y="270" class="label-purple">EVENTS</text>
+  <text x="850" y="296" class="label-purple">EMIT UP</text>
+
+  <!-- Bottom group labels (no border, just text) -->
+  <text x="155" y="510" text-anchor="middle" class="inner-sub">child sees</text>
+  <text x="155" y="534" text-anchor="middle" class="inner-sub">ancestor layers</text>
+
+  <text x="850" y="510" text-anchor="middle" class="inner-sub">ancestor-tagged</text>
+  <text x="850" y="534" text-anchor="middle" class="inner-sub">listeners fire</text>
+</svg>

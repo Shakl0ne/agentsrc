@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="1000" height="560" role="img" aria-label="Self-modification three boundaries">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 17px; font-weight: 700; fill: #9fb1c8; text-anchor: middle; }
+    .band-model { fill: rgba(63,185,80,0.07); stroke: rgba(63,185,80,0.35); stroke-width: 2; }
+    .band-dynamic { fill: rgba(88,166,255,0.07); stroke: rgba(88,166,255,0.35); stroke-width: 2; }
+    .band-pm { fill: rgba(168,85,247,0.07); stroke: rgba(168,85,247,0.35); stroke-width: 2; }
+    .card { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .label-green { font-size: 17px; font-weight: 700; fill: #7ee2a8; }
+    .label-blue { font-size: 17px; font-weight: 700; fill: #79c0ff; }
+    .label-purple { font-size: 17px; font-weight: 700; fill: #d2a8ff; }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="52" text-anchor="middle" class="title">SELF-MODIFICATION: THREE BOUNDARIES</text>
+  <text x="500" y="80" text-anchor="middle" class="subtitle">read-only model, dynamic code, persistent install</text>
+
+  <!-- Band 1: MODEL — read-only (y=104, h=130) -->
+  <rect x="60" y="104" width="880" height="130" rx="14" class="band-model"/>
+  <text x="90" y="134" class="label-green">MODEL — read-only</text>
+  <text x="90" y="152" class="inner-sub" style="text-anchor:start">inspect providers &amp; types</text>
+  <rect x="90" y="164" width="380" height="48" rx="10" class="card"/>
+  <text x="280" y="194" class="inner-text">cordis_inspect_list</text>
+  <rect x="510" y="164" width="380" height="48" rx="10" class="card"/>
+  <text x="700" y="194" class="inner-text">cordis_inspect_query</text>
+
+  <!-- Band 2: DYNAMIC — session-scoped (y=252, h=140) -->
+  <rect x="60" y="252" width="880" height="140" rx="14" class="band-dynamic"/>
+  <text x="90" y="282" class="label-blue">dynamic definitions</text>
+  <rect x="90" y="298" width="380" height="48" rx="10" class="card"/>
+  <text x="280" y="328" class="inner-text">node:vm + browser</text>
+  <rect x="510" y="298" width="380" height="48" rx="10" class="card"/>
+  <text x="700" y="328" class="inner-text">session-scoped</text>
+  <text x="500" y="374" class="inner-sub">absent to other sessions until restart</text>
+
+  <!-- Band 3: PLUGIN MANAGER — persistent (y=410, h=100) -->
+  <rect x="60" y="410" width="880" height="125" rx="14" class="band-pm"/>
+  <text x="90" y="440" class="label-purple">PLUGIN MANAGER — persistent</text>
+  <text x="90" y="458" class="inner-sub" style="text-anchor:start">permanent profile bundles</text>
+  <rect x="90" y="468" width="380" height="48" rx="10" class="card"/>
+  <text x="280" y="498" class="inner-text">persistent install</text>
+  <rect x="510" y="468" width="380" height="48" rx="10" class="card"/>
+  <text x="700" y="498" class="inner-text">bundles land in profile</text>
+</svg>

@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" aria-label="Tool Execution Pipeline">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 38px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .eyebrow { font-size: 14px; font-weight: 700; letter-spacing: 1.5px; fill: #9fb1c8; }
+    .card-title { font-size: 22px; font-weight: 700; fill: #f0f6fc; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 13px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 14px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+    .arrow-text-red { font-size: 14px; font-weight: 600; fill: #f85149; text-anchor: middle; }
+    .arrow-text-blue { font-size: 14px; font-weight: 600; fill: #58a6ff; text-anchor: middle; }
+    
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-red { fill: rgba(248,81,73,0.08); stroke: rgba(248,81,73,0.3); stroke-width: 1.5; }
+    .card-yellow { fill: rgba(210,153,34,0.08); stroke: rgba(210,153,34,0.3); stroke-width: 1.5; }
+    .card-blue { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.3); stroke-width: 1.5; }
+    
+    .state-allow { fill: rgba(63,185,80,0.15); stroke: rgba(63,185,80,0.4); stroke-width: 1.5; }
+    .state-ask { fill: rgba(210,153,34,0.15); stroke: rgba(210,153,34,0.4); stroke-width: 1.5; }
+    .state-deny { fill: rgba(248,81,73,0.15); stroke: rgba(248,81,73,0.4); stroke-width: 1.5; }
+    .state-text-allow { font-size: 14px; font-weight: 700; fill: #3fb950; text-anchor: middle; }
+    .state-text-ask { font-size: 14px; font-weight: 700; fill: #d29922; text-anchor: middle; }
+    .state-text-deny { font-size: 14px; font-weight: 700; fill: #f85149; text-anchor: middle; }
+
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-red { fill: none; stroke: rgba(248,81,73,0.6); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 6; }
+    .spine-blue { fill: none; stroke: rgba(88,166,255,0.6); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-dashed { fill: none; stroke: rgba(125,196,255,0.4); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 6; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(248,81,73,0.8)"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(88,166,255,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <rect width="1200" height="800" fill="url(#grid)"/>
+
+  <text x="600" y="70" text-anchor="middle" class="title">Tool Execution Pipeline</text>
+  <text x="600" y="104" text-anchor="middle" class="subtitle">Definition, Permission, and Execution</text>
+
+  <!-- COL 1: LLM & Registry -->
+  <g transform="translate(40, 160)">
+    <!-- LLM Box -->
+    <rect x="0" y="0" width="180" height="120" rx="16" class="inner-card"/>
+    <text x="90" y="55" class="card-title" text-anchor="middle">LLM</text>
+    <text x="90" y="80" class="inner-sub">Claude / GPT</text>
+
+    <!-- Registry Box -->
+    <rect x="0" y="200" width="180" height="100" rx="16" class="inner-card"/>
+    <text x="90" y="245" class="card-title" text-anchor="middle">ToolRegistry</text>
+    <text x="90" y="270" class="inner-sub">Dynamic Schema</text>
+    
+    <!-- Arrow Registry -> LLM -->
+    <path d="M 90 200 L 90 130" class="spine-dashed" marker-end="url(#arrow)"/>
+    <text x="100" y="170" class="arrow-text" text-anchor="start">Injects Schema</text>
+  </g>
+
+  <!-- COL 2: Wrapper -->
+  <g transform="translate(280, 160)">
+    <rect x="0" y="0" width="240" height="460" rx="20" class="card"/>
+    <text x="120" y="40" class="eyebrow" text-anchor="middle">STAGE 1</text>
+    <text x="120" y="70" class="card-title" text-anchor="middle">Tool.wrap()</text>
+
+    <rect x="20" y="110" width="200" height="60" rx="8" class="inner-card"/>
+    <text x="120" y="145" class="inner-text">Schema.decode</text>
+
+    <rect x="20" y="200" width="200" height="60" rx="8" class="inner-card"/>
+    <text x="120" y="235" class="inner-text">Type Validation</text>
+
+    <rect x="20" y="290" width="200" height="60" rx="8" class="card-red"/>
+    <text x="120" y="325" class="inner-text" fill="#ff7b72">InvalidArgs Error</text>
+  </g>
+
+  <!-- COL 3: Permission -->
+  <g transform="translate(580, 160)">
+    <rect x="0" y="0" width="260" height="460" rx="20" class="card"/>
+    <text x="130" y="40" class="eyebrow" text-anchor="middle">STAGE 2</text>
+    <text x="130" y="70" class="card-title" text-anchor="middle">Permission Engine</text>
+
+    <rect x="20" y="110" width="220" height="60" rx="8" class="inner-card"/>
+    <text x="130" y="138" class="inner-text">Doom Loop Check</text>
+    <text x="130" y="158" class="inner-sub">Recent 3 identical calls</text>
+
+    <rect x="20" y="200" width="220" height="60" rx="8" class="inner-card"/>
+    <text x="130" y="228" class="inner-text">evaluate() Rules</text>
+    <text x="130" y="248" class="inner-sub">findLast wildcard match</text>
+
+    <!-- 3 States -->
+    <rect x="20" y="290" width="66" height="36" rx="6" class="state-allow"/>
+    <text x="53" y="313" class="state-text-allow">allow</text>
+    
+    <rect x="97" y="290" width="66" height="36" rx="6" class="state-ask"/>
+    <text x="130" y="313" class="state-text-ask">ask</text>
+    
+    <rect x="174" y="290" width="66" height="36" rx="6" class="state-deny"/>
+    <text x="207" y="313" class="state-text-deny">deny</text>
+
+    <rect x="20" y="356" width="220" height="60" rx="8" class="card-yellow"/>
+    <text x="130" y="384" class="inner-text" fill="#d29922">Deferred.await</text>
+    <text x="130" y="404" class="inner-sub" fill="#d29922">Wait for user (once/always)</text>
+  </g>
+
+  <!-- COL 4: Execution -->
+  <g transform="translate(900, 160)">
+    <rect x="0" y="0" width="260" height="460" rx="20" class="card"/>
+    <text x="130" y="40" class="eyebrow" text-anchor="middle">STAGE 3</text>
+    <text x="130" y="70" class="card-title" text-anchor="middle">execute()</text>
+
+    <rect x="20" y="110" width="220" height="60" rx="8" class="inner-card"/>
+    <text x="130" y="138" class="inner-text">e.g. 9 Edit Replacers</text>
+    <text x="130" y="158" class="inner-sub">Progressive matching</text>
+
+    <rect x="20" y="200" width="220" height="60" rx="8" class="inner-card"/>
+    <text x="130" y="228" class="inner-text">LSP Diagnostics</text>
+    <text x="130" y="248" class="inner-sub">Syntax feedback loop</text>
+
+    <rect x="20" y="290" width="220" height="60" rx="8" class="inner-card"/>
+    <text x="130" y="318" class="inner-text">truncate.output()</text>
+    <text x="130" y="338" class="inner-sub">50KB / 2000 lines limit</text>
+
+    <rect x="20" y="380" width="220" height="60" rx="8" class="card-blue"/>
+    <text x="130" y="415" class="inner-text" fill="#58a6ff">ExecuteResult</text>
+  </g>
+
+  <!-- ARROWS -->
+  <!-- LLM -> Wrapper -->
+  <path d="M 220 220 L 270 220" class="spine" marker-end="url(#arrow)"/>
+  <text x="250" y="210" class="arrow-text">JSON Request</text>
+
+  <!-- Wrapper -> LLM (Error) -->
+  <path d="M 280 480 L 250 480 L 250 250 L 230 250" class="spine-red" marker-end="url(#arrow-red)"/>
+  <text x="240" y="370" class="arrow-text-red" transform="rotate(-90 240 370)">InvalidArgs</text>
+
+  <!-- Wrapper -> Permission -->
+  <path d="M 520 390 L 570 390" class="spine" marker-end="url(#arrow)"/>
+  <text x="545" y="380" class="arrow-text">Decoded Args</text>
+
+  <!-- Permission -> Execution -->
+  <path d="M 840 390 L 890 390" class="spine" marker-end="url(#arrow)"/>
+  <text x="865" y="380" class="arrow-text">Allowed</text>
+
+  <!-- Execution -> LLM (Result) -->
+  <path d="M 1030 620 L 1030 720 L 130 720 L 130 290" class="spine-blue" marker-end="url(#arrow-blue)"/>
+  <text x="580" y="710" class="arrow-text-blue">ExecuteResult (Output + Metadata + LSP Errors)</text>
+  
+  <!-- Permission Ask Loop -->
+  <path d="M 710 576 L 710 610 L 850 610 L 850 468 L 830 468" class="spine-dashed" marker-end="url(#arrow)"/>
+  <text x="780" y="600" class="arrow-text" fill="#d29922">User Input</text>
+
+</svg>

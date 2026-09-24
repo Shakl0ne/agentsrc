@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-label="Slot-based Memory Layout">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 32px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 18px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 13px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 14px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.3); stroke-width: 1.5; }
+    .card-async { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.3); stroke-width: 1.5; stroke-dasharray: 4 4; }
+    .card-warn { fill: rgba(239,68,68,0.08); stroke: rgba(239,68,68,0.3); stroke-width: 1.5; }
+    .card-core { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.4); stroke-width: 2; }
+
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-async { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-warn { fill: none; stroke: rgba(239,68,68,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <linearGradient id="cacheGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3fb950"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="60" text-anchor="middle" class="title">SLOT-BASED MEMORY LAYOUT</text>
+  <text x="500" y="90" text-anchor="middle" class="subtitle">Layering instructions to protect core weights and maximize caching</text>
+
+  <!-- Left Sidebar: Cache Indicator -->
+  <rect x="150" y="160" width="20" height="320" rx="10" fill="url(#cacheGrad)"/>
+  <text x="130" y="180" class="inner-text" text-anchor="end" fill="#3fb950">High Cache Hit</text>
+  <text x="130" y="200" class="inner-sub" text-anchor="end">(Static)</text>
+  
+  <text x="130" y="460" class="inner-text" text-anchor="end" fill="#ef4444">Low Cache Hit</text>
+  <text x="130" y="480" class="inner-sub" text-anchor="end">(Dynamic)</text>
+
+  <!-- The Stack -->
+  <!-- Top Layer: Developer Slots -->
+  <rect x="250" y="160" width="500" height="90" rx="12" class="card-warn"/>
+  <text x="500" y="195" class="card-title" fill="#ef4444">Developer Slots (Policy &amp; Capabilities)</text>
+  <text x="500" y="225" class="inner-text">Sandbox permissions, Core rules, App guidance</text>
+
+  <!-- Middle Layer: Contextual User Slot -->
+  <rect x="250" y="275" width="500" height="90" rx="12" class="card-highlight"/>
+  <text x="500" y="310" class="card-title">Contextual User Slot</text>
+  <text x="500" y="340" class="inner-text">CWD, Shell state, AGENTS.md, Environment</text>
+
+  <!-- Bottom Layer: Separate Developer Slot -->
+  <rect x="250" y="390" width="500" height="90" rx="12" class="card-async" style="stroke-dasharray: none;"/>
+  <text x="500" y="425" class="card-title">Separate Developer Slot</text>
+  <text x="500" y="455" class="inner-text">Isolated extension fragments (e.g. strict overrides)</text>
+
+  <!-- Annotations on the right -->
+  <path d="M 750 205 L 800 205" class="spine" marker-end="url(#arrow)"/>
+  <text x="820" y="200" class="inner-text" style="text-anchor: start;">Highest Weight</text>
+  <text x="820" y="220" class="inner-sub" style="text-anchor: start;">Rarely changes</text>
+
+  <path d="M 750 320 L 800 320" class="spine" marker-end="url(#arrow)"/>
+  <text x="820" y="315" class="inner-text" style="text-anchor: start;">Medium Weight</text>
+  <text x="820" y="335" class="inner-sub" style="text-anchor: start;">Changes per turn</text>
+
+  <path d="M 750 435 L 800 435" class="spine" marker-end="url(#arrow)"/>
+  <text x="820" y="430" class="inner-text" style="text-anchor: start;">Absolute Isolation</text>
+  <text x="820" y="450" class="inner-sub" style="text-anchor: start;">Prevents pollution</text>
+
+</svg>

@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" width="1200" height="700" role="img" aria-label="CLAUDE.md six memory sources layered by injection priority">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #c9d5e3; }
+    .layer-name { font-size: 20px; font-weight: 700; fill: #f0f6fc; }
+    .layer-path { font-size: 17px; font-weight: 500; fill: #8b9eb3; }
+    .side-label { font-size: 18px; font-weight: 600; fill: #9fb1c8; }
+    .side-big { font-size: 20px; font-weight: 700; fill: #3fb950; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.12); stroke-width: 2; }
+    .card-gray { fill: rgba(255,255,255,0.02); stroke: rgba(255,255,255,0.15); stroke-width: 2; stroke-dasharray: 5 4; }
+    .card-purple { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.45); stroke-width: 2; }
+    .card-blue { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.45); stroke-width: 2; }
+    .card-green { fill: rgba(63,185,80,0.10); stroke: rgba(63,185,80,0.5); stroke-width: 2; }
+    .card-amber { fill: rgba(210,153,34,0.10); stroke: rgba(210,153,34,0.5); stroke-width: 2; }
+    .card-red { fill: rgba(248,113,113,0.10); stroke: rgba(248,113,113,0.5); stroke-width: 2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.65); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.7)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="60" text-anchor="middle" class="title">Memory Sources &#183; Six Injection Layers</text>
+  <text x="600" y="96" text-anchor="middle" class="subtitle">getClaudeMds() concatenates in order — later entries carry more weight</text>
+
+  <!-- priority spine on the left -->
+  <path d="M96 620 L96 168" class="spine" marker-end="url(#arrow)"/>
+  <text x="64" y="380" class="side-label" transform="rotate(-90 64 380)" text-anchor="middle">HIGHER PRIORITY &#183; LATER IN STRING</text>
+
+  <!-- layer rows, low to high, bottom to top -->
+  <rect x="150" y="556" width="820" height="64" rx="12" class="card-gray"/>
+  <text x="180" y="582" class="layer-name">1 &#183; MANAGED</text>
+  <text x="180" y="606" class="layer-path">/etc/claude-code/CLAUDE.md &#183; org-wide policy</text>
+
+  <rect x="150" y="472" width="820" height="64" rx="12" class="card-gray"/>
+  <text x="180" y="498" class="layer-name">2 &#183; USER</text>
+  <text x="180" y="522" class="layer-path">~/.claude/CLAUDE.md &#183; cross-project private</text>
+
+  <rect x="150" y="388" width="820" height="64" rx="12" class="card-blue"/>
+  <text x="180" y="414" class="layer-name">3 &#183; PROJECT</text>
+  <text x="180" y="438" class="layer-path">CLAUDE.md up the tree from cwd &#183; checked into repo</text>
+
+  <rect x="150" y="304" width="820" height="64" rx="12" class="card-amber"/>
+  <text x="180" y="330" class="layer-name">4 &#183; LOCAL</text>
+  <text x="180" y="354" class="layer-path">CLAUDE.local.md &#183; private, not checked in</text>
+
+  <rect x="150" y="220" width="820" height="64" rx="12" class="card-green"/>
+  <text x="180" y="246" class="layer-name">5 &#183; AUTOMEM</text>
+  <text x="180" y="270" class="layer-path">projects/{git-root}/memory/MEMORY.md &#183; persists across sessions</text>
+
+  <rect x="150" y="136" width="820" height="64" rx="12" class="card-purple"/>
+  <text x="180" y="162" class="layer-name">6 &#183; TEAMMEM</text>
+  <text x="180" y="186" class="layer-path">team/MEMORY.md &#183; synced across the organization</text>
+
+  <!-- right side annotations -->
+  <rect x="1010" y="136" width="160" height="484" rx="12" class="card"/>
+  <text x="1090" y="180" class="side-label" text-anchor="middle">walk up</text>
+  <text x="1090" y="208" class="side-label" text-anchor="middle">to root &#183;</text>
+  <text x="1090" y="236" class="side-label" text-anchor="middle">closer cwd</text>
+  <text x="1090" y="264" class="side-label" text-anchor="middle">wins</text>
+  <text x="1090" y="330" class="side-big" text-anchor="middle">40K chars</text>
+  <text x="1090" y="358" class="side-label" text-anchor="middle">per-file cap</text>
+  <text x="1090" y="430" class="side-label" text-anchor="middle">worktree</text>
+  <text x="1090" y="458" class="side-label" text-anchor="middle">dedup via</text>
+  <text x="1090" y="486" class="side-label" text-anchor="middle">canonical root</text>
+  <text x="1090" y="556" class="side-label" text-anchor="middle">@include with</text>
+  <text x="1090" y="584" class="side-label" text-anchor="middle">100+ ext allowlist</text>
+</svg>

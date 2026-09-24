@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-label="The Reactor Engine">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 32px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 18px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 13px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 14px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.3); stroke-width: 1.5; }
+    .card-async { fill: rgba(63,185,80,0.08); stroke: rgba(63,185,80,0.3); stroke-width: 1.5; stroke-dasharray: 4 4; }
+    .card-warn { fill: rgba(239,68,68,0.08); stroke: rgba(239,68,68,0.3); stroke-width: 1.5; }
+    .card-core { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.4); stroke-width: 2; }
+
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-async { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .spine-warn { fill: none; stroke: rgba(239,68,68,0.6); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-async" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(63,185,80,0.8)"/>
+    </marker>
+    <marker id="arrow-warn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(239,68,68,0.8)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="60" text-anchor="middle" class="title">THE REACTOR ENGINE</text>
+  <text x="500" y="90" text-anchor="middle" class="subtitle">Event-driven message passing via async channels</text>
+
+  <!-- Top: Message Queue -->
+  <rect x="350" y="130" width="300" height="80" rx="8" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.2)" stroke-width="2" stroke-dasharray="6 6"/>
+  <text x="500" y="160" class="inner-text" fill="#8b9eb3">async_channel::Receiver</text>
+  
+  <rect x="370" y="175" width="80" height="24" rx="4" class="inner-card"/>
+  <text x="410" y="192" class="inner-sub">Op::Turn</text>
+  
+  <rect x="460" y="175" width="80" height="24" rx="4" class="card-warn"/>
+  <text x="500" y="192" class="inner-sub" fill="#ef4444">Op::Interrupt</text>
+  
+  <rect x="550" y="175" width="80" height="24" rx="4" class="card-async" style="stroke-dasharray: none;"/>
+  <text x="590" y="192" class="inner-sub" fill="#3fb950">Op::Compact</text>
+
+  <path d="M 500 210 L 500 250" class="spine-async" marker-end="url(#arrow-async)"/>
+  <text x="510" y="235" class="arrow-text" fill="#3fb950" style="text-anchor: start;">rx_sub.recv().await</text>
+
+  <!-- Middle: Reactor Loop -->
+  <rect x="350" y="250" width="300" height="80" rx="16" class="card-highlight"/>
+  <text x="500" y="290" class="card-title">submission_loop</text>
+  <text x="500" y="315" class="inner-text">The Non-blocking Reactor</text>
+
+  <path d="M 500 330 L 500 370" class="spine" marker-end="url(#arrow)"/>
+  <text x="510" y="355" class="arrow-text" style="text-anchor: start;">Dispatches</text>
+
+  <!-- Lower Middle: Active Task -->
+  <rect x="350" y="370" width="300" height="60" rx="12" class="card-core"/>
+  <text x="500" y="405" class="card-title">run_turn()</text>
+  <text x="500" y="425" class="inner-sub">Active SessionTask</text>
+
+  <!-- Bottom: Trident Dispatch -->
+  <path d="M 500 430 L 500 450 L 250 450 L 250 480" class="spine" marker-end="url(#arrow)"/>
+  <path d="M 500 430 L 500 480" class="spine" marker-end="url(#arrow)"/>
+  <path d="M 500 430 L 500 450 L 750 450 L 750 480" class="spine" marker-end="url(#arrow)"/>
+
+  <rect x="150" y="480" width="200" height="60" rx="8" class="inner-card"/>
+  <text x="250" y="515" class="inner-text">Context Builder</text>
+
+  <rect x="400" y="480" width="200" height="60" rx="8" class="card-warn"/>
+  <text x="500" y="515" class="inner-text">Compaction</text>
+
+  <rect x="650" y="480" width="200" height="60" rx="8" class="card"/>
+  <text x="750" y="515" class="inner-text">Tool Execution</text>
+
+</svg>

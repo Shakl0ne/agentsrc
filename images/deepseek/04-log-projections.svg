@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700" role="img" aria-label="One log, many projections">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.35); stroke-width: 2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; marker-end: url(#arrow); }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="0" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+  <text x="500" y="52" text-anchor="middle" class="title">ONE LOG, MANY PROJECTIONS</text>
+  <text x="500" y="84" text-anchor="middle" class="subtitle">Single source, many views</text>
+
+  <!-- log strip -->
+  <rect x="60" y="120" width="280" height="340" rx="12" class="card-highlight"/>
+  <text x="200" y="154" class="card-title">Session log</text>
+  <rect x="86" y="176" width="228" height="32" rx="6" class="inner-card"/>
+  <text x="200" y="197" class="inner-text">seq 1 · turn/start</text>
+  <rect x="86" y="230" width="228" height="32" rx="6" class="inner-card"/>
+  <text x="200" y="251" class="inner-text">seq 2 · system/message</text>
+  <rect x="86" y="284" width="228" height="32" rx="6" class="inner-card"/>
+  <text x="200" y="305" class="inner-text">seq 3 · user/message</text>
+  <rect x="86" y="338" width="228" height="32" rx="6" class="inner-card"/>
+  <text x="200" y="359" class="inner-text">seq 4 · assistant/message</text>
+  <rect x="86" y="392" width="228" height="32" rx="6" class="inner-card"/>
+  <text x="200" y="413" class="inner-text">seq 5 · tool/call</text>
+  <text x="200" y="446" class="inner-sub">append-only · typed</text>
+
+  <!-- arrows: log → projections -->
+  <path d="M340 192 C 420 192, 440 170, 482 170" class="spine"/>
+  <path d="M340 246 C 420 246, 440 260, 482 260" class="spine"/>
+  <path d="M340 354 C 420 354, 440 360, 482 360" class="spine"/>
+  <path d="M340 408 C 420 408, 440 460, 482 460" class="spine"/>
+
+  <!-- projections -->
+  <rect x="500" y="140" width="440" height="60" rx="12" class="card"/>
+  <text x="720" y="166" class="card-title">deriveMessages()</text>
+  <text x="720" y="190" class="inner-sub">frozen Message[] from surface nodes</text>
+
+  <rect x="500" y="232" width="440" height="60" rx="12" class="card"/>
+  <text x="720" y="258" class="card-title">replay &amp; UI</text>
+  <text x="720" y="282" class="inner-sub">embedded streams in assistant/message</text>
+
+  <rect x="500" y="332" width="440" height="60" rx="12" class="card"/>
+  <text x="720" y="358" class="card-title">persistence</text>
+  <text x="720" y="382" class="inner-sub">session.vN.jsonl.zstd</text>
+
+  <rect x="500" y="432" width="440" height="60" rx="12" class="card"/>
+  <text x="720" y="458" class="card-title">fork()</text>
+  <text x="720" y="482" class="inner-sub">closed prefix of this log</text>
+</svg>

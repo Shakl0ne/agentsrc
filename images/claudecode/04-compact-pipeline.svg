@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 650" width="1200" height="650" role="img" aria-label="Five compaction levels and where each fires during one query-loop iteration">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #c9d5e3; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .card-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .branch-text { font-size: 17px; font-weight: 600; text-anchor: middle; }
+    .arrow-text { font-size: 18px; font-weight: 700; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.12); stroke-width: 2; }
+    .card-gray { fill: rgba(255,255,255,0.02); stroke: rgba(255,255,255,0.15); stroke-width: 2; stroke-dasharray: 5 4; }
+    .card-blue { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.45); stroke-width: 2; }
+    .card-amber { fill: rgba(210,153,34,0.10); stroke: rgba(210,153,34,0.5); stroke-width: 2; }
+    .card-green { fill: rgba(63,185,80,0.10); stroke: rgba(63,185,80,0.5); stroke-width: 2; }
+    .card-purple { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.45); stroke-width: 2; }
+    .card-red { fill: rgba(248,113,113,0.10); stroke: rgba(248,113,113,0.5); stroke-width: 2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.65); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .fallback { fill: none; stroke: rgba(248,113,113,0.55); stroke-width: 3; stroke-linecap: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.7)"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(248,113,113,0.7)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="56" text-anchor="middle" class="title">Compaction Pipeline &#183; One Loop Iteration</text>
+  <text x="600" y="92" text-anchor="middle" class="subtitle">five levels each own a moment — cheap and local first, the LLM summary only if all else fails</text>
+
+  <!-- L2 branch card above the spine -->
+  <rect x="245" y="140" width="270" height="86" rx="12" class="card-blue"/>
+  <text x="380" y="172" class="branch-text" fill="#79b8ff">60min since last turn</text>
+  <text x="380" y="194" class="card-sub">&#8594; clear stale tool results</text>
+  <text x="380" y="216" class="card-sub">cached MC (ant) &#8594; cache_edits</text>
+  <path d="M380 226 L378 250" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- main spine row -->
+  <rect x="60" y="262" width="160" height="66" rx="12" class="card-gray"/>
+  <text x="140" y="290" class="card-title">ITERATION</text>
+  <text x="140" y="314" class="card-sub">query loop start</text>
+
+  <rect x="290" y="262" width="170" height="66" rx="12" class="card-blue"/>
+  <text x="375" y="290" class="card-title">L2 &#183; MICRO</text>
+  <text x="375" y="314" class="card-sub">cheap &amp; local</text>
+
+  <rect x="530" y="262" width="170" height="66" rx="12" class="card-amber"/>
+  <text x="615" y="290" class="card-title">L1 &#183; AUTO</text>
+  <text x="615" y="314" class="card-sub">token over threshold?</text>
+
+  <rect x="770" y="262" width="150" height="66" rx="12" class="card-purple"/>
+  <text x="845" y="290" class="card-title">API CALL</text>
+  <text x="845" y="314" class="card-sub">L3 config rides</text>
+
+  <rect x="990" y="262" width="160" height="66" rx="12" class="card-green"/>
+  <text x="1070" y="290" class="card-title">STREAMING</text>
+  <text x="1070" y="314" class="card-sub">normal response</text>
+
+  <path d="M220 295 L284 295" class="spine" marker-end="url(#arrow)"/>
+  <path d="M460 295 L524 295" class="spine" marker-end="url(#arrow)"/>
+  <path d="M700 295 L764 295" class="spine" marker-end="url(#arrow)"/>
+  <path d="M920 295 L984 295" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- L1 fork below the spine -->
+  <path d="M615 328 L565 385" class="spine" marker-end="url(#arrow)"/>
+  <text x="648" y="362" class="arrow-text" fill="#9fb1c8">yes</text>
+
+  <rect x="420" y="392" width="290" height="70" rx="12" class="card-green"/>
+  <text x="565" y="420" class="card-title">L5 &#183; SESSION MEMORY</text>
+  <text x="565" y="444" class="card-sub">read memory file &#183; zero LLM</text>
+
+  <path d="M710 427 L764 427" class="fallback" marker-end="url(#arrow-red)"/>
+  <text x="737" y="412" class="arrow-text" fill="#ff7b72">fail</text>
+
+  <rect x="770" y="392" width="300" height="70" rx="12" class="card-amber"/>
+  <text x="920" y="420" class="card-title">L1 &#183; LLM SUMMARY</text>
+  <text x="920" y="444" class="card-sub">compactConversation &#183; streaming</text>
+
+  <!-- reactive chain: down the right side, clear of the L1 LLM card -->
+  <path d="M1090 330 C 1090 430 1115 470 1080 498" class="fallback" marker-end="url(#arrow-red)"/>
+
+  <rect x="760" y="500" width="400" height="90" rx="12" class="card-red"/>
+  <text x="960" y="530" class="branch-text" fill="#ff7b72">413 / media limit &#8594; drain context collapse</text>
+  <text x="960" y="554" class="card-sub">still 413 &#8594; L4 &#183; REACTIVE</text>
+  <text x="960" y="576" class="card-sub">summarize &amp; retry</text>
+
+  <path d="M760 520 C 720 480 750 380 845 340" class="fallback" marker-end="url(#arrow-red)"/>
+  <text x="712" y="508" class="arrow-text" fill="#ff7b72">retry</text>
+</svg>

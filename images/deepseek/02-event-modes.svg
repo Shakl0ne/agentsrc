@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="1000" height="620" role="img" aria-label="Five dispatch modes split into observe and delegate">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .group-label { font-size: 17px; font-weight: 700; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.35); stroke-width: 2; }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="52" text-anchor="middle" class="title">FIVE DISPATCH MODES</text>
+  <text x="500" y="84" text-anchor="middle" class="subtitle">Observe vs delegate — the event's public contract</text>
+
+  <!-- OBSERVE panel (left) -->
+  <text x="250" y="140" text-anchor="middle" class="group-label" fill="#7ee2a8">OBSERVE</text>
+  <rect x="40" y="156" width="420" height="320" rx="12" class="card"/>
+
+  <rect x="64" y="180" width="372" height="68" rx="8" class="inner-card"/>
+  <text x="250" y="212" class="card-title">emit</text>
+  <text x="250" y="234" class="inner-sub">sync broadcast · no return</text>
+
+  <rect x="64" y="262" width="372" height="68" rx="8" class="inner-card"/>
+  <text x="250" y="294" class="card-title">parallel</text>
+  <text x="250" y="316" class="inner-sub">all listeners · awaited</text>
+
+  <rect x="64" y="344" width="372" height="68" rx="8" class="inner-card"/>
+  <text x="250" y="376" class="card-title">serial</text>
+  <text x="250" y="398" class="inner-sub">in order · first bail stops</text>
+
+  <!-- DELEGATE panel (right) -->
+  <text x="750" y="140" text-anchor="middle" class="group-label" fill="#d2a8ff">DELEGATE</text>
+  <rect x="540" y="156" width="420" height="320" rx="12" class="card-highlight"/>
+
+  <rect x="564" y="180" width="372" height="130" rx="8" class="inner-card"/>
+  <text x="750" y="212" class="card-title">waterfall</text>
+  <text x="750" y="240" class="inner-sub">listener gets (...args, next)</text>
+  <text x="750" y="268" class="inner-sub">call next() → delegate result</text>
+  <text x="750" y="296" class="inner-sub">skip next() → veto chain</text>
+
+  <rect x="564" y="324" width="372" height="68" rx="8" class="inner-card"/>
+  <text x="750" y="356" class="card-title">bail</text>
+  <text x="750" y="378" class="inner-sub">sync · first bail value wins</text>
+
+
+</svg>

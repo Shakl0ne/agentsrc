@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" width="1200" height="700" role="img" aria-label="Micro compact: three cache-aware paths chosen by cache state">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .card-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .badge { font-size: 17px; font-weight: 700; text-anchor: middle; letter-spacing: 0.5px; }
+    .branch-label { font-size: 18px; font-weight: 700; text-anchor: middle; }
+    .footer { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.12); stroke-width: 2; }
+    .card-amber { fill: rgba(210,153,34,0.10); stroke: rgba(210,153,34,0.45); stroke-width: 2; }
+    .card-green { fill: rgba(63,185,80,0.10); stroke: rgba(63,185,80,0.5); stroke-width: 2; }
+    .card-gray { fill: rgba(255,255,255,0.02); stroke: rgba(255,255,255,0.15); stroke-width: 2; stroke-dasharray: 5 4; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.65); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.7)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="64" text-anchor="middle" class="title">Micro Compact · Three Cache-Aware Paths</text>
+  <text x="600" y="102" text-anchor="middle" class="subtitle">the path is chosen by cache state — a warm prefix is never rewritten for cleanup</text>
+
+  <!-- decision 1 -->
+  <rect x="420" y="150" width="360" height="90" rx="12" class="card"/>
+  <text x="600" y="195" class="card-title">CACHE TTL EXPIRED?</text>
+  <text x="600" y="222" class="card-sub">gap since last assistant &gt; 60 min</text>
+
+  <!-- decision 2 -->
+  <rect x="470" y="295" width="260" height="90" rx="12" class="card"/>
+  <text x="600" y="340" class="card-title">CACHED MC ON?</text>
+  <text x="600" y="367" class="card-sub">ant · main thread · model</text>
+
+  <!-- branch arrows -->
+  <path d="M420 195 L240 195 L240 443" class="spine" marker-end="url(#arrow)"/>
+  <path d="M600 240 L600 291" class="spine" marker-end="url(#arrow)"/>
+  <path d="M600 385 L600 443" class="spine" marker-end="url(#arrow)"/>
+  <path d="M730 340 L960 340 L960 443" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- YES / NO pills, color-coded -->
+  <rect x="303" y="178" width="54" height="34" rx="17" fill="rgba(63,185,80,0.16)"/>
+  <text x="330" y="201" class="branch-label" fill="#3fb950">YES</text>
+  <rect x="573" y="249" width="54" height="34" rx="17" fill="rgba(210,153,34,0.16)"/>
+  <text x="600" y="272" class="branch-label" fill="#d29922">NO</text>
+  <rect x="573" y="394" width="54" height="34" rx="17" fill="rgba(63,185,80,0.16)"/>
+  <text x="600" y="417" class="branch-label" fill="#3fb950">YES</text>
+  <rect x="818" y="323" width="54" height="34" rx="17" fill="rgba(210,153,34,0.16)"/>
+  <text x="845" y="346" class="branch-label" fill="#d29922">NO</text>
+
+  <!-- outcome: time-based -->
+  <rect x="80" y="445" width="320" height="160" rx="12" class="card-amber"/>
+  <text x="240" y="493" class="card-title">TIME-BASED</text>
+  <text x="240" y="529" class="card-sub">clear old tool results in place</text>
+  <rect x="120" y="553" width="240" height="30" rx="15" fill="rgba(210,153,34,0.12)"/>
+  <text x="240" y="574" class="badge" fill="#d29922">CACHE ALREADY DEAD</text>
+
+  <!-- outcome: cache_edits -->
+  <rect x="440" y="445" width="320" height="160" rx="12" class="card-green"/>
+  <text x="600" y="493" class="card-title">CACHE_EDITS</text>
+  <text x="600" y="529" class="card-sub">server drops cached results</text>
+  <rect x="480" y="553" width="240" height="30" rx="15" fill="rgba(63,185,80,0.12)"/>
+  <text x="600" y="574" class="badge" fill="#3fb950">LOCAL ARRAY UNTOUCHED</text>
+
+  <!-- outcome: no-op -->
+  <rect x="800" y="445" width="320" height="160" rx="12" class="card-gray"/>
+  <text x="960" y="493" class="card-title">NO-OP</text>
+  <text x="960" y="529" class="card-sub">autocompact handles pressure</text>
+  <rect x="840" y="553" width="240" height="30" rx="15" fill="rgba(255,255,255,0.06)"/>
+  <text x="960" y="574" class="badge" fill="#8b9eb3">DEFERRED</text>
+
+  <text x="600" y="660" class="footer">EVALUATED BEFORE EVERY API CALL</text>
+</svg>

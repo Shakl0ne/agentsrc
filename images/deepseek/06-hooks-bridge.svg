@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 470" width="1000" height="470" role="img" aria-label="Hooks translated onto typed extension points">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .inner-card { fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 1.5; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.35); stroke-width: 2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; marker-end: url(#arrow); }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="52" text-anchor="middle" class="title">TRANSLATING HOOKS, NOT REIMPLEMENTING THEM</text>
+  <text x="500" y="80" text-anchor="middle" class="subtitle">existing hooks map to typed extension points</text>
+
+  <!-- hooks.json (left, x=50, w=250) -->
+  <rect x="50" y="110" width="250" height="240" rx="12" class="card"/>
+  <text x="175" y="142" class="card-title">hooks.json</text>
+  <rect x="74" y="158" width="202" height="30" rx="6" class="inner-card"/>
+  <text x="175" y="179" class="inner-text">SessionStart</text>
+  <rect x="74" y="196" width="202" height="30" rx="6" class="inner-card"/>
+  <text x="175" y="217" class="inner-text">Pre/PostToolUse</text>
+  <rect x="74" y="234" width="202" height="30" rx="6" class="inner-card"/>
+  <text x="175" y="255" class="inner-text">Stop</text>
+  <rect x="74" y="272" width="202" height="30" rx="6" class="inner-card"/>
+  <text x="175" y="293" class="inner-text">SubagentStart · Stop</text>
+
+  <!-- hook-protocol (center, x=360, w=280) -->
+  <path d="M300 220 L356 220" class="spine"/>
+  <rect x="360" y="110" width="280" height="240" rx="12" class="card-highlight"/>
+  <text x="500" y="142" class="card-title">hook-protocol</text>
+  <rect x="384" y="158" width="232" height="30" rx="6" class="inner-card"/>
+  <text x="500" y="179" class="inner-text">validate matcher</text>
+  <rect x="384" y="196" width="232" height="30" rx="6" class="inner-card"/>
+  <text x="500" y="217" class="inner-text">run via ctx.shell</text>
+  <rect x="384" y="234" width="232" height="30" rx="6" class="inner-card"/>
+  <text x="500" y="255" class="inner-text">decode exit / stdout</text>
+  <rect x="384" y="272" width="232" height="30" rx="6" class="inner-card"/>
+  <text x="500" y="293" class="inner-text">deny > ask > allow</text>
+  <rect x="384" y="310" width="232" height="30" rx="6" class="inner-card"/>
+  <text x="500" y="331" class="inner-text">log invoked + result</text>
+
+  <!-- extension points (right, x=700, w=250) -->
+  <path d="M640 220 L696 220" class="spine"/>
+  <rect x="700" y="110" width="250" height="240" rx="12" class="card"/>
+  <text x="825" y="142" class="card-title">extension points</text>
+  <rect x="724" y="158" width="202" height="30" rx="6" class="inner-card"/>
+  <text x="825" y="179" class="inner-text">agent/created</text>
+  <rect x="724" y="196" width="202" height="30" rx="6" class="inner-card"/>
+  <text x="825" y="217" class="inner-text">agent/pre-step</text>
+  <rect x="724" y="234" width="202" height="30" rx="6" class="inner-card"/>
+  <text x="825" y="255" class="inner-text">tools/pre-execute</text>
+  <rect x="724" y="272" width="202" height="30" rx="6" class="inner-card"/>
+  <text x="825" y="293" class="inner-text">tools/post-execute</text>
+
+  <text x="500" y="430" text-anchor="middle" class="inner-sub">compatibility adapter — custom behavior uses native plugins</text>
+</svg>

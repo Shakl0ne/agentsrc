@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" width="1200" height="700" role="img" aria-label="Slash commands: three dispatch paths, only prompt reaches the model">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .card-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .mono { font-size: 20px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .footer { font-size: 17px; font-weight: 500; fill: #6e8296; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.12); stroke-width: 2; }
+    .card-amber { fill: rgba(210,153,34,0.10); stroke: rgba(210,153,34,0.45); stroke-width: 2; }
+    .card-green { fill: rgba(63,185,80,0.10); stroke: rgba(63,185,80,0.5); stroke-width: 2; }
+    .card-purple { fill: rgba(168,85,247,0.10); stroke: rgba(168,85,247,0.45); stroke-width: 2; }
+    .card-model { fill: rgba(210,153,34,0.20); stroke: rgba(210,153,34,0.75); stroke-width: 2.5; }
+    .card-gray { fill: rgba(255,255,255,0.015); stroke: rgba(255,255,255,0.10); stroke-width: 2; stroke-dasharray: 5 4; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.65); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .stub { fill: none; stroke: rgba(139,158,179,0.4); stroke-width: 2.5; stroke-dasharray: 6 5; stroke-linecap: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.7)"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(210,153,34,0.85)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="64" text-anchor="middle" class="title">Slash Commands · Three Dispatch Paths</text>
+  <text x="600" y="102" text-anchor="middle" class="subtitle">parsed before the main loop — only the prompt path reaches the model</text>
+
+  <!-- user input -->
+  <rect x="460" y="150" width="280" height="56" rx="12" class="card"/>
+  <text x="600" y="186" class="mono">/commit fix bug</text>
+
+  <!-- parser -->
+  <rect x="420" y="256" width="360" height="70" rx="12" class="card"/>
+  <text x="600" y="290" class="card-title">SPLIT BY SPACE</text>
+  <text x="600" y="316" class="card-sub">first word = command · rest = args · 60 lines total</text>
+
+  <!-- fan-out arrows -->
+  <path d="M600 206 L600 248" class="spine" marker-end="url(#arrow)"/>
+  <path d="M600 326 L250 388" class="spine" marker-end="url(#arrow)"/>
+  <path d="M600 326 L600 390" class="spine" marker-end="url(#arrow)"/>
+  <path d="M600 326 L950 388" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- type: prompt -->
+  <rect x="80" y="396" width="320" height="110" rx="12" class="card-amber"/>
+  <text x="240" y="432" class="card-title">PROMPT</text>
+  <text x="240" y="462" class="card-sub">builds a prompt with allowedTools</text>
+  <text x="240" y="490" class="card-sub">/commit · /review · /init</text>
+
+  <!-- type: local -->
+  <rect x="440" y="396" width="320" height="110" rx="12" class="card-green"/>
+  <text x="600" y="432" class="card-title">LOCAL</text>
+  <text x="600" y="462" class="card-sub">sync fn returns text · compact · skip</text>
+  <text x="600" y="490" class="card-sub">/compact · /cost · /clear</text>
+
+  <!-- type: local-jsx -->
+  <rect x="800" y="396" width="320" height="110" rx="12" class="card-purple"/>
+  <text x="960" y="432" class="card-title">LOCAL-JSX</text>
+  <text x="960" y="462" class="card-sub">renders Ink UI + onDone callback</text>
+  <text x="960" y="490" class="card-sub">/mcp · /config · /model</text>
+
+  <!-- down paths: only prompt continues -->
+  <path d="M240 506 L240 560" class="spine" style="stroke: rgba(210,153,34,0.8)" marker-end="url(#arrow-amber)"/>
+  <path d="M600 506 L600 560" class="stub"/>
+  <path d="M960 506 L960 560" class="stub"/>
+
+  <!-- model row -->
+  <rect x="80" y="566" width="320" height="80" rx="12" class="card-model"/>
+  <text x="240" y="600" class="card-title">MODEL QUERY</text>
+  <text x="240" y="628" class="card-sub">shouldQuery: true · one API round-trip</text>
+
+  <rect x="440" y="566" width="320" height="80" rx="12" class="card-gray"/>
+  <text x="600" y="600" class="card-title" style="fill:#9fb1c8">NO MODEL CALL</text>
+  <text x="600" y="628" class="card-sub">sync result → messages</text>
+
+  <rect x="800" y="566" width="320" height="80" rx="12" class="card-gray"/>
+  <text x="960" y="600" class="card-title" style="fill:#9fb1c8">NO MODEL CALL</text>
+  <text x="960" y="628" class="card-sub">Ink renders · onDone returns</text>
+
+  <text x="600" y="686" class="footer">EIGHT AVAILABILITY GATES BEFORE A COMMAND REACHES TYPEAHEAD</text>
+</svg>

@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" width="1200" height="560" role="img" aria-label="Tool Assembly Pipeline">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .stage-title { font-size: 21px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .stage-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 16px; font-weight: 600; fill: #9fb1c8; text-anchor: middle; }
+    .out-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .out-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .eyebrow { font-size: 16px; font-weight: 700; letter-spacing: 2.2px; fill: #9fb1c8; text-anchor: middle; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glowBlue" cx="26%" cy="40%" r="32%">
+      <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowPurple" cx="72%" cy="60%" r="34%">
+      <stop offset="0%" stop-color="#bc8cff" stop-opacity="0.11"/>
+      <stop offset="100%" stop-color="#bc8cff" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.65)"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="560" fill="url(#bg)"/>
+  <rect width="1200" height="560" fill="url(#grid)"/>
+  <rect width="1200" height="560" fill="url(#glowBlue)"/>
+  <rect width="1200" height="560" fill="url(#glowPurple)"/>
+
+  <text x="600" y="64" text-anchor="middle" class="title">Three Functions, One Tool Array</text>
+  <text x="600" y="98" text-anchor="middle" class="subtitle">tools.ts assembles what the API will see</text>
+
+  <!-- ============ STAGE 1 ============ -->
+  <g>
+    <rect x="80" y="170" width="280" height="220" rx="22" fill="rgba(88,166,255,0.06)" stroke="rgba(88,166,255,0.35)" stroke-width="2"/>
+    <text x="220" y="212" class="eyebrow">STAGE 1</text>
+    <text x="220" y="248" class="stage-title">getAllBaseTools()</text>
+    <text x="220" y="286" class="stage-sub">compile-time: feature() elimination</text>
+    <text x="220" y="316" class="stage-sub">runtime: env flags &#183; isTodoV2Enabled</text>
+    <text x="220" y="346" class="stage-sub">circular deps: lazy require()</text>
+  </g>
+
+  <path d="M360 280 L430 280" stroke="rgba(125,196,255,0.6)" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- ============ STAGE 2 ============ -->
+  <g>
+    <rect x="440" y="170" width="280" height="220" rx="22" fill="rgba(240,183,82,0.05)" stroke="rgba(240,183,82,0.4)" stroke-width="2"/>
+    <text x="580" y="212" class="eyebrow">STAGE 2</text>
+    <text x="580" y="248" class="stage-title">getTools()</text>
+    <text x="580" y="286" class="stage-sub">special tools set aside</text>
+    <text x="580" y="316" class="stage-sub">deny rules strip before schema submit</text>
+    <text x="580" y="346" class="stage-sub">each tool votes via isEnabled()</text>
+  </g>
+
+  <path d="M720 280 L790 280" stroke="rgba(125,196,255,0.6)" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- ============ STAGE 3 ============ -->
+  <g>
+    <rect x="800" y="170" width="280" height="220" rx="22" fill="rgba(168,85,247,0.06)" stroke="rgba(168,85,247,0.4)" stroke-width="2"/>
+    <text x="940" y="212" class="eyebrow">STAGE 3</text>
+    <text x="940" y="248" class="stage-title">assembleToolPool()</text>
+    <text x="940" y="286" class="stage-sub">merge MCP tools (deny-filtered)</text>
+    <text x="940" y="316" class="stage-sub">sort each partition by name</text>
+    <text x="940" y="346" class="stage-sub">uniqBy — built-ins win name clashes</text>
+  </g>
+
+  <!-- ============ OUTPUT ============ -->
+  <path d="M940 390 L940 440" stroke="rgba(125,196,255,0.6)" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="440" y="452" width="640" height="72" rx="16" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.16)" stroke-width="2"/>
+  <text x="760" y="482" class="out-title">API request &#183; tools[] field</text>
+  <text x="760" y="510" class="out-sub">[ built-in prefix &#183; breakpoint &#183; MCP suffix ]</text>
+
+  <!-- source input note on the left -->
+  <path d="M220 390 L220 440" stroke="rgba(125,196,255,0.35)" stroke-width="2.5" stroke-dasharray="6 6"/>
+  <rect x="80" y="452" width="280" height="72" rx="16" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.12)" stroke-width="2" stroke-dasharray="6 6"/>
+  <text x="220" y="482" class="out-sub">src/tools/ &#183; 42 directories</text>
+  <text x="220" y="510" class="out-sub">50+ tool implementations</text>
+
+</svg>

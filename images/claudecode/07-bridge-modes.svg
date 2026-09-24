@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640" role="img" aria-label="Bridge: standalone daemon vs in-process REPL bridge">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #c9d5e3; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .card-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 17px; font-weight: 600; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.12); stroke-width: 2; }
+    .card-gray { fill: rgba(255,255,255,0.02); stroke: rgba(255,255,255,0.15); stroke-width: 2; stroke-dasharray: 5 4; }
+    .card-purple { fill: rgba(168,85,247,0.08); stroke: rgba(168,85,247,0.45); stroke-width: 2; }
+    .card-blue { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.45); stroke-width: 2; }
+    .card-green { fill: rgba(63,185,80,0.10); stroke: rgba(63,185,80,0.5); stroke-width: 2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.65); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.7)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="64" text-anchor="middle" class="title">Bridge &#183; Local Execution, Remote Control</text>
+  <text x="600" y="102" text-anchor="middle" class="subtitle">a standalone daemon spawns child CLIs — the REPL bridge wires the live session</text>
+
+  <!-- remote clients -->
+  <rect x="490" y="130" width="220" height="64" rx="14" class="card-gray"/>
+  <text x="600" y="157" class="card-title">WEB &#183; MOBILE</text>
+  <text x="600" y="181" class="card-sub">remote control clients</text>
+
+  <!-- CCR backend -->
+  <rect x="460" y="240" width="280" height="80" rx="14" class="card-purple"/>
+  <text x="600" y="275" class="card-title">CCR BACKEND</text>
+  <text x="600" y="303" class="card-sub">work items &#183; JWT &#183; sessions</text>
+
+  <path d="M600 194 L600 236" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- standalone lane -->
+  <rect x="100" y="380" width="340" height="120" rx="14" class="card-blue"/>
+  <text x="270" y="422" class="card-title">STANDALONE BRIDGE</text>
+  <text x="270" y="456" class="card-sub">bridgeMain.ts &#183; polls every 2s</text>
+  <text x="270" y="484" class="card-sub">idle &#8594; 10-min poll when full</text>
+
+  <!-- repl lane -->
+  <rect x="760" y="380" width="340" height="120" rx="14" class="card-green"/>
+  <text x="930" y="422" class="card-title">REPL BRIDGE</text>
+  <text x="930" y="456" class="card-sub">replBridge.ts &#183; in-process</text>
+  <text x="930" y="484" class="card-sub">bridges the current REPL session</text>
+
+  <!-- children and shared infra -->
+  <rect x="100" y="550" width="340" height="70" rx="14" class="card"/>
+  <text x="270" y="582" class="card-title">CHILD CLI &#215; N</text>
+  <text x="270" y="607" class="card-sub">--print &#183; stream-json &#183; worktree</text>
+
+  <rect x="760" y="550" width="340" height="70" rx="14" class="card-gray"/>
+  <text x="930" y="582" class="card-title">SHARED &#183; remoteBridgeCore.ts</text>
+  <text x="930" y="607" class="card-sub">echo dedup &#183; epoch &#183; JWT refresh</text>
+
+  <path d="M500 320 L320 376" class="spine" marker-end="url(#arrow)"/>
+  <text x="352" y="336" class="arrow-text" fill="#9fb1c8">poll work items</text>
+  <path d="M700 320 L880 376" class="spine" marker-end="url(#arrow)"/>
+  <text x="848" y="336" class="arrow-text" fill="#9fb1c8">v1 WS &#183; v2 SSE</text>
+  <path d="M270 500 L270 546" class="spine" marker-end="url(#arrow)"/>
+  <text x="312" y="530" class="arrow-text" fill="#9fb1c8">spawn</text>
+</svg>

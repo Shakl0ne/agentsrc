@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 860" width="1200" height="860" role="img" aria-label="Permission check short-circuit ladder, first match wins">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #c9d5e3; }
+    .row-text { font-size: 18px; font-weight: 600; fill: #f0f6fc; }
+    .row-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; }
+    .num { font-size: 18px; font-weight: 700; text-anchor: middle; }
+    .pill-text { font-size: 18px; font-weight: 700; text-anchor: middle; }
+    .side-label { font-size: 17px; font-weight: 700; fill: #9fb1c8; text-anchor: middle; }
+    .row { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.12); stroke-width: 2; }
+    .spine { stroke: rgba(125,196,255,0.45); stroke-width: 3; }
+    .link { stroke: rgba(255,255,255,0.28); stroke-width: 2; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow-sm" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(255,255,255,0.4)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="56" text-anchor="middle" class="title">Permission Check &#183; A Short-Circuit Ladder</text>
+  <text x="600" y="92" text-anchor="middle" class="subtitle">first match wins — cheap local rules first, the AI classifier last</text>
+
+  <!-- phase bars + labels -->
+  <rect x="84" y="140" width="6" height="172" rx="3" fill="rgba(88,166,255,0.55)"/>
+  <text x="56" y="226" class="side-label" transform="rotate(-90 56 226)">RULES</text>
+  <rect x="84" y="320" width="6" height="232" rx="3" fill="rgba(210,153,34,0.55)"/>
+  <text x="56" y="436" class="side-label" transform="rotate(-90 56 436)">TOOL VERDICT</text>
+  <rect x="84" y="560" width="6" height="112" rx="3" fill="rgba(63,185,80,0.55)"/>
+  <text x="56" y="616" class="side-label" transform="rotate(-90 56 616)">BYPASS</text>
+  <rect x="84" y="680" width="6" height="128" rx="3" fill="rgba(188,140,255,0.55)"/>
+  <text x="56" y="744" class="side-label" transform="rotate(-90 56 744)">AUTO</text>
+
+  <!-- spine -->
+  <line x1="110" y1="140" x2="110" y2="806" class="spine"/>
+
+  <!-- rows -->
+  <rect x="140" y="140" width="710" height="52" rx="10" class="row"/>
+  <circle cx="110" cy="166" r="18" fill="rgba(88,166,255,0.12)" stroke="#58a6ff" stroke-width="2"/>
+  <text x="110" y="173" class="num" fill="#79b8ff">1</text>
+  <text x="165" y="172" class="row-text">request aborted</text>
+  <line x1="850" y1="166" x2="874" y2="166" class="link" marker-end="url(#arrow-sm)"/>
+  <rect x="880" y="146" width="200" height="40" rx="20" fill="rgba(139,158,179,0.15)" stroke="#8b9eb3" stroke-width="2"/>
+  <text x="980" y="172" class="pill-text" fill="#c9d5e3">THROW</text>
+
+  <rect x="140" y="200" width="710" height="52" rx="10" class="row"/>
+  <circle cx="110" cy="226" r="18" fill="rgba(88,166,255,0.12)" stroke="#58a6ff" stroke-width="2"/>
+  <text x="110" y="233" class="num" fill="#79b8ff">2</text>
+  <text x="165" y="232" class="row-text">tool-level deny rule?</text>
+  <line x1="850" y1="226" x2="874" y2="226" class="link" marker-end="url(#arrow-sm)"/>
+  <rect x="880" y="206" width="200" height="40" rx="20" fill="rgba(248,113,113,0.15)" stroke="#f85149" stroke-width="2"/>
+  <text x="980" y="232" class="pill-text" fill="#ffb3ad">DENY</text>
+
+  <rect x="140" y="260" width="710" height="52" rx="10" class="row"/>
+  <circle cx="110" cy="286" r="18" fill="rgba(88,166,255,0.12)" stroke="#58a6ff" stroke-width="2"/>
+  <text x="110" y="293" class="num" fill="#79b8ff">3</text>
+  <text x="165" y="292" class="row-text">tool-level ask rule (not sandbox)?</text>
+  <line x1="850" y1="286" x2="874" y2="286" class="link" marker-end="url(#arrow-sm)"/>
+  <rect x="880" y="266" width="200" height="40" rx="20" fill="rgba(210,153,34,0.15)" stroke="#d29922" stroke-width="2"/>
+  <text x="980" y="292" class="pill-text" fill="#e3b341">ASK</text>
+
+  <rect x="140" y="320" width="710" height="52" rx="10" class="row"/>
+  <circle cx="110" cy="346" r="18" fill="rgba(210,153,34,0.12)" stroke="#d29922" stroke-width="2"/>
+  <text x="110" y="353" class="num" fill="#e3b341">4</text>
+  <text x="165" y="352" class="row-text">tool.checkPermissions = deny?</text>
+  <line x1="850" y1="346" x2="874" y2="346" class="link" marker-end="url(#arrow-sm)"/>
+  <rect x="880" y="326" width="200" height="40" rx="20" fill="rgba(248,113,113,0.15)" stroke="#f85149" stroke-width="2"/>
+  <text x="980" y="352" class="pill-text" fill="#ffb3ad">DENY</text>
+
+  <rect x="140" y="380" width="710" height="52" rx="10" class="row"/>
+  <circle cx="110" cy="406" r="18" fill="rgba(210,153,34,0.12)" stroke="#d29922" stroke-width="2"/>
+  <text x="110" y="413" class="num" fill="#e3b341">5</text>
+  <text x="165" y="412" class="row-text">requiresUserInteraction + ask?</text>
+  <line x1="850" y1="406" x2="874" y2="406" class="link" marker-end="url(#arrow-sm)"/>
+  <rect x="880" y="386" width="200" height="40" rx="20" fill="rgba(210,153,34,0.15)" stroke="#d29922" stroke-width="2"/>
+  <text x="980" y="412" class="pill-text" fill="#e3b341">ASK</text>
+
+  <rect x="140" y="440" width="710" height="52" rx="10" class="row"/>
+  <circle cx="110" cy="466" r="18" fill="rgba(210,153,34,0.12)" stroke="#d29922" stroke-width="2"/>
+  <text x="110" y="473" class="num" fill="#e3b341">6</text>
+  <text x="165" y="472" class="row-text">content-level ask rule?</text>
+  <line x1="850" y1="466" x2="874" y2="466" class="link" marker-end="url(#arrow-sm)"/>
+  <rect x="880" y="446" width="200" height="40" rx="20" fill="rgba(210,153,34,0.15)" stroke="#d29922" stroke-width="2"/>
+  <text x="980" y="472" class="pill-text" fill="#e3b341">ASK</text>
+
+  <rect x="140" y="500" width="710" height="52" rx="10" class="row"/>
+  <circle cx="110" cy="526" r="18" fill="rgba(210,153,34,0.12)" stroke="#d29922" stroke-width="2"/>
+  <text x="110" y="533" class="num" fill="#e3b341">7</text>
+  <text x="165" y="532" class="row-text">safetyCheck — .git &#183; .claude &#183; shell rc?</text>
+  <line x1="850" y1="526" x2="874" y2="526" class="link" marker-end="url(#arrow-sm)"/>
+  <rect x="880" y="506" width="200" height="40" rx="20" fill="rgba(210,153,34,0.15)" stroke="#d29922" stroke-width="2"/>
+  <text x="980" y="532" class="pill-text" fill="#e3b341">ASK</text>
+
+  <rect x="140" y="560" width="710" height="52" rx="10" class="row"/>
+  <circle cx="110" cy="586" r="18" fill="rgba(63,185,80,0.12)" stroke="#3fb950" stroke-width="2"/>
+  <text x="110" y="593" class="num" fill="#7ee787">8</text>
+  <text x="165" y="592" class="row-text">bypassPermissions &#183; plan + bypass?</text>
+  <line x1="850" y1="586" x2="874" y2="586" class="link" marker-end="url(#arrow-sm)"/>
+  <rect x="880" y="566" width="200" height="40" rx="20" fill="rgba(63,185,80,0.15)" stroke="#3fb950" stroke-width="2"/>
+  <text x="980" y="592" class="pill-text" fill="#7ee787">ALLOW</text>
+
+  <rect x="140" y="620" width="710" height="52" rx="10" class="row"/>
+  <circle cx="110" cy="646" r="18" fill="rgba(63,185,80,0.12)" stroke="#3fb950" stroke-width="2"/>
+  <text x="110" y="653" class="num" fill="#7ee787">9</text>
+  <text x="165" y="652" class="row-text">alwaysAllow rule?</text>
+  <line x1="850" y1="646" x2="874" y2="646" class="link" marker-end="url(#arrow-sm)"/>
+  <rect x="880" y="626" width="200" height="40" rx="20" fill="rgba(63,185,80,0.15)" stroke="#3fb950" stroke-width="2"/>
+  <text x="980" y="652" class="pill-text" fill="#7ee787">ALLOW</text>
+
+  <rect x="140" y="680" width="710" height="66" rx="10" class="row"/>
+  <circle cx="110" cy="713" r="18" fill="rgba(188,140,255,0.12)" stroke="#bc8cff" stroke-width="2"/>
+  <text x="110" y="720" class="num" fill="#d2a8ff">10</text>
+  <text x="165" y="706" class="row-text">auto mode? &#8594; run AI classifier</text>
+  <text x="165" y="730" class="row-sub">safe &#8594; allow &#183; dangerous &#8594; deny &#183; denial-limit / oversized &#8594; ask</text>
+  <line x1="850" y1="713" x2="874" y2="713" class="link" marker-end="url(#arrow-sm)"/>
+  <rect x="880" y="693" width="200" height="40" rx="20" fill="rgba(188,140,255,0.15)" stroke="#bc8cff" stroke-width="2"/>
+  <text x="980" y="719" class="pill-text" fill="#d2a8ff">AI VERDICT</text>
+
+  <rect x="140" y="756" width="710" height="52" rx="10" class="row"/>
+  <circle cx="110" cy="782" r="18" fill="rgba(188,140,255,0.12)" stroke="#bc8cff" stroke-width="2"/>
+  <text x="110" y="789" class="num" fill="#d2a8ff">11</text>
+  <text x="165" y="788" class="row-text">default — passthrough</text>
+  <line x1="850" y1="782" x2="874" y2="782" class="link" marker-end="url(#arrow-sm)"/>
+  <rect x="880" y="762" width="200" height="40" rx="20" fill="rgba(210,153,34,0.15)" stroke="#d29922" stroke-width="2"/>
+  <text x="980" y="788" class="pill-text" fill="#e3b341">ASK</text>
+</svg>

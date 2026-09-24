@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" width="1200" height="560" role="img" aria-label="AutoDream three gates ordered by increasing cost">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #c9d5e3; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .card-sub { font-size: 17px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 17px; font-weight: 600; text-anchor: middle; }
+    .cost { font-size: 18px; font-weight: 700; text-anchor: middle; }
+    .ret { font-size: 17px; font-weight: 600; fill: #f85149; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.12); stroke-width: 2; }
+    .card-gray { fill: rgba(255,255,255,0.02); stroke: rgba(255,255,255,0.15); stroke-width: 2; stroke-dasharray: 5 4; }
+    .card-green { fill: rgba(63,185,80,0.10); stroke: rgba(63,185,80,0.5); stroke-width: 2; }
+    .card-amber { fill: rgba(210,153,34,0.10); stroke: rgba(210,153,34,0.5); stroke-width: 2; }
+    .card-red { fill: rgba(248,113,113,0.10); stroke: rgba(248,113,113,0.5); stroke-width: 2; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.65); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .retline { fill: none; stroke: rgba(248,81,73,0.55); stroke-width: 3; stroke-dasharray: 6 5; stroke-linecap: round; }
+  </style>
+
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.7)"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="15" markerHeight="15" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(248,81,73,0.7)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="600" y="60" text-anchor="middle" class="title">AutoDream &#183; Cheapest Gate First</text>
+  <text x="600" y="96" text-anchor="middle" class="subtitle">most stop-hook calls return at gate 1 for the price of one stat</text>
+
+  <!-- entry -->
+  <rect x="60" y="216" width="170" height="88" rx="14" class="card-gray"/>
+  <text x="145" y="252" class="card-title">STOP HOOK</text>
+  <text x="145" y="280" class="card-sub">executeAutoDream()</text>
+
+  <!-- gate 1: time -->
+  <rect x="300" y="180" width="200" height="160" rx="14" class="card-green"/>
+  <text x="400" y="216" class="card-title">1 &#183; TIME</text>
+  <text x="400" y="246" class="card-sub">lock mtime stat</text>
+  <text x="400" y="272" class="card-sub">hours &#8805; minHours</text>
+  <text x="400" y="304" class="cost" fill="#3fb950">~ms</text>
+
+  <!-- gate 2: scan throttle -->
+  <rect x="580" y="180" width="200" height="160" rx="14" class="card-amber"/>
+  <text x="680" y="216" class="card-title">2 &#183; SCAN</text>
+  <text x="680" y="246" class="card-sub">transcript dir walk</text>
+  <text x="680" y="272" class="card-sub">10-min throttle</text>
+  <text x="680" y="304" class="cost" fill="#d29922">seconds</text>
+
+  <!-- gate 3: session + lock -->
+  <rect x="860" y="180" width="200" height="160" rx="14" class="card-red"/>
+  <text x="960" y="216" class="card-title">3 &#183; LOCK</text>
+  <text x="960" y="246" class="card-sub">&#8805; minSessions &#183; write</text>
+  <text x="960" y="272" class="card-sub">+ verify PID alive</text>
+  <text x="960" y="304" class="cost" fill="#f85149">IO + write</text>
+
+  <!-- flow arrows -->
+  <path d="M230 260 L294 260" class="spine" marker-end="url(#arrow)"/>
+  <path d="M500 260 L574 260" class="spine" marker-end="url(#arrow)"/>
+  <path d="M780 260 L854 260" class="spine" marker-end="url(#arrow)"/>
+
+  <!-- return paths under each gate -->
+  <path d="M400 344 L400 400 L230 400 L230 306" class="retline" marker-end="url(#arrow-red)"/>
+  <text x="400" y="426" class="ret">most calls return here</text>
+
+  <path d="M680 344 L680 452 L230 452 L230 306" class="retline" marker-end="url(#arrow-red)"/>
+  <text x="680" y="478" class="ret">dir walk throttled</text>
+
+  <path d="M960 344 L960 500 L230 500 L230 306" class="retline" marker-end="url(#arrow-red)"/>
+  <text x="960" y="526" class="ret">too few sessions &#183; lock held</text>
+
+  <!-- output card -->
+  <rect x="1108" y="216" width="72" height="88" rx="14" class="card-green"/>
+  <text x="1144" y="252" class="card-title">RUN</text>
+  <text x="1144" y="280" class="card-sub">dream</text>
+</svg>
