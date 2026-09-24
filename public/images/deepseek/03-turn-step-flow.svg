@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 650" width="1000" height="650" role="img" aria-label="Turn and step lifecycle boundaries">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 16px; font-weight: 700; fill: #9fb1c8; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.35); stroke-width: 2; }
+    .card-warn { fill: rgba(239,68,68,0.08); stroke: rgba(239,68,68,0.3); stroke-width: 1.5; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; marker-end: url(#arrow); }
+    .spine-warn { fill: none; stroke: rgba(239,68,68,0.5); stroke-width: 2.5; stroke-linecap: round; marker-end: url(#arrow-red); }
+    .loop { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 7 7; marker-end: url(#arrow-green); }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(239,68,68,0.6)"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(63,185,80,0.7)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="52" text-anchor="middle" class="title">TURN &amp; STEP BOUNDARIES</text>
+  <text x="500" y="84" text-anchor="middle" class="subtitle">A turn opens early, closes when nothing is owed</text>
+
+  <!-- turn/start (highlighted) -->
+  <rect x="310" y="112" width="380" height="60" rx="12" class="card-highlight"/>
+  <text x="500" y="148" class="card-title">turn/start — logged first</text>
+
+  <!-- spine: turn/start → pre-step -->
+  <path d="M500 172 L500 208" class="spine"/>
+
+  <!-- pre-step (waterfall) -->
+  <rect x="260" y="212" width="480" height="76" rx="12" class="card"/>
+  <text x="500" y="244" class="card-title">pre-step (waterfall)</text>
+  <text x="500" y="272" class="inner-sub">claim input → rewrite or reject</text>
+
+  <!-- zero-step exits (side branch) -->
+  <path d="M740 240 C 810 240, 820 190, 825 170" class="spine-warn"/>
+  <rect x="710" y="118" width="260" height="50" rx="10" class="card-warn"/>
+  <text x="840" y="150" class="inner-text">reject → blocked</text>
+
+  <path d="M740 262 C 810 262, 825 280, 830 300" class="spine-warn"/>
+  <rect x="710" y="304" width="260" height="50" rx="10" class="card-warn"/>
+  <text x="840" y="336" class="inner-text">empty → completed</text>
+  <text x="840" y="374" class="inner-sub">zero-step turns</text>
+  <text x="840" y="396" class="inner-sub">no model call</text>
+
+  <!-- spine: pre-step → step loop -->
+  <path d="M500 288 L500 324" class="spine"/>
+
+  <!-- step loop -->
+  <rect x="230" y="328" width="540" height="100" rx="12" class="card"/>
+  <text x="500" y="360" class="card-title">step loop — model → tools</text>
+  <text x="500" y="388" class="inner-sub">derived from session log · settled on conclude</text>
+  <text x="500" y="412" class="inner-sub">execute tool calls → concluded?</text>
+
+  <!-- loop-back arrow on left -->
+  <path d="M230 390 C 160 390, 160 358, 226 358" class="loop"/>
+  <text x="155" y="382" class="arrow-text" transform="rotate(-90 155 382)">owe / next-step</text>
+
+  <!-- spine: step loop → turn-stopping -->
+  <path d="M500 428 L500 468" class="spine"/>
+
+  <!-- turn-stopping -->
+  <rect x="220" y="472" width="560" height="64" rx="12" class="card"/>
+  <text x="500" y="500" class="card-title">turn-stopping (serial)</text>
+  <text x="500" y="524" class="inner-sub">steer keeps turn open</text>
+
+  <!-- spine: turn-stopping → turn/end -->
+  <path d="M500 536 L500 568" class="spine"/>
+
+  <!-- turn/end -->
+  <rect x="220" y="572" width="560" height="50" rx="10" class="card"/>
+  <text x="500" y="602" class="card-title">turn/end</text>
+</svg>

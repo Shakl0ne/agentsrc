@@ -78,18 +78,16 @@ hero:
 
 ### DeepSeek Harness 源码精读
 
-> DeepSeek 开源通用 agent harness 源码深度解析，基于 vendored Cordis 插件框架，四十余万行 TypeScript、两百多个 package（"一切皆插件"），每篇附跨框架架构对比
+> DeepSeek 开源通用 agent harness 源码深度解析：一切皆插件、无特权核心，307 个包 / 约 75 万行 TypeScript 的 Cordis 插件树，只讲它独有的机制，每篇附跨框架架构对比
 
 | # | 文章 | 主题 | 字数 |
 |---|------|------|------|
-| 01 | [全景：一切皆插件](/deepseek/01-overview) | 无特权核心、profile/bundle 装配、vendored Cordis、规模实测 | ~8K |
-| 02 | [Cordis 组合框架](/deepseek/02-cordis) | Context/effect/waterfall、Service 声明注入、per-agent scope、Loader+patch | ~12K |
-| 03 | [Agent 接口与默认 loop](/deepseek/03-agent-loop) | step vs turn、turn 生命周期事件、inbox、waterfall vs serial、swappable | ~11K |
-| 04 | [会话日志与上下文投影](/deepseek/04-session-log) | SessionEvent 追加日志、deriveMessages 投影、model-visible ⟺ logged、fork/resume | ~9K |
-| 05 | [工具系统与执行管线](/deepseek/05-tools-pipeline) | 注册表与 scope、schema+prompt 组合、pre→execute→post、guard 守卫 | ~10K |
-| 06 | [Capability 缝体系](/deepseek/06-capability-seams) | Seam 三元组、Provider 互换=整套移动、沙箱后端、approval 挂缝 | ~10K |
-| 07 | [压缩/上下文注入/子代理](/deepseek/07-compaction-context-subagent) | 压缩可换缝、agent.inject 排队、ctx.subagents provider 注册表 | ~10K |
-| 08 | [自改/hooks 桥/生态](/deepseek/08-self-modification-hooks) | self-referential cordis toolset、CC/Codex hooks 翻译桥、typed-Decision 拦截 | ~10K |
+| 01 | [全景：一切皆插件](/deepseek/01-overview) | 无特权核心、profile/bundle 装配、一棵树长出五种产品形态 | ~8K |
+| 02 | [Cordis 组合框架](/deepseek/02-cordis) | Context/effect、waterfall、Service 注入、scope、Loader+patch | ~11K |
+| 03 | [agent-loop：可换的默认驱动](/deepseek/03-agent-loop) | turn/step 事件流、单一 inbox 三输入、waterfall vs serial | ~11K |
+| 04 | [会话日志与上下文投影](/deepseek/04-session-log) | deriveMessages 投影、model-visible ⟺ logged、压缩的 surface replace | ~9K |
+| 05 | [capability 缝与执行世界](/deepseek/05-capability-seams) | 三件套、执行世界、provider 整套迁移、工具裁决链 | ~8K |
+| 06 | [扩展的三个极致](/deepseek/06-extensions) | 自改 toolset、CC/Codex hooks 翻译桥、跨产品 subagent 委托 | ~8K |
 
 <p class="catalog-cta"><a href="deepseek/01-overview" class="VPButton medium brand">开始阅读 →</a></p>
 

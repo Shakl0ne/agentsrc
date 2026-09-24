@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 580" width="1000" height="580" role="img" aria-label="Tool adjudication chain: input frozen, results mutable">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.35); stroke-width: 2; }
+    .card-warn { fill: rgba(239,68,68,0.08); stroke: rgba(239,68,68,0.3); stroke-width: 1.5; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 2.5; stroke-linecap: round; marker-end: url(#arrow); }
+    .spine-warn { fill: none; stroke: rgba(239,68,68,0.5); stroke-width: 2.5; stroke-linecap: round; marker-end: url(#arrow-red); }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(239,68,68,0.6)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+
+  <text x="500" y="52" text-anchor="middle" class="title">THE TOOL ADJUDICATION CHAIN</text>
+  <text x="500" y="80" text-anchor="middle" class="subtitle">input frozen at gate, results mutable at exit</text>
+
+  <!-- ROW 1: top rail (5 cards, left→right) -->
+  <!-- tool/call: x=30, cx=106, w=152 -->
+  <rect x="30" y="110" width="152" height="76" rx="10" class="card"/>
+  <text x="106" y="154" class="card-title">tool/call</text>
+
+  <path d="M182 148 L216 148" class="spine"/>
+  <!-- pre-execute: x=220, cx=296, w=152 -->
+  <rect x="220" y="110" width="152" height="76" rx="10" class="card"/>
+  <text x="296" y="154" class="card-title">pre-execute</text>
+
+  <path d="M372 148 L406 148" class="spine"/>
+  <!-- approval: x=410, cx=486, w=152 -->
+  <rect x="410" y="110" width="152" height="76" rx="10" class="card"/>
+  <text x="486" y="154" class="card-title">approval</text>
+
+  <path d="M562 148 L596 148" class="spine"/>
+  <!-- monotonic: x=600, cx=676, w=152 -->
+  <rect x="600" y="110" width="152" height="76" rx="10" class="card"/>
+  <text x="676" y="154" class="card-title">monotonic</text>
+
+  <path d="M752 148 L786 148" class="spine"/>
+  <!-- execute: x=790, cx=866, w=152 -->
+  <rect x="790" y="110" width="152" height="76" rx="10" class="card"/>
+  <text x="866" y="154" class="card-title">execute</text>
+
+  <!-- deny exit (red) -->
+  <path d="M296 186 C 296 260, 370 280, 445 290" class="spine-warn"/>
+  <path d="M486 186 C 486 250, 490 270, 495 290" class="spine-warn"/>
+  <rect x="390" y="294" width="220" height="52" rx="10" class="card-warn"/>
+  <text x="500" y="326" class="inner-text">denied — body skipped</text>
+
+  <!-- connector to row 2 -->
+  <path d="M866 186 C 866 280, 852 350, 842 402" class="spine"/>
+
+  <!-- ROW 2: bottom rail (4 cards, right→left, same 30..942 span and gap rhythm as row 1) -->
+  <!-- tool body: x=742, cx=842, w=200 -->
+  <rect x="742" y="406" width="200" height="76" rx="10" class="card"/>
+  <text x="842" y="450" class="card-title">tool body</text>
+
+  <path d="M742 444 L708 444" class="spine"/>
+  <!-- post-execute: x=504, cx=604, w=200 -->
+  <rect x="504" y="406" width="200" height="76" rx="10" class="card"/>
+  <text x="604" y="450" class="card-title">post-execute</text>
+
+  <path d="M504 444 L471 444" class="spine"/>
+  <!-- finalizeContent: x=267, cx=367, w=200 -->
+  <rect x="267" y="406" width="200" height="76" rx="10" class="card"/>
+  <text x="367" y="450" class="card-title">finalizeContent</text>
+
+  <path d="M267 444 L234 444" class="spine"/>
+  <!-- tools/result: x=30, cx=130, w=200, highlighted -->
+  <rect x="30" y="406" width="200" height="76" rx="10" class="card-highlight"/>
+  <text x="130" y="450" class="card-title">tools/result</text>
+
+  <text x="500" y="518" text-anchor="middle" class="inner-sub">arguments frozen — results may change</text>
+  <text x="500" y="546" text-anchor="middle" class="inner-sub">later listeners cannot undo a denial</text>
+</svg>

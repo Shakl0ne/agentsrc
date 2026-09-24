@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700" role="img" aria-label="Driver phase machine">
+  <style>
+    text { font-family: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { font-size: 36px; font-weight: 700; fill: url(#titleGrad); }
+    .subtitle { font-size: 20px; font-weight: 500; fill: #b7c3d2; }
+    .card-title { font-size: 20px; font-weight: 700; fill: #f0f6fc; text-anchor: middle; }
+    .inner-text { font-size: 16px; font-weight: 600; fill: #d2dbe5; text-anchor: middle; }
+    .inner-sub { font-size: 16px; font-weight: 500; fill: #8b9eb3; text-anchor: middle; }
+    .arrow-text { font-size: 16px; font-weight: 700; fill: #9fb1c8; text-anchor: middle; }
+    .card { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.1); stroke-width: 2; }
+    .card-highlight { fill: rgba(88,166,255,0.08); stroke: rgba(88,166,255,0.35); stroke-width: 2; }
+    .card-warn { fill: rgba(239,68,68,0.08); stroke: rgba(239,68,68,0.3); stroke-width: 1.5; }
+    .spine { fill: none; stroke: rgba(125,196,255,0.5); stroke-width: 3; stroke-linecap: round; marker-end: url(#arrow); }
+    .spine-warn { fill: none; stroke: rgba(239,68,68,0.5); stroke-width: 2.5; stroke-linecap: round; marker-end: url(#arrow-red); }
+    .latch { fill: none; stroke: rgba(63,185,80,0.6); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 7 7; marker-end: url(#arrow-green); }
+    .label-green { font-size: 16px; font-weight: 700; fill: #7ee2a8; text-anchor: middle; }
+    .label-red { font-size: 16px; font-weight: 700; fill: #ff7b72; text-anchor: middle; }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="50%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#bc8cff"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0 L0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(125,196,255,0.6)"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(239,68,68,0.6)"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(63,185,80,0.7)"/>
+    </marker>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#grid)"/>
+  <text x="500" y="52" text-anchor="middle" class="title">DRIVER PHASE MACHINE</text>
+  <text x="500" y="84" text-anchor="middle" class="subtitle">idle · running · maintenance</text>
+
+  <!-- idle -->
+  <rect x="80" y="230" width="230" height="100" rx="12" class="card"/>
+  <text x="195" y="270" class="card-title">idle</text>
+  <text x="195" y="300" class="inner-sub">inbox holds pending input</text>
+
+  <!-- running -->
+  <rect x="690" y="230" width="230" height="100" rx="12" class="card-highlight"/>
+  <text x="805" y="270" class="card-title">running</text>
+  <text x="805" y="300" class="inner-sub">turns and steps execute</text>
+
+  <!-- maintenance -->
+  <rect x="385" y="430" width="230" height="100" rx="12" class="card"/>
+  <text x="500" y="470" class="card-title">maintenance</text>
+  <text x="500" y="500" class="inner-sub">runMaintenance job</text>
+
+  <!-- idle → running -->
+  <path d="M310 265 C 450 265, 550 265, 686 265" class="spine"/>
+  <text x="500" y="250" class="arrow-text">wake</text>
+
+  <!-- running → idle -->
+  <path d="M686 316 C 550 316, 450 316, 310 316" class="spine"/>
+  <text x="500" y="344" class="arrow-text">settle</text>
+
+  <!-- idle → maintenance -->
+  <path d="M220 330 C 240 390, 300 450, 381 480" class="spine"/>
+  <text x="250" y="400" class="arrow-text" transform="rotate(30 250 400)">job</text>
+
+  <!-- maintenance → idle -->
+  <path d="M619 480 C 700 450, 760 390, 780 330" class="spine"/>
+  <text x="700" y="460" class="arrow-text" transform="rotate(-25 700 460)">converge</text>
+
+  <!-- wake latch -->
+  <path d="M385 470 C 300 440, 180 400, 195 334" class="latch"/>
+  <text x="200" y="415" class="label-green">wake latched</text>
+  <text x="200" y="437" class="label-green">replayed at idle</text>
+
+  <!-- cancel -->
+  <rect x="680" y="108" width="280" height="68" rx="10" class="card-warn"/>
+  <text x="820" y="138" class="card-title">cancel(cause)</text>
+  <text x="820" y="164" class="inner-text">abort → turn/end</text>
+  <path d="M820 176 L820 226" class="spine-warn"/>
+  <text x="680" y="200" class="label-red">abort clears inbox</text>
+  <text x="680" y="220" class="label-red">unless keepInbox</text>
+</svg>

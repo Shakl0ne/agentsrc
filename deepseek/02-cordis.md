@@ -1,152 +1,135 @@
 ---
-title: Cordis 组合框架：几十个 package 靠什么拼成一个 agent
+title: Cordis 组合框架：插件靠什么拼成树
 ---
 
-# Cordis 组合框架：几十个 package 靠什么拼成一个 agent
+# Cordis 组合框架：插件靠什么拼成树
 
-> 本文基于 `dsh-v0.1.0-rc.7`。项目处于 developer preview，迭代很快，文中机制以该基线为准。
+第一篇留下一个问题：307 个互相独立的包，谁也不 import 谁，靠什么在运行期拼成一个能跑的 agent？答案出自一个第三方框架：`dsh` 把叫 Cordis 的组合框架连同它的基础库整个 vendor 进仓库，改名为 `@deepseek-ai/cordis`，让每个 harness 包都声明它为 peer dependency。
 
-连载第一篇讲清了 `dsh` 的全景：几十个 package，没有一个不可变的中央循环，全靠一台可组合的插件树。但紧接着就冒出一个更硬的问题——**这几十个互相独立的 package，到底靠什么在运行期拼成一个 agent？** 谁负责把它们装进一棵树？谁决定先后？谁提供"每个插件共有的底座"？
+这样做的直接后果是：理解 `dsh` 的前提变成了理解 Cordis。这一篇把这台地基机器拆开，读完你会带着三个问题的答案离开：
 
-答案是一个被 `dsh` **整个 vendor 进仓库**的第三方组合框架：**Cordis**。`dsh` 连做"组合"这件事都不自造轮子，而是把 Cordis 及其基础库源码 `copy` 进仓库、改名为 `@deepseek-ai/cordis`，让它成为每个 harness package 的 peer dependency。
+- 几十个互不 import 的插件，靠什么对象共享服务、互相协作？
+- 插件挂上去的每一样东西，凭什么能被干净地卸下来？
+- 没有中央调度器，几十个插件的加载顺序由谁决定？
 
-这一篇我们就正进 Cordis 这个地基。它是整个 `dsh` 系列的门面：不读懂 `ctx`、`effect`、`waterfall`、Service、scope 这五件事，后面讲 agent 树、会话日志、工具管线、capability 缝全都无从谈起。
+这些原语的用法（拦截请求、注册工具、起子 agent）会在后面四篇反复出现；这一篇只管把地基本身讲透。
 
-先把这一篇最核心的一句话放在前面：
+## 一、Context：服务仓库与键解耦
 
-> **Cordis 是"作用域 + 事件 + 可逆效果"的插件化组合框架。每个东西都是插件，插件在共享作用域（Context）上通过类型化事件通信，所有注册都是可回退的副作用。**
-
-
-## 一、Context：所有插件共有的"共享作用域"
-
-组合框架要解决的第一问题是：几十个插件**共享什么**来做互相协作。Cordis 给了一个统一的模型——**Context（上下文）**。
-
-用官方手册（`docs/cordis-primer.md`）里的说法，一个 Context 是**服务的仓库**（a repository of services）：
+Cordis 的第一个原语解决"插件之间共享什么"。它的答案是一句话：**Context 是服务的仓库**。官方 primer 的表述：
 
 > A context is a repository of services. A service claims a stable `ctx.<key>` such as `ctx.tools`, `ctx.llm`, or `ctx.sessions` from a context; other plugins find services via key instead of importing a concrete implementation.
 
-把它拆开，有三层意思，分别是"仓库""键""解耦"：
+每个服务在 context 上占一个稳定的键，插件 A 要用工具就读 `ctx.tools` 这个键，实现包之间的 import 图上没有这条边。"换一个实现"于是变成"换一个注册到该键的插件"，第一篇的"一切皆插件"在这个机制上才落得了地。
 
-1. **Context 是一个服务仓库**。每个服务在 context 之上占一个稳定的键（key），例如 `ctx.tools`（工具）、`ctx.llm`（模型）、`ctx.sessions`（会话）。下面的插件想用某个能力，通过 `ctx` 上的键去取，而**不是 import 一个具体实现文件**。
-2. **"经键解耦"是最关键的设计**。插件 A 与插件 B 不 import 彼此，它们只依赖"某个键下有服务"这个约定。这就让"换一个实现"成了"换一个注册到该键的插件"这么自然的一件事——正是第一篇强调的"一切皆插件、无特权核心"落地的地方。
-3. **这个共享作用域是有"派生"能力的**（后面第五节会专门展开 scope）。Context 继承链上可以 `extend` 出子 context，子 context 原型继承父 context 的属性，用来做"某个子树的私有注入"。
-
-`vendor/cordis/src/context.ts` 里的 `extend()`，就是这个"原型继承 + 元数据遮蔽"的机制：
+Context 的实现只有一个 146 行的类，本体是三层派生方法：
 
 ```ts
-// vendor/cordis/src/context.ts
+// vendor/cordis/src/context.ts:99-125（节选）
 extend(meta = {}): this {
-  const shadow = Reflect.getOwnPropertyDescriptor(this, symbols.shadow)?.value
   const self = Object.create(getTraceable(this, this))
   for (const prop of Reflect.ownKeys(meta)) {
     Object.defineProperty(self, prop, Reflect.getOwnPropertyDescriptor(meta, prop)!)
   }
-  if (!shadow) return self
-  return Object.assign(Object.create(self), { [symbols.shadow]: shadow })
+  return self // 无 shadow 时直接返回；有 shadow 再包一层，此处略
+}
+isolate(name: string, label?: symbol) {
+  const shadow = Object.create(this[symbols.isolate])
+  shadow[name] = label ?? Symbol(name)
+  return this.extend({ [symbols.isolate]: shadow })
 }
 ```
 
-`Object.create(parent)` 让子 context 原型继承父 context（源码用 `getTraceable(this, this)` 保证追踪），因此子 context **继承了父 context 的每一个属性**；而 `meta` 里的自有属性可以遮蔽继承的属性。这是 Cordis 做"作用域隔离"的底层拼图：同一个 context 上，可以派生出"只管某个 agent/某类对象"的子 context。
+`extend()` 用 `Object.create(parent)` 做原型继承：子 context 继承父 context 的每一个属性，`meta` 里的自有属性遮蔽继承值，父 context 不被改动。`isolate()` 在此之上给某个服务名单独开一个作用域标签——在这个子 context 下面读写该服务，解析到的是新标签里的另一套实现，同名的两次 `isolate()` 传同一个 `label` 则加入同一个作用域。第三个派生方法 `intercept()` 走配置路线：给某个服务叠加拦截配置，后代的插件加载时会看到这份配置合并进服务的解析结果，祖先条目先生效。
 
-一句话记住这个抽象层：
+![Context 的三种派生：原型继承、服务隔离标签、配置拦截](/images/deepseek/02-context-derive.svg)
 
-> **Context 把"插件之间共享什么"抽象成一个可继承、可遮蔽的仓库；插件的协作不靠 import 图，而靠对同一组键的读写。**
+三个方法共享一个关键性质：**派生不改变父节点**。context 树上的任何一层都可以放心派生子 context，挂自己的服务、开自己的隔离标签，树的其他部分看不见这些改动。整个 Context 类对外是个 Proxy，普通属性读取走服务解析器，所以"读 `ctx.tools`"这个动作本身也过了一次框架的拦截面。
 
-### 补充：Context 也是生命周期容器
+## 二、注册即副作用：一切贡献都可回滚
 
-`extend`、`isolate`、`intercept` 都返回子 context，但真正的"树"怎么被组织、插件怎么被种进去，靠的是 **Fiber**（纤程）。我们先把 fiber 放一放，因为第一次读 Cordis，最该先理解的是"注册即副作用"这一点。Context 是"静态的仓库"，Fiber 是"动态的生命周期"——插件的加载、热重载、卸载都由一条 Fiber 承载。
+第二个原语回答"挂上去的东西怎么卸下来"。Cordis 的约定是：**注册是一个副作用，它随注册它的 fiber（纤程）生命周期自动回滚**。挂在 `ctx` 上最常用的两个 API：
 
+- `ctx.on(name, listener)`：注册事件监听，返回一个 disposer，调用即摘除；
+- `ctx.effect(() => disposer)`：注册一次性效果，disposer 绑到当前 fiber，fiber 卸载时自动执行。
 
-## 二、注册即副作用：`ctx.effect()` 与 `ctx.on()`
-
-"无特权核心 + 一切可回退"这句口号，靠什么落成一个可执行机制？答案在 Cordis 的一条核心约定里，`docs/architecture.md` 原话是这么说的：
-
-> Registrations are effects that **unwind** when their plugin unloads.
-
-即：**注册是一个副作用，插件被卸载时会反向撤销**。具体到 `ctx` 上就是两个最常用的 API：
-
-- `ctx.on(name, listener)`：注册一个事件监听。返回一个 disposer，调用它就能把这个监听卸掉。
-- `ctx.effect()`：注册一段一次性效果，并把它绑定到当前 fiber 上——Fiber 卸载时自动逆向执行。
-
-`events.ts` 里 `on()` 的声明，注意它的返回类型**直接就是一个 disposer**（`=> boolean`）：
+事件监听的存储机制最能说明这个设计。`events.ts` 里监听器不是被塞进一个全局数组了事，而是走 fiber 的 effect 通道：
 
 ```ts
-// vendor/cordis/src/events.ts
-on<K extends keyof Events>(
-  name: K,
-  listener: Events[K],
-  options?: boolean | EventOptions,
-): () => boolean
+// vendor/cordis/src/events.ts:254-260
+register(label: string, hooks: Hook[], callback: any, options: EventOptions): () => void {
+  const method = options.prepend ? 'unshift' : 'push'
+  return this.ctx.fiber.effect(() => {
+    hooks[method]({ ctx: this.ctx, callback, ...options })
+    return () => this.unregister(hooks, callback)
+  }, label)
+}
 ```
 
-这里的设计意图有三层：
+`fiber.effect()` 收到"把监听器推进列表"这个动作，返回的 disposer 被登记为该 fiber 的卸载项。fiber 是 Cordis 的生命周期容器：每个插件加载时获得一个 fiber，它顺序收集这个插件注册过的所有效果；插件卸载时 fiber 进入 `UNLOADING` 状态，把这些卸载项逆序执行干净。给已经销毁的 fiber 注册会直接抛 `CordisError('INACTIVE_EFFECT')`——注册只发生在活着的生命周期里，这是硬约束。
 
-1. **每个注册都有对应的逆操作（disposer）**。"注册" 不是一个再也收不回来的全局状态，而是一个可撤销的对象。`on` 返回的 `() => boolean` 就是撤销凭证。
-2. **Fiber 自动帮你回收。** 因为 `effect` 绑定了 owner fiber，热重载或卸载时，这个 fiber 里注册过的所有东西都被顺序摘除，不会遗留下来。
-3. **注册即效果、可逆卸载**。`dsh` 的很多扩展点（prompt 段、工具 schema、适配器、provider）都是通过 `effect`/`on` 装进去的，卸载插件就整体回滚。这保证"扩展可以加也可以撤"，而不用改核心循环。
+对 `dsh` 来说这条原语是"无特权核心"成立的一半。一个插件往系统里加的每样东西（prompt 段、工具 schema、事件监听、服务实例）都从这两个入口进去，卸载插件就等于回滚它的全部贡献。热重载因此不需要专门的清理协议：换掉插件，旧 fiber 卸载，新 fiber 起来，树回到干净状态。
 
-到这里，"无特权核心"就有了第一个可操作的含义：**插件的扩展位置不是"改循环"，而是"新挂一个插件"，卸载时它的副作用整体回滚**。
+## 三、五种事件模式：观察与委托分家
 
-一句话记住：
+插件之间的通信走类型化事件。事件名通过 TypeScript 声明合并扩展，`dsh` 的 `SessionEventMap`、`agent/*` 全用这个机制声明。真正要紧的是派发模式：Cordis 把"事件"拆成了五种模式，对应五种协作意图，primer 有一张权威对照表：
 
-> **`ctx.on` / `ctx.effect` 是一对"注册 + 回收"，它们的返回值就是可逆卸载的凭证。管理热插拔自洽的，不是"谁的代码写得干净"，而是"Cordis 把每个注册都绑到 Fiber 生命周期上"。**
+| 模式 | 等待？ | 顺序 | 返回值 |
+|---|---|---|---|
+| `emit` | 否 | 按注册顺序观察 | 无 |
+| `waterfall` | 否 | 按注册顺序包装 | 有 |
+| `parallel` | 是 | 所有监听并行 | 无 |
+| `serial` | 是 | 按注册顺序，直到一个 bail | 有 |
+| `bail` | 否 | 按注册顺序，直到一个 bail | 有 |
 
+前三种是"观察"：`emit` 同步广播、`parallel` 并行等待、`serial` 串行定案。后两种是"委托"：监听者可以决定结果。派发模式是这一层的核心：其中 `waterfall` 是整个 `dsh` 扩展面的骨架，值得看实现——它只有十行：
 
-## 三、事件分两大类：观察（emit）与委托（waterfall）
-
-插件之间通信的主要途径是**类型化事件（Typed Events）**。Cordis 把事件分成两族，对应两种不同的协作意图：
-
-- **观察类**：`emit`（同步广播）、`parallel`（并行 await）、`serial`（串行定案，先注册者先回调、遇到 `bail` 即停）。这些只是"看到一件事发生了"，不负责把一件事"做出来"；`bail` 是"谁先返回定案值即停"的单决策原语。
-- **委托类**：`waterfall`——**最重要的一个**，是 Cordis 做"中间件链/委托"的方式。
-
-`events.ts` 顶部把 dispatch 模式列得很清楚：
+![五种事件派发模式：观察与委托分家](/images/deepseek/02-event-modes.svg)
 
 ```ts
-// vendor/cordis/src/events.ts
-export type DispatchMode = 'emit' | 'parallel' | 'serial' | 'bail' | 'waterfall'
+// vendor/cordis/src/events.ts:234-243
+waterfall(...args: any[]) {
+  const cbs = this.dispatch('waterfall', args)
+  const inner = args.pop()
+  const next = () => {
+    const cb = cbs.shift() ?? inner
+    return cb(...args)
+  }
+  args.push(next)
+  return next()
+}
 ```
 
-而 `serial` 的定义说明它是"顺序执行、直到有一个返回中断值（非 null/false/undefined）就停下"：
+最后一个参数被当作链条最内端的 `next`（通常就是内置的默认行为）。每个监听者拿到 `(...args, next)`：调用 `next()` 就是把控制权交给下一个监听者、再一层层传回结果；不调 `next()` 直接返回，就否决了链条剩下的所有环节，包括内置行为。这正是中间件模型的语义——你是滤镜还是灯泡，由你调不调 `next()` 决定。
+
+两个细节值得记。其一，监听者按注册顺序**从外到内**执行，先注册的在最外层；`prepend: true` 可以插到最前面。其二，模式是事件公共契约的一部分：`dsh` 要求每个新事件用 `@mode` 标注派发模式，生成的目录据此核对声明与派发点的一致性。单决策事件里短接是正设计（策略监听者拥有决定权），包装类事件里监听者必须委托（保证链条不断）——后面 agent-loop 那篇会看到这两种意图分别落在哪些事件上。
+
+## 四、Service 与 inject：加载顺序由依赖声明
+
+第三个原语回答"谁先谁后"。先看插件的三种形态，教程里的完整清单：
 
 ```ts
-serial<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): Promisify<ReturnType<Events[K]>>
+// docs/cordis-tutorial/01-first-plugin.md
+// 1. 函数插件：named export 一个 apply
+export function apply(ctx: Context) {}
+// 2. 对象插件：带 apply 方法的对象
+export const objectPlugin = { name: 'object-plugin', apply(ctx: Context) {} }
+// 3. 类插件：Service 子类
+export class MyService extends Service {
+  constructor(ctx: Context) { super(ctx, 'myTutorialService') }
+}
 ```
 
-### waterfall：串行委托，"谁都要先接续 next() 才叫委托"
-
-`ctx.waterfall` 是 Cordis 为"一道请求在被多个插件按顺序包装"设计的中间件原语。`docs/cordis-primer.md` 的 Waterfall Semantics 一节把语义写得很精确：
-
-> A listener receives `(...args, next)`. Call `next()` to delegate the possibly wrapped result to the next service; return without `next()` to short-circuit.
-
-翻译过来就是：
-
-- 水瀑的每个 listener 拿到 `(...args, next)`，即"请求参数"+"下一个 continuation"。
-- 调 `next()` = 让下一个 listener 登场并**把结果传递回来**（你可以包一层再传）。
-- 不调 `next()` 直接返回 = **短接/截断**这条链。
-
-这跟后端常见的**中间件模型**本质上是一回事，但和"emit（随便谁看到都行）"是两种不同协作。`dsh` 里大量用 waterfall 做跨插件截断/重写：比如下一篇讲的 `agent/pre-step`（决定模型看到什么）就是一个 waterfall。
-
-为什么 Cordis 强调"waterfall listener 必须调 `next()`"？因为不调就等于"我要独裁这个结果"。看 `agent/turn-stopping` 这种单决策事件的语义：**单决策事件里短接是正设计**（策略监听可以"独立定案"）；**观察者/包装者必须委托**（它要保证链不断）。所以 waterfall 是协作模型，靠 `next` 这份合同表达"你是滤镜还是灯泡"。
-
-结合 `DispatchMode` 表记一句话：
-
-> **`emit/serial/bail` 是"看、排队、定案"；`waterfall` 是"一个个串起来处理一份结果"。dsh 的扩展点大多是 waterfall，正因为它能表达"多个插件层层包装、任一层可截断"。**
-
-
-## 四、Service 声明与注入：被"键"解耦的可换实现
-
-`ctx` 是仓库、插件靠键来取，那"服务"本身是怎么注册、怎么被别人依赖的？Cordis 的思路很抽象但优雅：
-
-**服务 = 一个实现了 `Service` 类的对象，注册就是把自己挂到某个键上。**
-
-`service.ts` 里的 `abstract class Service`，它注册的机制一句话：
+函数形态最常用，直到你需要暴露一个服务才升级成类形态。`Service` 基类的构造函数干的事出奇地少：
 
 ```ts
-// vendor/cordis/src/service.ts
+// vendor/cordis/src/service.ts:42-58（节选）
 constructor(protected ctx: Context, name: string) {
   name ??= this.constructor['provide'] as string
   let self = this
-  // …callable 处理、tracker 追踪等略…
+  if (self[symbols.invoke]) {
+    self = createCallable(name, joinPrototype(/* … */), tracker)
+  }
   self.ctx = ctx
   self.name = name
   self.ctx.reflect.provide(name, self, this[symbols.check])
@@ -154,129 +137,123 @@ constructor(protected ctx: Context, name: string) {
 }
 ```
 
-即：构造一个 `Service` 的实例时，就会向 context 的反射服务（reflect）以它的 `provider` 键注册自己，并获得一个**可逆的注册**（`reflect.provide` 返回 disposer），当服务所在 fiber 卸载时自动撤销。这就是"把服务接进上下文"的最小路径。
+构造即注册：`super(ctx, name)` 一调用，服务实例就通过 `ctx.reflect.provide` 挂到了 context 的键上，注册的逆操作同样绑定在 owning fiber 上，fiber 卸载时服务自动摘除。
 
-插件怎么**申请**一个依赖？用 `inject`。`docs/cordis-primer.md` 明确：
+那么顺序呢？教程里有一句话说破了机制：
 
-> Declare service dependency via `inject`. A plugin that names required services waits until those services exist, so **load order is expressed through service requirements** rather than manual boot sequencing.
+> Entries start concurrently, so list position guarantees nothing about which plugin loads first; ordering comes from service dependencies (`inject`), not from position in the file.
 
-这是全文最漂亮的抽象之一：
+`cordis.yml` 里的条目**并发启动**，文件里的行位不保证任何顺序。顺序来自 `inject`：一个插件声明它需要哪些服务（如 `inject: ['tools', 'llm']`，裸服务名、不带 `ctx.` 前缀），Cordis 就等到这些服务全部到位才激活它。于是几十个插件的装配时序从每个插件的依赖声明里推导出来，不存在一个手动排启动顺序的中央调度器。primer 把这一点列为五个核心想法之一：load order is expressed through service requirements rather than manual boot sequencing。
 
-- **注入顺序 = 由"需要什么"推导，而不是靠手排装顺序。**
-- 一个插件声明依赖时写的是**裸服务名**（如 `inject: ['tools', 'llm']`，不带 `ctx.` 前缀），Cordis 只有等这些服务都"到了"才执行它；谁在前谁在后不重要。
-- 这样，几十个插件的装配顺序**不需要一个中央调度器**，而是从每个插件的依赖关系图里推导出来。这又一次印证了第一篇"没有特权核心"的判断：**连"谁先谁后"都不是核心管，而是靠声明。**
+这也是 `dsh` 敢把"无特权核心"贯彻到底的原因之一：连"谁先谁后"都不需要一个核心来管，靠声明就够了。
 
-所以"service 声明 / `inject` 注入 / 按需等待"这套，把第一节的"靠键解耦"升级成了"靠依赖图自动排顺序"。它们与第一节的 `ctx` 一起，构成"插件插到哪都行、谁先谁无所谓"，这正是 `dsh` 能任意外壳（一次装配成 CLI / Web / headless）的机制基础。
+## 五、scope：per-agent 私有注册
 
+Context 是全局共享的仓库，但真实产品里每个 agent 不该看见彼此的工具与监听。`dsh` 在 Cordis 之上加了一层薄原语：`dsh-scope`（`packages/core/scope/`）。它的用法一句话：`createScope(ctx, key)` 铸造一个带标签的子 context，通过它注册的一切既在标签内可见，也随标签的生命周期回收。
 
-## 五、scope：per-agent 的私有注册（往"隔离"走一步）
+```ts
+// packages/core/scope/README.md
+const scope = createScope(ctx, agent)
+scope.ctx.on('agent/status', ({ agent, status }) => track(agent, status))
+// later:
+await scope.dispose()   // unwinds every registration made through scope.ctx
+```
 
-前面讲的是"全局共享作用域"。但真正的产品里，**每个 agent 不该看到所有一切**——比如会话 A 与 agent B 的上下文、工具集应当彼此隔离。这一层靠 `dsh-scope` 这个 package 提供，`packages/core/scope/`。
+这个包的核心契约是一句话：**注册上下文同时决定可见性与所有权**——一个通过某 scope 注册的贡献，在这个 scope 里可见、也随这个 scope 回收，不存在"在 A 处可见、却随 B 卸载"的错位。core 组的注册表全部建在它上面：一个工具通过 `agent.ctx` 注册，只有那个 agent 看得见。
 
-`core/scope` 的 README 开头就把它的作用点明：
+scope 之间还有一条父子链，两个方向能力不对称：**注册视图沿链向下继承**（子 scope 看得见祖先的层），**事件准入沿链向上延伸**（挂在祖先 key 上的监听收得到发给后代的定向事件）。反方向都不成立。绑定是一次性的，重复绑定抛错，成环被拒绝。
 
-> Scoped registration primitive. `createScope(ctx, key)` creates a tagged Cordis context whose backing fiber owns every registration made through it.
+![scope 父子链：注册视图向下继承，事件准入向上延伸](/images/deepseek/02-scope-chain.svg)
 
-翻译过来：
+边界要说清楚：README 明确 scope "routes trusted same-process plugins; it is not a sandbox or an authority boundary"。它是同进程内的信任路由，组织"每个 agent 各自的工具集"，安全隔离由沙箱与审批策略在别的层负责。把 scope 当安全边界用，是对这台机器的误读。
 
-- **`createScope(ctx, key)`**：在当前 context 之上"铸造"一个带标签的 Cordis context。任何通过这个 scope 注册的东西，都由**这个 scope 对应的 fiber 来拥有**——即它的生命周期归属于这个 scope。
-- **`scopeOf(ctx)`**：读某个 context 带没带 scope 标签。
-- **`bindScopeParent(key, parent)`**：把 scope 组成父链，形成"子可见父、父不可见子"的可见性规则。
+## 六、Loader：cordis.yml 怎么变成一棵树
 
-这行的关键是**作用域与可见性两件事绑在一起**：一个注册"在哪个 scope 里有效（visible）"，就必须"由那个 scope 的 fiber 持有"（ownership）。`scope` 的 README 里有一句严格设计契约：
+运行时原语讲完，最后一块是装配：`cordis.yml` 里的一行行声明怎么变成挂满插件的树。这活由 `@deepseek-ai/cordis-plugin-include`（vendor 进来的 `vendor/include`）承担：读配置行、解析插件模块、按 `inject` 依赖图挂载，然后配合第一篇讲过的层叠——bundle 层、profile patch、home patch、`--patch` 逐层覆盖。
 
-> The registration context determines both visibility and ownership, preventing a registration from being visible in one scope but disposed with another.
+配置行里最 `dsh` 味的是 `!!js` 表达式，它的求值时机被严格规定过：
 
-这补上了 Context 模型的一个洞：光有"共享 context"还不够，产品里还需要**按 agent/session 的隔离**；`scope` 就是在"共享"之上加一层"按桶隔离"的注册原语。`agent-loop` 会为每个存活的 agent 创建一个 scope（引用下一篇）。
+- entry 的 `config` 在**该插件声明的注入激活之后**、对插件自己的 context 求值——所以表达式里可以引用 `ctx.serviceName` 读到依赖服务；
+- `disabled` 字段在**每次做 mount 决策时**对 loader context 求值——所以同一个配置行可以按平台或环境开关；
+- 其他 entry 元信息保持字面值，嵌套行的表达式保留到目标激活那一刻才求值。
 
-不过要注意 scope 的边界：`core/scope` 的 README 里写明 "Scopes route trusted same-process plugins; they are not sandboxes or authority boundaries"——它的定位是 **"同进程信任的隔离路由"**，不是安全沙箱。权限/安全隔离会由"capability 缝 + 权限 policy"在更高的层级处理（这是第 6 篇的主题）。这里先把概念记住：scope 是"每 agent 私有注册"的原语，属于组织产品层，而不是安全边界。
+这套时机设计让"声明式 + 可补丁 + 可条件化激活"三件事共存：`dsh-base` 里用 `disabled: !!js process.platform === 'win32'` 关掉 Windows 上不适用的 shell 后端，靠的就是第二条。
 
+把这一篇和第一篇接起来，`dsh` 的装配全景就完整了：**Loader 管"哪些插件被装、每个 entry 被谁覆盖"，Cordis 运行时管"装进来的插件怎么共存、怎么协作、怎么卸载"**。前者是工厂的装配线，后者是机器的运转律。
 
-## 六、Loader 与 patch：cordis.yml 怎么把声明变成一棵活树
+## 七、与三栏对比：组合框架即抽象层
 
-前三节把"context/effect/waterfall/service/scope"这些**运行时原语**讲了。最后一个问题必须回答：**这些对象不是写死在代码里，而是通过 `cordis.yml` 配置声明，然后靠 Loader 装载起来**。这就轮到 Cordis 的 config + loader。
-
-`dsh` 的装配过程（见 `app-boot/README.md`）大致是这样：
-
-- 每个 bundle 有 `cordis.patch.yml`（见第 1 篇），内含一行行的 entry（`{ id, name, inject, config, disabled }`）。
-- Loader（`cordis-plugin-loader`）去装这些 entry：找到对应的插件包、解析依赖、mount 进 tree。
-- **patch 叠加**：不同层的 patch（bundle → profile → home → `--patch`）通过 Include 的 patch 算法（`applyEntryPatches`）叠到最终树，后加的 patch 通过 `id` 命中并**整体替换**某个 entry 的 `config`。
-
-`boot/app-boot` 的 `boot()` 是那个"把一切跑起来"的入口：建 root context → 装 Loader → 在 config 树 entry 真正 mount 前跑可选 host 准备 → mount include tree → 校验 entry 已 loaded/activated → 返回 root context。一旦失败就 dispose 部分 context 并 reject。
-
-`cordis.yml` 里的配置还支持 `!!js` 表达式（配置里可插入 JS 表达式）。`docs/cordis-primer.md` 的 Loader Configuration 说明了它的处理时机：entry 的 `config` 在声明注入激活之后、对应该插件自己的 context 求值；`disabled` 字段则**每次做 mount 决策时**都对 loader context 求值。其他 entry 元信息保持字面值。这给了装配"声明式 + 可补丁 + 可条件化激活（按平台/env 开关某 row）"的组合能力——比如 `dsh-base` 里用 `disabled: !!js process.platform === 'win32'` 决定在 Windows 上关掉 bash 那一套 shell。
-
-记住这一层的抽象切线：
-
-> **运行时原语（Context）管"插件怎么协作"；Loader + patch 管"哪些插件被装、按什么顺序、每个 entry 被谁覆盖"。**前者回答"机械怎么动"，后者回答"工厂怎么组装"，两者加起来才是"一棵 plugin tree"。
-
-
-## 七、OpenCode/Codex 对比：第三方框架即抽象层
-
-读到这是不是已经很惊讶——Cordis 它既是"依赖注入框架"又是"事件系统"又是"生命周期容器"？这正是 `dsh` 与三栏最不同的一点：**它对"引擎底座"的选择是"用一个第三方框架"，而不是"自造一个"**。
-
-对比口径（延续第 1 篇的"同能不同构"）：
+把 Cordis 和三个终端 Agent 的组合机制放在一张表上：
 
 | 维度 | OpenCode | Codex | DeepSeek Harness |
 |------|---------|-------|------------------|
-| 组合机制 | Effect-TS 依赖注入（~40 个 Service） | 硬编码的原生事件 Reactor | **vendored Cordis（Context + events + effect + scope）** |
-| 是否有独立"组合架子" | 有（Effect-TS） | 弱（结构内自建） | 显式"插件框架即抽象层" |
-| 循环可否被第三方替换 | Effect-TS 是底层，循环仍自写 | 循环自写 | **`agent-loop` 默认，swappable** |
-| 装配方式 | 代码里声明 Service | 事件注册表写死 | **cordis.yml/Loader + patch 层** |
+| 组合机制 | Effect-TS 依赖注入（Layer/Service） | Rust 结构内自建事件体系 | vendored Cordis |
+| 服务定位 | Effect 的 Service 上下文 | 结构体字段直连 | `ctx.<key>` 键解耦 |
+| 事件系统 | Effect 的 PubSub | 自建事件枚举 | 五模式 typed events + `@mode` |
+| 生命周期 | Effect 的 finalizer | 手动 teardown | fiber 逆序回滚 |
+| 装配方式 | 代码里组合 Layer | 编译期固定 | cordis.yml + patch 层叠 |
 
-最深的一点差异是：OpenCode 用 Effect-TS **只解决"依赖注入"这一件事**；Codex 干脆把组合逻辑写死在事件 Reactor 内部，几乎没有"另一个框架"。而 `dsh` 把**整个"依赖 + 事件 + 生命周期"的框架层也 vendor 进来当抽象层**——这意味着它要扩展，**不必改 `dsh` 内部代码**，只要"挂一个新的 Cordis 插件"就能替换装配里几乎任何部件（包括 loop 本身）。
+最深的一处差别在哲学上：OpenCode 用 Effect-TS 解决"依赖注入"这一件事，Codex 把组合逻辑作为内部结构的一部分自己写，两者都不把"组合"本身当成一个可替换的层。`dsh` 把依赖、事件、生命周期这整层外包给一个 vendored 框架，等于宣称：连"怎么组装自己"都不算产品的私有代码。要迁移到新产品形态，适配面落在 Cordis 的插件协议上，不需要碰 `dsh` 的任何内部代码。
 
-这告诉我们一个工程取向：当你要做一个"可被任意产品装配的引擎"，把"组合你内部各个模块"的这一层做成**一个可被替换的第三方框架**，会显著降低"迁到一个新产品"的二次成本——你只需要适配 Cordis 的插件化，而不必改 `dsh` 的内部。
-
+代价也直白：读 `dsh` 之前必须先读一个第三方框架的心智模型；框架升级要整个 vendor 同步；调试时栈里多了一层不属于自己的代码。这是一笔用学习成本换组合性的交易，`dsh` 认为值得。
 
 ## 八、小结：五件事拼出插件树
 
-现在整理一下：读懂 `dsh` 的地基，其实是你理解五个 Cordis 原语：
+把这台地基机器收进五条：
 
-1. **Context（共享作用域）**——所有插件共有的仓库，靠 `ctx.<key>` 解耦。
-2. **注册即副作用（`effect`/`on`）**——每个注册返回可逆卸载凭证，热重载自洽。
-3. **waterfall（委托）**——中间件链路，"next=" 表达截断/包装；是拦截与重写的骨架。
-4. **Service 声明 + inject 注入**——依赖图自动排序，"谁先谁后"不靠手动排时序。
-5. **scope（per-agent 私有注册）**——在"共享"之上做"按 agent/session 隔离"，同进程路由，不是安全边界。
+1. **Context（服务仓库）**——`ctx.<key>` 键解耦，`extend`/`isolate`/`intercept` 三种派生互不改父。
+2. **注册即副作用**——`effect`/`on` 的一切贡献绑在 fiber 上，卸载逆序回滚，对已销毁 fiber 注册直接抛错。
+3. **五模式事件**——观察（emit/parallel/serial）与委托（waterfall/bail）分家，模式是事件的公共契约。
+4. **Service + inject**——构造即注册，加载顺序由依赖声明推导，没有中央调度器。
+5. **scope**——注册上下文统一可见性与所有权，per-agent 隔离，但它是信任路由不是沙箱。
 
-再加上 **Loader + cordis.yml**：运行时原语负责"怎么共存"，装配器负责"怎么组装成一棵可跑的树"。
+加上 Loader 把声明变成树，`dsh` 的全部上层建筑——agent 循环、会话日志、工具管线、能力缝——都站在这五件事上。下一篇走进树的主干：`agent-loop`，一个把自己写成"默认实现"的循环。
 
-下一次埋好了伏笔：** agent-loop 就是在这样一棵 Cordis 树上长得"默认驱动"那一段**，而 `agent/pre-step`、`agent/request` 这些 waterfall 事件，正是在实践我们在第三节讲的"拦截/包装"语法。让我们顺着树走进它 —— 下一篇 **03-agent-loop**。
+## 源码索引
 
+- `docs/cordis-primer.md` — 五个核心想法、dispatch 模式表、waterfall 语义、Loader 求值时机
+- `vendor/cordis/src/context.ts` — Context、extend/isolate/intercept
+- `vendor/cordis/src/events.ts` — 五种 dispatch 实现、on/register 与 fiber 绑定
+- `vendor/cordis/src/service.ts` — Service 基类、构造即注册
+- `vendor/cordis/src/fiber.ts` — effect 收集与 UNLOADING 状态机
+- `vendor/cordis/src/registry.ts` — inject 声明解析
+- `vendor/include/` — `@deepseek-ai/cordis-plugin-include`，cordis.yml 装载
+- `packages/core/scope/` — dsh-scope：createScope、父子链、可见性契约
+- `docs/cordis-tutorial/` — 三种插件形态、生命周期、服务、事件的动手教程
 
 ## 章节小测
 
 <script setup>
 const q = [
   {
-    question: 'Cordis 里 "加载顺序" 主要靠什么 推导出来？',
-    options: ['由上往下层的中央调度器手动排定启动顺序', '由每个插件用 `inject` 声明的依赖关系自动推导', '按代码文件的 import 顺序依次加载', '按配置文件中写定的行号顺序固定执行'],
+    question: 'Cordis 里插件之间定位彼此的服务，靠什么？',
+    options: ['import 对方包的导出类', '在 context 上按稳定键读写', '走全局单例注册中心', '由配置文件硬编码绑定'],
     correct: 1,
-    explanation: '需要的是"用服务的依赖声明自动推导加载顺序"；这样不依赖手动排时序，也正是"无特权核心"的落地。其余三项都要中心化排序或写死顺序。'
+    explanation: 'Context 是服务仓库：服务占一个 `ctx.<key>`，使用方按键取用而非 import 实现，所以换实现只是换注册到该键的插件。A 会把使用方绑死在实现包上，C/D 都不是 Cordis 的机制。'
   },
   {
-    question: 'Cordis 的哪种事件模式，配合 `next()` 最像中间件/管道？',
-    options: ['emit（同步广播，观察者都看到事件）', 'serial（顺序 await，直到一个 bails）', 'waterfall（配合 next() 逐个委托并传递结果）', 'parallel（并行 await 所有监听）'],
+    question: '一个 waterfall 监听者不调 `next()` 直接返回，后果是？',
+    options: ['整条链只剩内置行为执行', '框架自动替它补调 next', '链条其余环节与内置行为都被否决', '运行时抛 CordisError'],
     correct: 2,
-    explanation: 'waterfall 给每个 listener 一个 next()，可以阻止或包装结果再传给下一位，这是中间件链的核心；emit/serial/parallel 是观察/定案而非逐层包装。'
+    explanation: 'waterfall 的语义：不调 next 即否决，链条剩下的监听者连同最内端的内置行为都不会执行。A 说反了，B 不存在这种兜底，D 是对已销毁 fiber 注册时才会抛的错。'
   },
   {
-    question: '`ctx.effect()` 与 `ctx.on()` 共同体现 Cordis 的哪条关键原则？',
-    options: ['注册是全局、唯一的，卸载后仍留在内存', '注册是一次性消费，调用后立即销毁', '注册是可回退的副作用，随 fiber 卸载而自动撤销', '注册只允许注册一次，复用需重载'],
+    question: '几十个插件的加载顺序，Cordis 靠什么决定？',
+    options: ['按 cordis.yml 的行位依次启动', '按包名字典序加载', '由 root 插件手动编排', '由 inject 声明的服务依赖推导'],
+    correct: 3,
+    explanation: '条目并发启动、行位不保证顺序；声明了 `inject` 的插件等所需服务全部到位才激活，顺序从依赖图推导出来。A 与事实相反，B/C 的机制不存在。'
+  },
+  {
+    question: '关于 `dsh-scope` 的定位，正确的说法是？',
+    options: ['它是同进程的信任路由，不是沙箱', '它是不可绕过的安全边界', '它只影响事件，不管注册的回收', '它只能在 web profile 下生效'],
+    correct: 0,
+    explanation: 'README 明确 scope 路由可信的同进程插件、不是沙箱或权限边界；安全隔离由沙箱与审批策略负责。B 夸大了它的安全承诺，C 漏掉了它对注册生命周期的所有权，D 无此限制。'
+  },
+  {
+    question: '一个插件通过 `ctx.on()` 注册的监听器，什么时候被摘除？',
+    options: ['等进程退出时才统一清理', '事件触发满一次后自动移除', '插件所在 fiber 卸载时自动回滚', '需要手动调用全局清理接口'],
     correct: 2,
-    explanation: '`effect`/`on` 的核心是"注册即副作用、可逆卸载"，返回 disposer 且绑定 fiber 生命周期，热重载/卸载时自动回滚。其余都是把注册视为不可逆状态。'
-  },
-  {
-    question: '关于 `dsh-scope` 提供的每 agent 隔离，下面说法正确的是？',
-    options: ['它是同进程内的信任路由，并非安全沙箱', '它是不透传的安全边界，可替代权限策略', '它只影响事件，不影响任何注册的生命周期', '它只能在 CLI 模式下生效'],
-    correct: 0,
-    explanation: '`createScope` 创建带标签作用域，让注册同时拿到可见性与生命周期，但 README 明确"非沙箱/权限边界"，是信任路由。B 说它是安全边界错误，D 说只在 CLI 生效错误，C 则漏了 scope 拥有每个注册的回收。'
-  },
-  {
-    question: '`dsh` 为什么 vendor Cordis 而不自建框架？整篇最能说明取舍的是？',
-    options: ['把组合层也交给一个框架，让模块都以插件编写', '为了省掉写 Event 总线的几行代码', '因为 npm 上找不到替代品', '为了完全依赖第三方而不可被替换'],
-    correct: 0,
-    explanation: 'vendor Cordis 是把"组合/事件/生命周期"这一层整个变成外部框架，使 agent-loop 等都可 swappable；这服务于"通用 harness"目标。其余三项都不是 vendor Cordis 的真正动机。'
+    explanation: '监听器作为 effect 存进当前 fiber 的卸载项，fiber 卸载进入 UNLOADING 时逆序执行 disposer。B 说的是 `once()`，A/D 都不是这套生命周期模型。'
   }
 ]
 </script>

@@ -1,182 +1,166 @@
 ---
-title: Agent 接口与默认 loop：一个 agent 到底怎么跑一个回合
+title: agent-loop：一个可换的默认驱动
 ---
 
-# Agent 接口与默认 loop：一个 agent 到底怎么跑一个回合
+# agent-loop：一个可换的默认驱动
 
-> 本文基于 `dsh-v0.1.0-rc.7`。项目处于 developer preview，迭代很快，文中机制以该基线为准。
+前两篇把地基铺完了：插件树靠什么组装（Cordis），插件怎么共存怎么回滚（五个原语）。这一篇走进树的主干——`agent-loop`，`dsh` 的默认驱动。它的源文件头注释只有两句话，却是整篇的地图：
 
-前两篇：`dsh` 是一片插件的森林，Cordis 是拼森林的框架。那么问题来了——**在这棵插件树里，真正驱动 agent"跑一个回合"的那个东西，长什么样？**
+> Default Agent driver over queued turns and step-boundary input. Every request is derived from the session log.
 
-上一页已经买下伏笔：它叫 `agent-loop`，是 Cordis 树上"默认驱动"那一段，而且**明确是可替换的**。这一篇我们就走进它，把一个 agent"跑一个回合"的完整过程、以及它如何在事件流上把"模型请求 + 工具调用"组织成一个闭环，拆开看。
+排队的回合、步边界上的输入、全部从会话日志推导的请求。读完这一篇，你会带着三个问题的答案离开：
 
-本篇主线是一个最具体的问题：**"跑一个回合"到底拆成几个层次、每个层次在什么时候触发什么事件、谁负责让这个循环停下来、谁又决定让它继续。** 理解了它，你就理解 `dsh` 的核心执行模型——它和 OpenCode 的 while 循环、Codex 的事件 reactor 是同一件事的三种不同活法。
+- 一个回合在哪里打开、在哪里关闭，为什么会存在"零步回合"？
+- 用户消息、运行中插话、后台注入，三种输入凭什么走同一个入口却行为不同？
+- 都叫"默认驱动"了，把整个循环换掉要动多少代码？
 
+step 内部"请求怎么从日志里长出来"的细节是下一篇的主角，工具执行的裁决链放在第五篇；这里只管循环本身的骨架。
 
-## 一、step 与 turn：这个系统最基础的执行单位
+## 一、step 与 turn：两个不可混的量纲
 
-连续第 2 篇我们讲过 Cordis 事件。但 `agent-loop` 真正组织工作流动靠**两个量纲不可混**的概念：step 与 turn。`docs/architecture.md` 的 Turn flow 一节开头的定义是整个系统的地基：
+`dsh` 给执行模型定了两个单位，`docs/architecture.md` 的定义是整座建筑的地基：
 
 > A **step** is one model request plus the tools it calls. A **turn** is zero or more steps: it opens before its first input is claimed and closes once nothing is owed.
 
-翻译并放大：
+step 是一次模型请求加它调用的工具；turn 是零或多个 step，开在第一次认领输入之前，关在"不再欠任何东西"之时。两个边界都值得抠：turn **开得早**——`turn/start` 先落日志，输入才被认领；**关得晚**——step 全部结束后，还要过一道"是否还有未清偿的输入"检查。
 
-- **step（步）** = 一次模型请求 + 这次请求调的工具。模型答一次、调几个工具、拿到结果，这是"一步"。
-- **turn（回合）** = **零或多步**。它在你第一次认领输入之前就"开启"，在"不再欠任何东西"时"关闭"。
-
-这个"turn 开得早、关得晚"的设计，恰恰是它与"每输入一条就回一条"的简单 agent 的最大不同。一个 turn 可以是：
-
-- 只走一步就完（模型直接给了答案，没调工具）；
-- 走很多步（模型为了完成一件事，反复"调工具 → 看结果 → 再请求模型"）；
-- 甚至是零步（被拒绝了、或被改写成空，turn 开起来但一步没花）。
-
-### 为什么让 turn 归零也能存在？
-
-这里要给一个设计取舍。为什么 "turn" 要独立于 "step" 单独存在？因为有一个不可回避的问题：**一个 turn 该在什么时候关？**
-
-如果 turn 在"没输入就关"，那就不可能有模型的多步工具循环；如果 turn 等到"一定有输出才关"，那就无法取消、无法在空被拒时收场。所以 Cordis 选了"turn 打开于第一认领前、关闭于全清"，让"输入认领"与"模型调用"成为两个可拆的边界。这就是 event-driven 的好处：turn/step 的边界都是**可观测事件**，谁想注入拦截，都在这两条缝上。
-
-
-## 二、turn 生命周期事件流：一步步的模型循环
-
-`agent-loop` 跑一个 turn，实际上是在**按序派发一串事件**。这些事件构成了这个系统的"骨架主循环"，`docs/architecture.md` 画得很直白：
-
-```text
-turn/start
-  claim next-step input plus one queued message
-  assemble prompt sections + tool schemas
-  -> agent/pre-step                   reject | enter(messages)
-     step/start
-     append entered messages as user/message
-     derive model history from the log
-     agent/request -> llm/stream -> assistant/chunk* -> assistant/message
-     tool/call* -> tools/pre-execute -> tools/execute -> tools/post-execute -> tool/result*
-     step/end
-     tools owe another request, or next-step arrived -> claim -> next step
-  -> agent/turn-stopping
-turn/end
-```
-
-在这条链里，你看到两类事件被**刻意分开**：
-
-- **持久化事件（durable session events）**：`turn/start`、`step/start`、`user/message`、`assistant/*`、`tool/*`、`step/end`、`turn/end`。这些是"事实已经发生"，会**被写进 session log**（第 4 篇专门讲`log`），是模型上下文与回放、持久化的来源。
-- **活的事件（live extension points）**：`agent/*`、`llm/stream`、`tools/*` 这些是"正在跑的过程"，多半是可拦截、可改写的扩展点，不进日志。
-
-这背后就是第 4 篇"Model-visible ⟺ logged"这条全系统最硬的设计原则的**前置**：凡是模型能看到的东西，都必须能从日志重建。而事件链正是把"运行"与"记录"分成两部分的机制。
-
-### step 内部的工具循环
-
-真正的"模型↔工具循环"发生在 step 内部。`agent.ts` 的 `step()` 里主循环是我们最该看的一段。它这样跑：
+驱动这个边界的是 `agent.ts` 里一个 84 行的 `turn()`，主循环长这样：
 
 ```ts
-// packages/core/agent-loop/src/agent.ts:340-399
-const stream = preparedCall?.stream(request) ?? this.loopCtx.llm.stream(request)
-for await (const chunk of stream) {
+// packages/core/agent-loop/src/agent.ts:312-347（节选，signal 检查与 try/finally 包裹略）
+while (true) {
   signal.throwIfAborted()
-  chunkSeqs.push(this.session.append('assistant/chunk', { turn, step, chunk }).seq)
-  assembler.push(chunk)
-}
-const toolCalls = message.content.filter(block => block.type === 'tool-call')
-if (toolCalls.length === 0) return { kind: 'completed' }
-const { concluded } = await executeToolCalls(...)
-return concluded ? { kind: 'completed' } : null
-```
-
-这段对应上面的设计思路：
-
-1. **流式请求**。通过 `llm.stream` 拿 chunk，每块都写进 session log（`assistant/chunk`）。
-2. **如果没有 tool-call**，这次 step 直接 `completed`。
-3. **如果有 tool-call**，就走 `executeToolCalls`，它返回 `concluded`；如果工具还欠另一个请求（工具自己又触发了新模型请求），循环 `while(true)` 继续，形成多步。
-
-所以"一步"的边界，其实不是"一次模型调用"，而是"**一次模型调用 + 它带来的工具调用，一直跑到不再欠模型为止**"。
-
-
-## 三、inbox：所有输入都经过一个门
-
-agent 怎么拿到"用户消息"？它不直接从 session 读，而是通过**单 inbox（单一收件箱）**。看 `agent.ts` 的 `send()` 与三种加入方式：
-
-```ts
-// packages/core/agent-loop/src/agent.ts:122-132
-followup(input: UserMessage): void {
-  this.send(input, 'next-turn', true)   // 排队普通下回合消息，唤醒 driver
-}
-steer(input: UserMessage): void {
-  this.send(input, 'next-step', true)   // 排队唤醒"下一步"的输入
-}
-inject(input: UserMessage): void {
-  this.send(input, 'next-step', false)  // 排队上下文，不唤醒
+  const step = phase.step + 1
+  const decision = await this.preStep(target, { turn, step })
+  if (decision.kind === 'reject') {
+    turnEnds = { kind: 'blocked' }
+    return false
+  }
+  if (turnEnds && decision.messages.length === 0) break
+  // 被移除的唤醒消息或被改写为空的决策仍拥有 turn 边界，
+  // 但不花任何模型调用：
+  if (phase.step === 0 && decision.messages.length === 0) {
+    turnEnds = { kind: 'completed' }
+    return false
+  }
+  this.session.append('step/start', { turn, step })
+  const stepEnd = await this.step(decision)
+  if (turnEnds === null || turnEnds.kind !== 'max-tokens') turnEnds = stepEnd
+  this.session.append('step/end', { turn, step })
+  if (turnEnds && this.inbox.nextStep.length === 0) {
+    await this.dispatch.serial('agent/turn-stopping', { turn, signal })
+  }
+  if (turnEnds && this.inbox.nextStep.length === 0) break
+  target = 'next-step'
 }
 ```
 
-三种输入，`InboxTarget` 与 `wakeup` 各不同：
+四条规则从这段循环里直接读出来：
 
-- **followup → next-turn + 唤醒**：普通用户下一条消息，让 agent 马上动起来。
-- **steer → next-step + 唤醒**：正在运行时，喂给"下一步"。
-- **inject → next-step + 不唤醒**：注入上下文，**等另一个消息来唤醒后才被认领**。
+1. **零步回合存在**。`preStep` 被拒，turn 以 `blocked` 关闭；第一步认领到空批次，turn 以 `completed` 关闭——两种情况都落了 `turn/start` 与 `turn/end`，却一步没花。
+2. **turn 的关闭条件是"不欠"**。`turnEnds` 非空且 next-step 队列为空才停；工具执行中途往 next-step 塞了新输入，循环就继续走下一步。
+3. **收尾要过一道串行检查**。`agent/turn-stopping` 在"本该关了"时触发，检查两次——第一次触发前后，监听者都还有机会往 next-step 里 steer 新输入，把 turn 留住。
+4. **`turn/end` 在 finally 里落盘**。turn 以什么理由结束都要记录，循环自己发出的理由是五种：`blocked` / `completed` / `max-tokens` / `aborted` / `error`（类型上另有 `interrupted` 与 `forked`，分别留给 resume 修复孤儿回合与 fork 种子使用，循环不产生）。其中 `max-tokens` 有粘性——某步顶到上限后，后续正常完成的步不能把 turn 的结局改写成正常。
 
-最后一种（`inject`）正是"上下文注入排队"的机制：它是 `next-step` 但 `wakeup=false`，所以 idle 时它静静躺在 inbox 里，下一次 `followup` 唤醒 driver 时它才被认领。这与第 7 篇"上下文注入"里 `agent.inject()` 的行为是一致的。
+![turn 与 step 的边界与收尾判断](/images/deepseek/03-turn-step-flow.svg)
 
-`docs/architecture.md` 有一句概括：
+这套定义把"回合"从"一问一答"松绑成了"一个债务清偿区间"。模型多步调工具、审批中途打断、压缩后重试，全部装得下，而且每个边界都是日志上的事件——这是后面所有扩展（压缩、hooks、子代理）能挂上来的前提。
 
-> Input reaches the driver through **one inbox**. Some messages wake it immediately; injected context waits in the inbox until another message does.
+## 二、单一 inbox：三种输入、一次认领
 
-inbox 的价值是**把"输入"从"输入源"解耦**：无论是用户、工具、子 agent 的注入还是恢复，最后都落到同一个 inbox，由 driver 统一认领，而不是每个系统各开一条路插进 loop。这给运行时提供了稳定的扩展点（`agent/inbox/*`），也一并把取消时的"撤销未认领消息"统一到一个地方。
-
-
-## 四、waterfall 与 serial：拦截点在 loop 上缝出来了
-
-第 2 篇介绍了 Cordis 的 waterfall 语义。现在看它在 agent-loop 里如何被真正用起来——**这是"在可换 loop 上做扩展"的关键机制**。
-
-`docs/architecture.md` 指名了一族：
-
-> `agent/pre-step`（改写/reject）、`agent/request`（配置请求）、`llm/stream`（流式请求）、`tools/*` 这些是 **waterfall**；`agent/turn-stopping` 是 **serial**（无 next，直接停）。
-
-拆开两个最重要的：
-
-### agent/pre-step：决定"模型这次到底看到什么"
-
-`agent.ts` 的 `preStep()` 里，对模型历史做"认领 → 组装上下文 → 交给 waterfall 决策"：
+输入怎么进 loop？`dsh` 的答案压在一条通道上：所有输入都进一个 inbox，由 driver 统一认领。对外的三个方法共享一个 `send()`，只差两个参数：
 
 ```ts
-// packages/core/agent-loop/src/agent.ts:229
-const claimed = this.inbox.claim(target, position.turn)
+// packages/core/agent-loop/src/agent.ts:153-172
+send(message: UserMessage, target: InboxTarget, wakeup: boolean): void {
+  const wakingAfterAbort = wakeup && this.phase.kind !== 'idle'
+    && this.phase.abort.signal.aborted
+  const resolvedTarget = wakingAfterAbort ? 'next-turn' : target
+  this.inbox.splice(resolvedTarget, Infinity, 0, [message])
+  if (wakeup) this.wakeDriver(wakingAfterAbort)
+}
+
+followup(input: UserMessage): void { this.send(input, 'next-turn', true) }
+steer(input: UserMessage): void { this.send(input, 'next-step', true) }
+inject(input: UserMessage): void { this.send(input, 'next-step', false) }
+```
+
+三种输入的语义完全由参数组合决定：
+
+| 方法 | 目标队列 | 唤醒 | 语义 |
+|------|---------|------|------|
+| `followup()` | next-turn | 是 | 普通用户消息，开始下一个回合 |
+| `steer()` | next-step | 是 | 运行中插话，塞进当前回合的下一步 |
+| `inject()` | next-step | 否 | 后台注入上下文，等下次认领 |
+
+`inject` 是三种里最值得停下的：它排队 next-step 但 `wakeup=false`，所以一个空闲中的 agent 收到注入，这条内容只是静静躺在 inbox 里，直到某条 `followup` 或 `steer` 唤醒 driver 才被一并认领。架构文档的概括只有一句：One inbox feeds the driver; injected context waits for a waking message。文件变更提醒、时间上下文这类"该知道但不该催活"的信息，全部从这里进来。
+
+认领的语义在 `inbox.ts` 里：
+
+```ts
+// packages/core/agent-loop/src/inbox.ts:109-114
+claim(target: InboxTarget, turn: number): UserMessage[] {
+  const claimed = this.mutate('next-step', 0, this.nextStep.length, [], false)
+  if (target === 'next-turn') claimed.push(...this.mutate('next-turn', 0, 1, [], false))
+  for (const message of claimed) this.dispatch.emit('agent/inbox/claimed', { message, turn })
+  return claimed
+}
+```
+
+一次认领拿走**全部 next-step 加一条 next-turn**（当这个边界要消费回合时）。认领之后才插入的消息留在队列里等下一个边界——中途的 steer 不会打断已认领的批次，只影响下一步。
+
+这个 inbox 还是耐久的。`ReactLoopInbox` 的每次变动都是一条 `agent/inbox/spliced` 会话事件，状态由投影从日志折叠出来；取消一条排队消息、清空整个队列，都作为日志事实落盘。进程重启后 inbox 自动恢复——排着队的输入不会因为一次崩溃消失。
+
+`wakingAfterAbort` 那个分支补了一个边界情况：唤醒类输入撞上一个正在中止的活动时，会被改判为 next-turn，去开一个新回合——旧活动已经注定要放弃了。
+
+![三种输入进入单一 inbox 的路径与认领批次](/images/deepseek/03-inbox-three-inputs.svg)
+
+## 三、拦截面：两个 waterfall 与一个 serial
+
+第二篇讲过 Cordis 的五种事件模式。落到这个循环上，承重的拦截点是三个，模式分配体现了意图：
+
+**`agent/pre-step`（waterfall）——决定模型这一步看到什么。** `preStep()` 的核心是一次瀑布派发：
+
+```ts
+// packages/core/agent-loop/src/agent.ts:275-284（节选）
 const decision = await this.dispatch.waterfall(
   'agent/pre-step', { messages: claimed, ...position, signal },
-  (): Promise<PreStepDecision> =>
-    Promise.resolve<PreStepDecision>({ kind: 'enter', messages: context === undefined ? claimed : [...claimed, context] }),
+  (): Promise<PreStepDecision> => Promise.resolve<PreStepDecision>({
+    kind: 'enter',
+    messages: context === undefined ? claimed : [...claimed, context],
+  }),
 )
-return decision.kind === 'reject' ? decision : { ...decision, assembly }
 ```
 
-waterfall 最后一个参数是**默认的 `next`**：如果没有任何监听者，`enter` 原样把 `claimed`（加 context）作为要进模型的 batch 返回。监听者可以：
+瀑布的默认 `next` 是"原样进入"：认领的消息加上组装好的运行时上下文。监听者可以改写 `messages`（重写、裁剪、追加），也可以返回 `{ kind: 'reject' }` 直接拒绝这一步。返回的决策是权威的——包装 `next()` 的监听者必须透传下游的消息批次和 `startsRequestSeries` 声明，除非有意替换。压缩插件就挂在这里：请求推导前检查上下文压力。
 
-- 改写 `messages`（重写 / 裁剪、注入什么）；
-- 或 `{ kind: 'reject' }` 直接不执行这一步。
+**`agent/request`（waterfall）——决定这次请求怎么发。** 在 `prepareRequest()` 里，种子配置（provider、model、reasoningEffort）先过一遍瀑布，监听者可以换路由、调参数，瀑布兜底是声明的初始路由。拿到配置后 `ctx.llm.prepareCall()` 绑定适配器，产出这次调用真正的 config。
 
-这是 `agent/pre-step`"决定模型看到什么"的入口。
+**`agent/turn-stopping`（serial）——决定 turn 关不关。** 为什么收尾用 serial 而不是 waterfall？因为收尾是单决策事件：监听者按序执行，返回非空值即定案，没有 `next()` 链可以委托。想留住 turn 的监听者（比如"等用户确认"的审批逻辑）在这里调 `steer()` 往 next-step 塞一条输入，让循环的收尾检查失败、turn 继续；只想观察的监听者返回空值，不碰结论。
 
-### agent/turn-stopping：在没有 next 的情况下停 turn
+三种意图，三种模式：改写用 waterfall（多插件层层包装）、收尾用 serial（归一定案）。`dsh` 里几百个扩展点基本都是这两个原语的排列组合。
 
-与 `pre-step` 是 waterfall 不同，**`agent/turn-stopping` 是 serial 事件，没有 `next()`**。`agent.ts` 里：
+## 四、一次 step 的内部：请求从日志里来
+
+`step()` 是最长的方法，但主线一句话能说完：**从日志推导请求，把结果写回日志**。时序文档给了权威的六步：
+
+1. `prepareRequest()`：`agent/request` 瀑布定路由，`prepareCall` 绑定适配器；
+2. 系统提示按节点调和落 `system/message`，进入的用户消息落 `user/message`，请求头按需落 `request/header`（理由是 initial / resume / change / series 四选一）；
+3. `deriveMessages()` 从日志冻结出模型历史，拼上工具 schema，构成不可变请求；
+4. 流式执行：chunk 推给 `agent/assistant-stream`（进程内实时帧，不落日志）；
+5. 结算：成功的流落 `assistant/message`——它记录每次成功的 provider 调用，嵌入确切的紧凑流数据；失败、重试、取消、流错误的尝试落 `assistant/attempt`，不进模型历史；
+6. 工具调用：没有 tool-call 直接 `completed`；有就走 `executeToolCalls`，工具执行中还能往 next-step 塞上下文（`agent.ts:518` 把一个 splice 通道递给了工具管线），返回 `concluded` 决定 step 是否完成。
+
+两个设计点值得单独放大。其一，**重试不重复前戏**：`agent/request-error` 瀑布给出重试动作后，重试发生在当前 step 内部——重新 prepare、调和同一份已渲染的装配，但不重跑 `agent/pre-step`，也不重复用户的 admission。前戏是日志里已定的事实，不因一次网络失败作废。其二，**流的双轨**：实时性走 `agent/assistant-stream`（chunk 级、进程内、瞬态），持久性走 `assistant/message` / `assistant/attempt`（settlement 级、落日志、可重放）。进程在流中途崩溃，日志里没有这次尝试——结算点之前的流本来就是易失的。
+
+头注释那句 "Every request is derived from the session log" 在这里兑现：请求不是内存里攒的数组，是日志状态的函数。这根线拉到下一篇就是整个会话日志系统的入口。
+
+## 五、取消与恢复：状态都在日志里
+
+循环的三态相位是 `idle` / `maintenance` / `running`，全部装在一个 `Phase` 联合类型里。取消的入口干净得出奇：
 
 ```ts
-// packages/core/agent-loop/src/agent.ts:295-298
-if (turnEnds && this.inbox.nextStep.length === 0) {
-  await this.dispatch.serial('agent/turn-stopping', { turn, signal })
-}
-```
-
-它只在一个 turn "本该关" 但之前调用一次，`serial` 按注册顺序执行，谁"返回非 null/false/undefined"就停（bail）。谁监听它来**绝对停 turn**（比如"需要用户确认才能继续"），就可以返回值拦下那条结论；而普通观察者不会破坏循环。
-
-**waterfall vs serial 的设计分工**：waterfall 表达"一道请求经过多个插件层层包装、任一层可截断"；serial（+ bail）表达"一次收尾决策、谁定案就是定案"。`dsh` 把"进 step 前的协商"用 waterfall、"turn 收尾的决定"用 serial，正好把"可多步定案"与"必须归一"两种意图焊在两个不同事件上。
-
-
-## 五、取消与恢复：heavy 中断/重启的兜底
-
-一个 `agent-loop` 处理了这么久，必然要处理"被中断"。最直观的就是**取消**。`agent.cancel(cause)` 看 `agent.ts` 的 `cancel()`：
-
-```js
-// packages/core/agent-loop/src/agent.ts:134-140
+// packages/core/agent-loop/src/agent.ts:174-180
 cancel(cause: AgentCancelCause, options: CancelOptions = {}): void {
   if (!options.keepInbox) {
     this.inbox.clear()
@@ -186,88 +170,75 @@ cancel(cause: AgentCancelCause, options: CancelOptions = {}): void {
 }
 ```
 
-它分两步：清 inbox（除非 keepInbox）+ abort 当前 phase。abort 会顺着 signal 一路传播到正在跑的 stream / 工具执行 / pre-step 的 waterfall 里，每一个 `signal.throwIfAborted()` 都把取消变成"该处抛错"，最终走到 `turn/end` 的 `{ kind: 'aborted', reason }`，并把整个 driver 的 activity 收敛关闭。
+默认连 inbox 一起清掉（排队的工作随取消作废，且作废本身是日志事实）；传 `keepInbox: true` 则只中止进行中的 turn、保留待办。cause 是封闭的四种：`user` / `parent` / `disposed` / `hook`，abort signal 把它一路带进正在跑的流、工具执行、瀑布中间，每个 `throwIfAborted()` 都把它变成该处的异常，最终落到 `turn/end` 的 `{ kind: 'aborted', reason }`。
 
-而"**厚重中断 / 重启**"这条，其实是" 持久化"那一侧收到的。因为事件是 session log 里的**事实**（turn/step/user/assistant/tool），agent 死后，另一个进程可以**resume**（`resumeSessionId`）从日志重建上下文。`agent-loop` 的 plugin 里，`restoreOrCreateConfigured`/`resumeWith` 就是干这个：从一个持久化的 session id 把 agent **rehydrate** 起来，而不是从零新建。
+唤醒的锁存是这个状态机里最细的一笔：wake 撞上 `maintenance` 或正在中止的活动时不会丢失，而是记在 `wakeRequested` 上；活动收敛回 idle 时检查锁存与队列，有活就重新起 driver。所以"维护中来了用户消息"不会出现"维护吞了消息"——它要么排队要么触发下一轮。
 
-这给一个很关键的设计点：**取消/恢复不是写一堆代码去"停/起"，而是建立在"事件日志是唯一事实源"之上**——停就是"停一下 inbox + abort"，重启就是"从日志再水合一次"，两者都不需要一个破坏性的 global 状态。
+恢复走另一条完全不同的路：`ctx.agents.resume()` 加载持久化的会话，在它上面重建 agent。循环本身不需要任何"恢复逻辑"——`turnBoundary` 投影从日志算出 `lastTurn`，inbox 投影从 splice 事件算出排队输入，下一条 `request/header` 的理由标记为 `resume`。取消是"停一下"，恢复是"从日志再水合"，两边都不需要一个专门的恢复协议，因为状态从头到尾只有一个来源。
 
+![driver 的三态相位与取消、唤醒锁存路径](/images/deepseek/03-phase-machine.svg)
 
-## 六、为什么 "agent-loop" 可以随便换（swappable）
+## 六、可换的默认驱动
 
-批判了一路，最后收在这个最"dsh 味"的点上。我们开头就说过，`dsh` 最像 OpenCode/Codex 的地方，是它允许**换掉整个循环**。
+最后回到标题。`agent-loop` 凭什么敢叫"默认"驱动？`dsh-agent` 包的实现说明把分离摆在第一位：
 
-`docs/architecture.md` 明确 `ctx` 表格里，agent 是"定义接口"，`agent-loop` 是"**默认驱动**"。这就足够回答了：如果某个产品不想用默认 loop，它完全可以：
+> The package is built on one separation: the public `Agent` surface and registry live here, while construction and driving live in the loop package behind a registered factory. Consumers therefore depend on `dsh-agent` and never on `dsh-agent-loop`, keeping the driver swappable.
 
-1. 在它的 Cordis 树里 mount 一个**自己的 agent 插件**，实现 `Agent` 接口，并用 `ctx.agents.register()` 注册；
-2. 不必改 `dsh` 任何一行内部代码。
+消费方——UI、hooks、编排器、工具插件——拿到的都是 `Agent` 接口与 `ctx.agents` 注册表，具体驱动藏在注册的 factory 后面。想换循环的产品 mount 一个自己的驱动插件、注册 factory，`dsh` 内部代码一行不动。包边界从第一天起就是这么设计的：`agent-loop` 自己也只是通过 `ctx.agentLoop` 键挂在树上的一个普通插件。
 
-再看 `core/agent` 的 README，开篇就点题：
+| 维度 | OpenCode | Codex | DeepSeek Harness |
+|------|----------|-------|------------------|
+| 主循环形态 | while(true) 的 runLoop | 事件 reactor | turn/step 边界驱动 |
+| 循环归属 | 产品中心，写死 | 产品中心，写死 | 注册 factory 后的默认实现 |
+| 消费方依赖 | 依赖产品本体 | 依赖产品本体 | 只依赖 `dsh-agent` 接口 |
+| 换循环的代价 | 改核心代码 | 改核心代码 | mount 一个新驱动插件 |
 
-> Agent interface, registry, process-local initiator scope, and `agent/*` event vocabulary. Every plugin (UI, hooks, orchestrators) programs against the Agent handle defined here — **it has zero loop dependency, so the loop is swappable**.
+三种循环没有高下，差别在"循环是产品的固定件，还是框架的一个可换件"。`dsh` 选了后者，于是这篇拆的所有机制——零步回合、单一 inbox、三个拦截点、五态收尾——都只是"当前默认实现"的行为，而非产品的宿命。
 
-"zero loop dependency"—— 绝大多数插件只依赖 `Agent` 接口那层，不依赖 `agent-loop` 这个具体类。这一层解耦，是把"默认 loop 可换"变成可行性的关键：如果所有插件都硬依赖 `ReactLoopAgent`，那 loop 就换不了；因为它们只依赖通用 `Agent` 接口，才让你能任意换一种实现。
+下一篇顺着 step 内部那句"请求从日志推导"往下挖：会话日志凭什么敢当唯一事实源，`deriveMessages()` 怎么投影，以及那条全系统最硬的不变量——model-visible ⟺ logged。
 
-所以这节的结论是：**agent-loop 并不是" dsh 的心脏"，而是"dsh 的默认心脏"**。它的价值恰在于它是默认——当你要定制产品，你换的是那个"默认驱动"，而不是"整个架构"。
+## 源码索引
 
-
-## 七、三终端 Agent 的同能不同构：三种主循环
-
-到这里，把本文主角对三栏终端 agent 的主循环放一张对比表（延续全专栏的"同能不同构"）：
-
-| 维度 | OpenCode | Codex | DeepSeek Harness（`dsh`） |
-|------|----------|-------|---------------------------|
-| 主循环形态 | while(true) 7 步 runLoop | 事件 reactor + SessionTask | **event-driven 插件循环（turn/step）** |
-| 一次请求 → 输出 | runLoop 内一次 step | Turn 生命周期 | turn 内 step 展开工具循环 |
-| 输入怎么进 | 用户消息压入 | submission 入队 | **单一 inbox（next-turn/next-step）** |
-| 可拦截点 | 内建策略函数 | handler 细分 | **Cordis 事件（waterfall/serial 缝）** |
-| 循环可否换 | 硬编码进二进制 | 硬编码进二进制 | **`agent-loop` swappable** |
-
-核心差异浓缩成一句：
-
-> **OpenCode 与 Codex 的循环硬编码进二进制，它们稳定、快，但不可替换；`dsh` 把"主循环"降级成一个可插拔的默认实现，换引擎不影响其它插件。** 三种循环没有肥瘦对错，差别在"循环是产品中心的固定件，还是框架层的一个可换件"。
-
-再到这一篇收个尾，也把全专栏的线续上：
-
-> `dsh` 的 agent-loop 不是"心脏"，而是"默认心脏"——它先给一个好用的默认，再把"换掉它"的权力交给每一个拿它做产品的公司。
-
-### 下一篇：走进 session log
-
-理解了一个 agent 怎么"跑一回合"，最硬的设计问题随之而来：**模型看到的上下文到底从哪来？为什么"能回放"与"持久化"是同一件事？** 这就走进第 4 篇——会话日志与上下文投影，`deriveMessages()` 与 "model-visible ⟺ logged" 那条全系统最硬的不变量。
+- `packages/core/agent-loop/src/agent.ts` — ReactLoopAgent：turn/step 主循环、preStep、cancel、相位机
+- `packages/core/agent-loop/src/inbox.ts` — ReactLoopInbox：耐久投影与认领语义
+- `packages/core/agent/README.md` — Agent 接口、注册表、swappable 分离设计
+- `docs/architecture.md` — Turn flow 与事件清单
+- `docs/agent-lifecycle.md` — turn/step 全时序图
+- `packages/core/agent-loop/src/tool-calls.ts` — 工具调用的分类与执行（第五篇展开）
 
 ## 章节小测
 
 <script setup>
 const q = [
   {
-    question: '"step 是循环里的最小工作单位"，关于 step 与 turn 哪个说法正确？',
-    options: ['一轮模型调用加它的工具调用；turn 是 0+ 个 step', 'step = 整个回合，turn = 单次模型调用', 'step 与 turn 完全等价，只是命名不同', 'step 只记录文本，turn 只记录工具'],
+    question: '关于 step 与 turn 的关系，正确的说法是？',
+    options: ['turn 是零或多个 step 组成的区间', 'step 和 turn 是同一层的别名', 'turn 必须至少包含一个 step', 'step 可以横跨多个 turn'],
     correct: 0,
-    explanation: 'step 是一个模型的请求+其工具调用；turn 是 0 或多个 step（先开于认领前、后闭于无欠。B/C/D 皆把两者概念写反或等同。'
+    explanation: 'step 是一次模型请求加其工具调用；turn 开于首次认领前、闭于无欠项，可以是零步（被拒或空批次）。B 等同两者，C 否认零步回合，D 把层次说反。'
   },
   {
-    question: '为什么 `send()` 用单一 inbox 而不用各输入源直插 loop？',
-    options: ['所有输入落到同一队列，拿到统一认领/撤销语义', '为了省去处理一条消息要写的少量代码', '因为 inbox 一次只容纳一条消息', '因为这样就能把消息丢掉而不被记录'],
-    correct: 0,
-    explanation: '单一 inbox 解耦输入源与 driver，并提供稳定的 claim/discard 语义与可取消边界。后三项只是把 inbox 当成限制/容错，不是设计动机。'
+    question: '`inject()` 与 `followup()` 的关键差别在于？',
+    options: ['inject 排队 next-turn 且立即唤醒', 'inject 排队 next-step 但不唤醒 driver', 'inject 的内容不进会话日志', 'inject 只能在 turn 中间调用'],
+    correct: 1,
+    explanation: 'inject = next-step + wakeup=false：内容排队等待下次认领，不唤醒 driver；followup = next-turn + 唤醒。A 是 followup 的参数，C 说反了——排队本身落日志，D 没有这种限制。'
   },
   {
-    question: '关于 `agent/request` 这个 waterfall 点的语义，下面哪句最准确？',
-    options: ['多个插件串行改写同一份请求，末尾有默认 next 兜底', '它是写死在主循环内部、不可拦截的逻辑', '它只做观察，不对请求做任何影响', '它和 `serial` 语义完全等价'],
-    correct: 0,
-    explanation: '`agent/request` 是 waterfall：监听者可逐层改写请求配置，最后兜底到默认 next；可委托、可截断，与 serial（一次 bail 定案）不同。'
+    question: '`agent/pre-step` 的监听者返回 `{ kind: \'reject\' }`，会发生什么？',
+    options: ['当前 step 跳过，turn 继续下一步', '整个 turn 以 blocked 关闭，不花一步', '请求照发，结果被丢弃', '框架抛错并中止 driver'],
+    correct: 1,
+    explanation: 'reject 是权威决策：认领的批次已从 inbox 移除，打开的 turn 以 blocked 收尾、一步不花。A 说不花代价地继续，C/D 都不是这套语义。'
   },
   {
-    question: '为什么让 turn 在"首次认领前"开、在"无欠项"后关？',
-    options: ['为了能驱动多步工具/模型循环，也记空回合', '为了减少整体模型调用次数', '因为 turn 至少要执行一次 step', '因为 turn 必须保证有输出才闭'],
-    correct: 0,
-    explanation: 'turn 开于首次认领前、闭于无欠，才有空间容纳多步模型/工具循环、以及一个零 step 的空回合；其余选项把 turn 的必要性理解偏了。'
+    question: '`agent/turn-stopping` 为什么用 serial 而不是 waterfall？',
+    options: ['serial 更容易实现异步等待', 'waterfall 不允许监听者返回值', 'serial 的监听者可以改写消息批次', '收尾是单决策定案，没有可委托的 next 链'],
+    correct: 3,
+    explanation: 'turn 收尾要的是归一决策：监听者按序执行、返回非空即定案，想留住 turn 就 steer 一条输入进去。waterfall 的层层包装语义在这里没有对应物，A/B/C 与两种模式的语义无关。'
   },
   {
-    question: '为什么不把 `agent/turn-stopping` 做成瀑布（pre-step 那种），而是 serial？',
-    options: ['收尾是定案点：按序执行，遇 bail 即停，无 next 链可改', '因为 turn 收尾不需要任何事件参与', '因为 serial 比 waterfall 更好写成', '因为模型无法接收瀑布调用'],
-    correct: 0,
-    explanation: '`agent/turn-stopping` 是 turn 的收尾定案，serial 按顺序+遇 bail 停，无 next()，是"归一"而非"委托"；pre-step 需要多插件改写才用 waterfall。'
+    question: '一个产品想换掉默认 agent 循环，正确的路径是？',
+    options: ['fork 整个仓库后改 agent.ts', '给 agent-loop 提交补丁重新装配', 'mount 一个新驱动插件并注册 factory', '修改 cordis.yml 中 agent-loop 的配置行'],
+    correct: 2,
+    explanation: '驱动藏在注册的 factory 后面，消费方只依赖 dsh-agent 接口；换循环就是挂一个注册了新 factory 的插件，dsh 内部代码不动。A/B 违背"无特权核心"，D 只能改配置不能换实现。'
   }
 ]
 </script>

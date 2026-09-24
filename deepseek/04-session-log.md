@@ -1,192 +1,194 @@
 ---
-title: 会话日志与上下文投影：模型看到的上下文从哪来
+title: 会话日志与上下文投影：模型看到的历史从哪来
 ---
 
-# 会话日志与上下文投影：模型看到的上下文从哪来
+# 会话日志与上下文投影：模型看到的历史从哪来
 
-> 本文基于 `dsh-v0.1.0-rc.7`。项目处于 developer preview，迭代很快，文中机制以该基线为准。
+上一篇拆循环时反复出现一句话：每个请求都从会话日志推导。这一篇就把日志本身拆开。先给一个反直觉的事实：`dsh` 里**没有"历史消息"这个存储**——模型看到的上下文、UI 的回放、持久化到磁盘的会话、fork 出的分支，全部是同一份**追加式事件日志**的不同投影。
 
-前三篇我们走过了：森林（插件）→ 框架（Cordis）→ 默认 driver（agent-loop）。现在到了整个 `dsh` 里**最硬、也最能代表它设计哲学**的一个问题——**模型看到的上下文到底从哪来？**
+这个选择值得专门用一篇来解释。读完你会带着三个问题的答案离开：
 
-你可能会觉得这是个老问题：不就是把历史消息攒一份传给模型吗。`dsh` 的答案非常不"当然"：它**不存"历史消息"这个状态**，而是只存一份**追加式的事件日志**，模型的上下文是每次从日志里**推导（derive）**出来的。这一篇就讲清楚：为什么这么做、deriveMessages 怎么推、以及"model-visible ⟺ logged"这条不变量为什么是全文最硬的锚点。
+- 只追加、不许改的日志，怎么折叠出模型要看的消息数组？
+- 压缩要"删掉"一段旧对话，在一份不许改的日志上怎么做到？
+- "凡是模型可见的都必须在日志里"这条约束，凭什么不是一句口号？
 
-先给这一篇的核心判断：
+请求头、代际迁移这些持久化侧的机制放在其中一节带过；工具结果的修剪策略属于压缩插件自己的事，点到为止。
 
-> **在 `dsh` 里，"能回放"和"持久化"是同一件事——因为它们共享同一个单一事实源：追加式的 `SessionEvent` 日志。** 模型历史、UI 回放、fork、resume、标题、telemetry，全是这份日志的不同投影。
+## 一、追加式日志：唯一事实源
 
-
-## 一、追加式日志：一份不可变的单一事实源
-
-`docs/subsystems/session.md` 开头就点破了这个模型：
-
-> A `Session` is an **append-only log** of typed `SessionEvent`s — the single source of truth for an agent's whole interaction history. The LLM message history is *derived* from the log, never stored separately; replay is re-derivation from the same events.
-
-拆开来有四个设计点：
-
-1. **追加式（append-only）**。事件只能往尾部加，编号 `seq` 连续单调（`seq = log.length`）。谁也不许回改历史。
-2. **带类型（typed）**。`SessionEvent` 是一个**可判别联合**（discriminated union over `type`），`switch(type)` 就能精确窄化 `data`，而不用到处 cast。
-3. **单一事实源（single source of truth）**。整个 agent 的所有交互过程，只有一个权威记录。别的视图（上下文、回放、UI）都由它派生。
-4. **可扩展（merge-extensible）**。`SessionEventMap` 允许插件用声明合并（declaration merging）往里追加新事件类型——这又一次接回第 2 篇的"一切皆插件"：连"一条会话里能记录哪种事件"都是插件可扩展的。
-
-### 一个 log 条目长什么样
-
-`SessionEvent` 的核心字段，见 `session/subsystems/session.md` 的类型（这里取其运行相关的字段，源码类型还含依 `SurfaceEventType` 条件追加的 surface 元数据分支，下节会讲）：
+一个 `Session` 就是一条只能往尾部追加的类型化事件流。每条事件的形状：
 
 ```ts
-type SessionEvent<T extends SessionEventType = SessionEventType> = {
+// packages/core/session/src/types.ts:493-511（节选）
+export type SessionEvent<T extends SessionEventType = SessionEventType> = {
   [K in SessionEventType]: {
     type: K
-    seq: number          // 单调位置，seq = log.length
+    seq: SessionSeq      // 单调位置（品牌化数字）
     time: number         // epoch ms
     data: SessionEventMap[K]
-    ignorable?: true     // 未知类型时可否跳过
+    ignorable?: true     // 未知类型时可否安全跳过
   }
 }[T]
 ```
 
-`seq`/`time` 是"位置 + 时间"，`data` 是该事件自己的载荷。`ignorable` 是个很细但重要的点：一条最新 / 插件新增的**纯信息事件**可以标 `ignorable: true`，让旧读者在不认识它时安全跳过；而不标这个标记的未知事件，读者必须**拒绝重建**，因为它可能改变整个日志之后所有条目的理解。这是"宁可过度拒绝、不静默残缺"的失败方向设计。
+三件事在这条类型上就能读出来。**追加式**：`seq` 连续单调，谁也不许回改历史。**带类型**：`SessionEventMap` 是声明合并扩展的联合，插件用 `declare module` 就能往会话里加新事件类型，`switch(type)` 精确窄化载荷。**可拒绝**：不认识的事件类型默认让读取方拒绝重建——除非事件标了 `ignorable: true`，声明自己是纯信息性的、跳过不影响理解。宁可拒绝读取，也不静默残缺，失败方向是定死的。
 
-为什么"日志即事实源"能成立，得益于一个层叠契约：**所有 `event.data` 必须可无损 JSON 序列化**，而 `Session.append` 会在写入源头做校验——非 JSON 可序列化（BigInt、函数、class 实例、循环引用等）直接拒。这样一来"日志能落盘"和"日志能回放"合二为一：既然日志格式本身保真，那么"持久化"只需把日志原样存下来，"回放"只需原样读回来——**两者共享这段日志，不需要第二份"历史消息"存储**。
+写入端有一道硬校验：`session.append()` 会把载荷做一次**无损 JSON 验证**——BigInt、循环引用、稀疏数组、`-0`、异常原型全部在写入点拒绝，日志里的每条事件都是原样落盘、原样读回的。这一步把"能持久化"和"能回放"合并成了同一件事：落盘就是把日志写出去，回放就是把日志读回来，两边共享同一份格式。
 
+事件分两大类，上一篇已经见过分界线。**持久化事件**（`turn/*`、`step/*`、`user/message`、`assistant/message`、`tool/*`……）是"已经发生的事实"，落日志；**活事件**（`agent/*`、`llm/stream`、`tools/*`）是"正在跑的过程"，可以拦截改写，不落日志。模型上下文属于前者。
 
-## 二、deriveMessages()：从日志推导模型历史
+## 二、Surface 与投影：从日志到 Message[]
 
-日志是"记录了一切"的仓库，但模型要看到的是"装饰好的消息数组"。这个转换就是 `deriveMessages()`——`docs/subsystems/session.md` 是这么说的：
+日志记录了一切，模型要的是消息数组。`deriveMessages()` 负责这次翻译，它的缓存实现能看清整个思路：
 
-> `Session.deriveMessages()` projects the event log into the `Message[]` the model sees — cached (each surface node projected once) and frozen.
-
-一条消息怎么从事件推出来，原则如下（`session.md` 的 projection rules）：
-
-- `user/message`（用户输入）→ 一个带精确 `content` 的 user 消息；
-- `assistant/message`（拼好的助手消息）→ 带 provider/model 的 assistant 消息；**原始 `assistant/chunk` 事件属于回放/UI 数据，推导时被跳过**——已拼好的消息才是权威；
-- `tool/result`（工具结果）→ 一个携带 `tool-result` 块的 user 消息；
-- 其它（`turn/*`、`step/*`）是**结构性事件，不投影成消息**。
-
-还有一个容易被忽略的边界：**空 content 的 `assistant/message` 也不投影**。max-tokens 把一次输出打断成零内容时，日志仍会留一条 `assistant/message`（只是为了记录 usage/provider/model），但它不能以"空助手消息"的身份混进模型历史——否则模型会看到一堆空洞的助手回合。
-
-这个"跳过 chunk、用已拼好消息"的取舍是核心：原始 chunk 保留**回放保真**（UI 想逐 token 还原），而**模型历史**用的是 `assistant/message` 这个"已经拼好的权威"，两者职责分离。
-
-### Surface：推导时"哪些事件算数"
-
-更精确地说，推导不是傻白地扫日志，而是维护一个**Surface（有序表面）**。`SessionEvent` 上只有三种事件带"表面元数据"（`SurfaceEventType = user/message | assistant/message | tool/result`），它们各自用 `surfaceOp` 声明自己怎么进表面：
-
-```ts type-equiv
-type SurfaceOp =
-  | 'append'
-  | { op: 'replace'; start: number; end: number }
+```ts
+// packages/core/session/src/index.ts:842-856（节选）
+deriveMessages(): Message[] {
+  const surface = this.surface
+  const nodes = surface.nodes
+  const generation = surface.contentGeneration
+  if (generation !== this.derivedGeneration) {
+    this.derived = []
+    this.derivedNodes = 0
+    this.derivedGeneration = generation
+  }
+  for (const seq of nodes.slice(this.derivedNodes)) {
+    const msg = this.deriveEventMessage(this.log[seq]!)
+    // …空内容节点等特殊情形在此过滤
+  }
+}
 ```
 
-- `append` = 正常向尾部加；
-- `{ op:'replace', start, end }` = 用这条新节点**替换**从 `start` 到 `end` 的表面节点，被换掉的（shadowed）必须能被 `sourceEventSeqs` 追溯到——这正是**压缩（compaction）**做"摘掉一段旧对话、用一个摘要替换"用的机制（第 7 篇专门展开）。
+投影不是扫整条日志，而是沿一份 **Surface（有序表面）**折叠。五种消息类事件在表面上有节点：`system/message`、`developer/message`、`user/message`、`assistant/message`、`tool/result`；其余事件（chunk、turn 边界、attempt）天然缺席推导。每个表面节点第一次被投影时深冻结缓存，之后复用；`contentGeneration` 一变（有替换或投影变更）缓存整体作废重建。返回的数组每次是新的，里面的消息对象是共享且冻结的——派生历史不可改写。
 
-所以 `Session.surface` 返回一个**只读的最新表面投影**（`nodes` = 当前模型可见顺序 + `replaceGeneration`），`deriveMessages()` 沿这个表面折叠出消息。这样：
+每种事件怎么变成消息，规则写得很细：`assistant/message` 携带拼好的完整消息（内嵌确切的紧凑流数据）；空内容的 system/developer 节点不投影（清空系统提示必须落"空替换"事件，而不只是改最后一条）；工具结果变成带 `tool-result` 块的 user 消息。
 
-- 未带 surface 标记的事件（chunk、turn 边界）**天然缺席**推导；
-- 压缩的 `replace` 从推导里**删掉被遮蔽的旧节点**——模型看到的是摘要，不是被删的历史。
+![一份日志派生多个投影](/images/deepseek/04-log-projections.svg)
 
-**deriveMessages 的缓存**值得一句：每个 surface 节点第一次见到时投影一次并**深冻结**，之后复用；一个 `replace`（重写）会重建缓存。每次调用返回**新数组**（后面 append 不回充给已持有的调用者），但里面的 `Message` 对象是共享、深冻结的。这样派生历史不可改写：凡是能无损保留的，都在日志里以冻结形式存在，投影只能读、不能改。
+关键的机制是 `SurfaceOp`。消息类事件 append 时必须声明自己的表面操作：
 
+```ts
+// packages/core/session/src/types.ts:462-464
+export type SurfaceOp =
+  | 'append'
+  | { op: 'replace'; startSeq: SessionSeq; endSeq: SessionSeq }
+```
 
-## 三、"model-visible ⟺ logged"：全文最硬的不变量
+`append` 是正常入列；`replace` 用这条新事件**遮蔽**从 `startSeq` 到 `endSeq`（含端点、按当前表面顺序）的旧节点——旧事件还在日志里，只是从表面上消失，推导不再经过它们。`sourceEventSeqs` 记录每个节点的派生来源，被遮蔽的节点可以追溯。这份"表面"是日志之上的薄薄一层可变视图，也是后文压缩一节能成立的地基。
 
-如果只有"从日志用它"，还不够硬。`dsh` 把它推到了极致：**任何能到达模型的东西，都必须能从日志重建；否则这条模型的可见输入不该存在。** `docs/architecture.md` 原话：
+## 三、model-visible ⟺ logged：运行时断言
 
-> **Model-visible means logged.** Anything that reaches a model request must be reconstructable from the log, and a runtime invariant asserts it. This is why a new model-visible input requires a new session event: extend `SessionEventMap` and render from the log.
+现在把全系统最硬的约束摆出来。架构文档的原话：
 
-把这句话反过来读，它在**约束所有插件作者**：
+> **Model-visible means logged.** Anything that reaches a model request must be reconstructable from the log, and a runtime invariant asserts it. A new model-visible input requires a session event.
 
-- 如果你要往模型的上下文里加一个新东西（注入一段指令、塞一个来自子 agent 的结果），
-- 你不许"偷偷传一个还没写日志的值"，
-- 你必须**先新增一个 `SessionEventMap` 事件**，把这件事记录下来，再从日志渲染给模型。
+这句话约束的是所有插件作者：想往模型上下文里加东西，必须先声明一个新的会话事件类型、从日志里渲染出来，不存在"绕过日志直接塞给模型"的口子。
 
-为什么这个不变量是"最硬"的？因为四个后果是它想保证的：
+它凭什么不是口号？因为有一个 invariant 伴随插件在每个 `llm/stream` 请求上逐条断言，源码只有几十行，核心是：
 
-1. **回放即重演**：因为上次的模型输出都能从日志重建，重放整个日志就能得到完全一样的推导 + 一样的模型历史。UI/agent 的 replay 不是"顺便支持"，而是"必然成立"。
-2. **resume 天然可行**：新进程/新对话拿到日志就可以重建上下文，不用额外存一份"上下文快照"，不会因为漏存某份快照而丢上下文。
-3. **持久化简化为日志**：因为上下文能重建，落盘只要存日志、不需要另存"模型历史"，也就天然避免了两份状态失步。
-4. **审计/telemetry 免费**——凡模型可见的，日志都有；凡是日志的，都可以被 telemetry / 调试观测到。
+```ts
+// packages/core/agent-loop/src/invariant.ts:40-53（节选）
+const expected = session.deriveMessages()
+if (JSON.stringify(options.messages) !== JSON.stringify(expected)) {
+  fail(`llm request for session "${String(session.id)}" diverges from the dispatch-time durable derivation (log-reconstruction desync)`)
+}
+const headerMatches = options.model === header.config.model
+  && options.system === undefined
+  && options.temperature === header.config.temperature
+  && options.maxTokens === header.config.maxTokens
+  && JSON.stringify(options.stop) === JSON.stringify(header.config.stop)
+  && JSON.stringify(options.tools ?? []) === JSON.stringify(header.tools ?? [])
+if (!headerMatches) {
+  fail(`llm request … diverges from the folded request header`)
+}
+```
 
-为了让这条不变量"不只是文档、而是运行时真保证"，`dsh` 配了 companion **invariant**（`@deepseek-ai/dsh-agent-loop/invariant`）——它在每次 `llm/stream` 请求上断言：请求携带的 `messages` 必须与 `session.deriveMessages()` 一致、`request/header` 必须能从日志重建，否则报"log-reconstruction desync"。换句话说，**"这次发给模型的请求 == 就此日志推导出的请求"是在运行时逐请求校验的**。这一层的关键意义在第 3 篇也埋过伏笔：`deriveMessages()` 从日志读上下文、loop 又往日志写事件，两者闭环——**一个模型请求的输入 = 在它之前日志里全部事件的某个函数**，因此"日志能重建模型请求"就等于"重放日志 == 重游那次会话"，而 invariant 把这一关系从"约定"压成了"断言"。
+发出去的请求，消息必须与当前日志推导完全一致，配置必须与折叠的 `request/header` 一致，系统提示必须以表面节点 0 的身份走在 `messages` 里而不是 `system` 字段。任何一条不满足，报 "log-reconstruction desync" 直接失败。前面几篇见过的机制在这里拼成闭环：loop 从日志推导请求（03 篇）、日志承载全部事实（本篇）、invariant 在每个请求出口验算两者相等。**"重放日志 = 重现这次会话"从约定被压成了断言。**
 
+这条约束的回报有四份：回放必然成立（输出都能从日志重建）；resume 不需要快照（新进程读日志即恢复上下文）；持久化简化为存日志（不存在第二份状态失步）；审计免费（凡模型可见，日志必有一份）。
 
-## 四、有资格共享这个单一事实源的：万物皆派生
+## 四、fork 与恢复：日志的再利用
 
-现在可以把第 2 篇那句口号顺下来了：**不是"模型 context 与持久化分开存"，而是"模型 context（deriveMessages） 的展示、回放都从同一个日志派生"**。`dsh` 里有多个"从日志派生"的东西：
+日志的派生能力里有几处值得拆开看的：**fork**、**崩溃修复**，加上持久化侧的代际迁移。
 
-| 能力 | 怎么来 | 说明 |
-|------|-----------|------|
-| 模型历史 | `deriveMessages()` / surface | 上面第二节 |
-| Web UI 回放 | `surface` 投影 + `assistant/chunk` | 逐 token 保真回放 |
-| fork（分支） | `ctx.sessions.fork(source, boundary)` | 取一段稳定前缀、在边界（默认当前末尾）之前、在一个 turn 之后，深拷贝种子到子会话 |
-| resume（恢复） | `resumeSessionId` + 日志重建 | 从持久化会话把 agent 重新水合 |
-| 标题（title） | `sessionTitle` 从日志摘要 | 派生标题 |
-| telemetry | 订阅 `session/event` | 观测追加事件 |
+`ctx.sessions.fork(source, boundary?, childSessionId?)` 从活会话拷贝一段精确的包含性事件前缀（默认到最后一 event）。`buildForkSeed` 在拷贝的前缀之后落一个 `inherited` 标记、只给**开着的 step** 补缺失的错误工具结果、然后用 `forked` 理由关掉这个 step 和 turn——子会话从"已闭合的干净前缀"起步，`ownEvents()` 从标记之后算自己的事件。边界不挑位置：`fork` 可以切在开着的 turn 中间，未闭合的尾巴由 `buildForkSeed` 补齐收口，唯一要求是边界落在一条连续存在的 seq 上。
 
-关键在 fork 的设计：`fork(source, boundary, childSessionId)` 要求选择的前缀**不落在开着的 turn 中间**（拒绝"分裂半途 step"这种边界），而是从稳定点、深克隆 seed 到子会话。这就是"从日志做执行分支"——**分支 = 拷贝一份日志前缀 + 一个全新结尾**，而不是复制一段内存状态。
+补出来的错误结果分两种，措辞是给模型读的：孤儿工具调用（有 `tool/call` 无结果）补 `TOOL_OUTCOME_UNKNOWN`，明确告诉模型"结果未知；只读或幂等操作可以直接重试，有副作用的先核实外部状态"；连 start 记录都没有的补 `TOOL_NOT_STARTED`。模型拿到的不是一句干巴巴的 error code，而是带操作指引的判断依据。
 
-（还有"transcript"：human-facing transcript 读日志的追加原始事件，而 Surface 因为会被 replace 遮蔽前段，所以 transcript 读的是 append 来源、不是 surface。）
+**崩溃修复**是 fork 语义的孪生兄弟：`repair.ts` 冷修复崩溃孤儿日志（比如 03 篇的 `interrupted` 收尾理由就来自这里）；持久化侧则有代际迁移——JSONL v0 用 `session.jsonl[.zstd]`，v1 起用小写的 `session.vN.jsonl[.zstd]`，已提交的代际路径永不改名、不被覆盖、不被删除；格式升级走"邻接迁移链"，每个迁移包只负责一步 `vN → vN+1`，读取方按最高代际选择、只认识当前逻辑格式。会话数据的演进同样遵守"只追加"的世界观：不修改历史，发布下一代。
 
+## 五、压缩：在只追加的日志上"删"东西
 
-## 五、与三栏对比：谁的"日志即单一事实源"最彻底
+长会话终究要压缩。`dsh` 的答案分两层：**机制**给到会话日志（surface replace），**策略**整个做成一条 capability 缝——`ctx.compaction` 是接口、`dsh-compaction-basic` 是默认实现、`/compact` 命令是消费方，三件套的机制留给下一篇专讲。文档原话：Compaction is one optional capability, not part of the agent-loop spine——压缩与 bash 同构，loop 脊柱里没有它的位置。
 
-三种终端 Agent：OpenCode 用 `zod` 校验消息 + SQLite 持久化；Codex 会话有 message chunk。它们的日志/持久化**都是"平行于模型的另一份存储"**；而 `dsh` 把"模型上下文本身"就做成了"从日志推导"，二者**同一份**：持久化就是要"store 日志"，回放/上下文就是要"derive 日志"，模型上下文同样是"日志的一个函数"。
+压缩对日志做三件事。第一，**摘要以一条独立的 `user/message` 落地**，带 `surfaceOp: { op: 'replace', startSeq, endSeq }`——这是 summary 型压缩执行的唯一一次表面变更。被替换的旧段从此对推导不可见，`shadowedSeqs` 记录权威的被遮蔽节点集。有个容易绕住的细节：`shadowedRange` 是表面位置跨度，做过一次 replace 之后，新摘要节点落在旧位置上，`start` 完全可以大于 `end`——认 `shadowedSeqs`，别按数值区间理解。
+
+第二，**锁写进日志**。压缩事务由三条 log-only 事件夹住：`compaction/start`（拿锁，记 turn 号或手动时的 `null`）→ 摘要 → `compaction/summary`（记摘要、被遮蔽范围、token 数、模型调用）→ `compaction/end`（放锁）。锁最后释放是有意设计：操作中途崩溃，日志里留下的是"有 start 无 end"的**孤儿锁**——可检测、可修复；顺序反过来就会留下一条谎称压缩已完成的 `end`。活跃的未匹配 start 会阻塞所有压缩入口。
+
+第三，**触发与恢复挂在 loop 的拦截点上**。压力压缩跑在 `agent/pre-step`（请求推导前检查上下文压力），溢出恢复跑在 `agent/request-error`（413 之后在开着的 step 内重试，且只有表面替换代际推进了才重试，否则原错误保持权威）。三个入口对应三种时机：`compactIfNeeded`（自动策略，trigger 是 `pressure` 或 `context-overflow`）、`compactNow`（手动 `/compact`，空闲时低于阈值也压）、`compactRegion`（显式范围）。
+
+对 KV cache 的影响也记录在案：append 保前缀，`replace` 从第一个被遮蔽的消息开始作废复用——日志保持只追加，缓存的前缀却断了，这笔账 Model Experience 文档写得很清楚。
+
+![压缩事务：日志里的锁与表面替换](/images/deepseek/04-compaction-lock.svg)
+
+## 六、与三栏对比：谁把"日志"当得最彻底
 
 | 维度 | OpenCode | Codex | DeepSeek Harness |
 |------|----------|-------|------------------|
-| 模型历史来源 | 单独攒的 messages 数组 | 会话头 / chunk 累积成一个 Message[] | **`deriveMessages()` 从日志投影** |
-| 是否另存"历史" | 是（messages 数组 + DB） | 是（Message 构建） | **否：唯日志，消息靠 derive** |
-| 回放 | 有 | 有 | 与持久化/上下文是**同一条**日志 |
-| 运行时保证 | 校验 schema | 部分 | **"model-visible ⟺ logged" invariant 断言** |
+| 模型历史来源 | messages 数组 + SQLite | 会话累积的 Message[] | `deriveMessages()` 从日志投影 |
+| 另存一份"历史" | 是 | 是 | 否，唯日志 |
+| 压缩落点 | 自有压缩策略 | 自有压缩策略 | surface replace + 独立压缩缝 |
+| 运行时保证 | schema 校验 | 部分 | 逐请求 invariant 断言 |
 
-`dsh` 最彻底的一点是**把"能回放、能持久化、能构建上下文"三项统一到"日志这一件事"上**，并用一个运行时 invariant 去 assert 它。这等于直接对插件作者声明了一条纪律：**"你往模型里塞的任何东西，必须先从日志里长出"**——它用架构和断言把"上下文一致性"这个软绵绵的愿望，压成了一条硬约束。
+三个终端 Agent 的持久化都是"平行于模型上下文的另一份存储"；`dsh` 把模型上下文本身做成日志的投影，持久化与回放与上下文三件事共用一个源，再用运行时断言把这个等式焊死。代价也明摆着：每次请求都要走一遍投影与校验，写路径多了一层不可绕过的纪律。换来的是"日志永不撒谎"——这对一个要被任意产品装配的引擎，比省下的那点开销值钱。
 
+下一篇离开日志，去看它消费得最重的邻居：capability 缝——为什么换一个 provider 能牵一发动全身，工具裁决链又挂在这张网的哪个位置。
 
-## 六、小结与下一站
+## 源码索引
 
-把这一篇的线收拢：
-
-1. **会话日志** = 追加式不可变事件流，`seq` 连续、JSON 保真，是**唯一**事实源。
-2. **deriveMessages()** = 从日志投影出模型要看的消息；chunk 保回放、assistant/message 供推导。
-3. **Surface** = 给"哪些消息进推导"加一层有序表面，压缩用 `replace` 遮蔽旧段。
-4. **model-visible ⟺ logged** = 最硬不变量：任何模型可见输入必须能从日志重建，invariant 断言。
-5. **fork/resume/title/telemetry** = 全是同一个日志的不同投影。
-
-下一篇，环路终于要回到"行动"：agent 已经能用上下文去请求模型、用工具去改变环境——**工具的注册、prompt 注入、执行管线** 到底是怎样把"模型请求一个工具"变成"真实落盘/受限步骤"的？那就走进第 5 篇：**工具系统与执行管线（tools pipeline）**。
-
+- `packages/core/session/src/types.ts` — `SessionEvent`、`SessionEventMap`、`SurfaceOp`
+- `packages/core/session/src/index.ts` — `Session`、append 校验、`deriveMessages` 缓存
+- `packages/core/session/src/surface.ts` — 有序表面投影与替换验证
+- `packages/core/session/src/fork.ts` — `buildForkSeed` 与孤儿工具结果
+- `packages/core/session/src/repair.ts` — 崩溃孤儿日志的冷修复
+- `packages/core/agent-loop/src/invariant.ts` — 请求重建断言
+- `packages/core/session/README.md` — 事件溯源契约与投影规则
+- `docs/subsystems/compaction.md` — 压缩缝、事件表、锁语义
+- `docs/architecture.md` — Session log 与代际迁移
 
 ## 章节小测
 
 <script setup>
 const q = [
   {
-    question: '`dsh` 为什么"不存 messages"，而是存一份 Event 日志再推导？',
-    options: ['让模型历史、回放、持久化共用同一份源，避免三份状态失同步', '因为 JS 内存不够存 messages', '为了故意让代码更难读', '因为模型只接受 event 数组作为输入'],
+    question: '`dsh` 不单独存"历史消息"，直接收益是什么？',
+    options: ['回放、持久化、上下文共用一个源', '减少了内存里的对象数量', '让模型请求变快了', '日志文件比数据库更小'],
     correct: 0,
-    explanation: '单一事实源使"能回放 == 能持久化 == 能构建上下文"，这是设计核心；其余把日志当成单纯的"接口要求"。'
+    explanation: '单一事实源使"能回放 == 能持久化 == 能构建上下文"，三份状态不会失步。B/C/D 都不是这个设计的目标，投影本身反而多了一层工作。'
   },
   {
-    question: '为什么 `deriveMessages()` 投影时"跳过 `assistant/chunk`、用 `assistant/message`"？',
-    options: ['chunk 保留回放保真，推导用拼好的整块，才做职责分离', '因为 chunk 太小无法表示', '因为消息已经不需要 chunk', '因为 chunk 不包含 provider'],
-    correct: 0,
-    explanation: 'chunk 是逐 token 的 UI/回放数据；推导要的是拼好的 assistant/message（含 provider/model）。二者目的不同，所以分开。'
+    question: '`SurfaceOp` 的 `replace` 到底做了什么？',
+    options: ['把旧事件从日志里删除', '把整条日志重排一次', '遮蔽旧段，旧事件保留', '把旧消息冻结成只读'],
+    correct: 2,
+    explanation: 'replace 只改表面视图：旧节点从推导中消失、新摘要落在原位置，日志本身保持追加式不变，被遮蔽节点靠 shadowedSeqs 追溯。A 违反 append-only，B/D 都不是它的语义。'
   },
   {
-    question: '画一下，"model-visible ⟺ logged" 对插件作者最直接的约束是？',
-    options: ['往模型里加任何可见输入必须先新增 SessionEventMap 事件并可从日志渲染', '要每隔几 turn 手动同步一次消息数组', '日志里可以只记录模型输出不必记录输入', '只要模型识别了就行，是否记录无所谓'],
+    question: '运行时 invariant 在每个 `llm/stream` 请求上断言的核心等式是？',
+    options: ['请求消息与日志推导逐条一致', '请求 token 数不超过窗口上限', '工具调用都有配对的结果', '事件时间戳严格单调递增'],
     correct: 0,
-    explanation: 'invariant 要求"模型可见 ⟺ 已 log（可重建）"；新增模型可见输入必须先加日志事件。其余把"要不要记"交给拍脑袋，违背了这条硬约束。'
+    explanation: 'invariant 逐请求比对请求载荷与日志推导（含配置对折的 request/header），不一致即报 log-reconstruction desync。B/C/D 是别的检查或不变量，不是这条的核心。'
   },
   {
-    question: '`SurfaceOp` 里的 `{op:"replace", start, end}` 在压缩（compaction）里做什么？',
-    options: ['用一条新的 replace 节点遮蔽旧段、derive 时旧节点消失', '把整个日志重新排序', '把 session 复制一份副本', '把消息改成不可变供并行读'],
-    correct: 0,
-    explanation: 'replace 用新节点替换 [start,end] 的旧 surface 节点，旧段被 shadow 不在 derive 里，正是压缩"缩段放进摘要"的机制。'
+    question: '压缩的锁为什么 start 先落、end 最后落？',
+    options: ['让锁的持有时间最短', '减少日志事件的写入量', '让摘要事件排在最前面', '崩溃留下可检测的孤儿锁'],
+    correct: 3,
+    explanation: '中途崩溃留下"有 start 无 end"，可检测可修复；反过来会留下一条谎称压缩已完成的 end。锁是日志里的事实，不需要额外的锁状态机。A/B/C 与这个顺序设计无关。'
   },
   {
-    question: '`ctx.sessions.fork(source, boundary)` 从日志分支（fork）要求边界满足什么？',
-    options: ['前缀必须在 turn 之间结束，不能再落在开着的 turn 里面', '前缀必须落在某个 turn 的正中间', '边界点必须位于日志的开头', 'fork 后必须有整整一份历史删除'],
-    correct: 0,
-    explanation: 'fork 要求所选前缀结束于稳定 turn 之间（拒绝在开着的回合里分裂），这是从日志提供分支的前提。'
+    question: 'fork 前缀里发现一个"有 tool/call 无结果"的调用，补的 `TOOL_OUTCOME_UNKNOWN` 会告诉模型什么？',
+    options: ['直接重试即可，无需判断', '该调用已被系统主动取消', '只读或幂等可重试，副作用需核实', '需要用户手动补一个结果'],
+    correct: 2,
+    explanation: '补的结果带操作指引：结果未知时只有只读或幂等操作可安全重试，可能有副作用的先核实外部状态或询问用户。A 放弃了判断，B 把"结果未知"说成了"已取消"，D 不是机制的一部分。'
   }
 ]
 </script>

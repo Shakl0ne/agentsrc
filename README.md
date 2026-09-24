@@ -52,7 +52,7 @@
 | `claudecode/` | Claude Code 源码精读（10 篇） |
 | `opencode/` | OpenCode 源码精读（7 篇） |
 | `codex/`   | Codex 源码精读（8 篇） |
-| `deepseek/`| DeepSeek Harness 源码精读（8 篇） |
+| `deepseek/`| DeepSeek Harness 源码精读（6 篇） |
 | `reading/` | 论文解读与阅读随笔 |
 
 ## Star & 反馈
