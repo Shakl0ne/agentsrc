@@ -49,9 +49,6 @@
   <text x="200" y="413" class="inner-text">seq 5 · tool/call</text>
   <text x="200" y="446" class="inner-sub">append-only · typed</text>
 
-  <!-- spine line -->
-  <path d="M340 176 L340 460" fill="none" stroke="rgba(125,196,255,0.5)" stroke-width="3"/>
-
   <!-- arrows: log → projections -->
   <path d="M340 192 C 420 192, 440 170, 482 170" class="spine"/>
   <path d="M340 246 C 420 246, 440 260, 482 260" class="spine"/>
